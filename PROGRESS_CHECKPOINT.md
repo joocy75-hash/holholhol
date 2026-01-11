@@ -7,7 +7,7 @@
 
 ## 최종 업데이트
 - 날짜: 2026-01-11
-- 상태: P1 완료, P2 진행 중
+- 상태: P2 완료, P3 진행 중
 
 ---
 
@@ -17,6 +17,7 @@
 |-------|------|------|--------|
 | P0 | 레포 스캐폴딩 & 개발 워크플로 | [x] 완료 | 2026-01-11 |
 | P1 | 엔진 레이어 설계 | [x] 완료 | 2026-01-11 |
+| P2 | 실시간 프로토콜 v1 | [x] 완료 | 2026-01-11 |
 | P2 | 실시간 프로토콜 v1 | [ ] 미완료 | - |
 | P3 | UI/UX 스펙 | [ ] 미완료 | - |
 | P4 | 안정성 스펙 | [ ] 미완료 | - |
@@ -27,10 +28,10 @@
 
 ## 현재 작업 중
 
-- **Phase**: P2
-- **작업 내용**: 실시간 프로토콜 v1 문서 작성
+- **Phase**: P3
+- **작업 내용**: UI/UX 스펙 문서 작성
 - **진행률**: 0%
-- **마지막 완료 작업**: P1 엔진 레이어 설계 문서 완료
+- **마지막 완료 작업**: P2 실시간 프로토콜 v1 문서 완료
 
 ---
 
@@ -47,15 +48,20 @@
 - [x] docs/11-engine-state-model.md
 - [x] docs/ADR/ADR-0001-pokerkit-core.md
 
+### P2
+- [x] docs/20-realtime-protocol-v1.md
+- [x] docs/21-error-codes-v1.md
+- [x] docs/22-idempotency-ordering.md
+
 ### P1 (완료)
 - [x] docs/10-engine-architecture.md
 - [x] docs/11-engine-state-model.md
 - [x] docs/ADR/ADR-0001-pokerkit-core.md
 
 ### P2
-- [ ] docs/20-realtime-protocol-v1.md
-- [ ] docs/21-error-codes-v1.md
-- [ ] docs/22-idempotency-ordering.md
+- [x] docs/20-realtime-protocol-v1.md
+- [x] docs/21-error-codes-v1.md
+- [x] docs/22-idempotency-ordering.md
 
 ### P3
 - [ ] docs/30-ui-ia.md
@@ -81,10 +87,11 @@
 
 ## 다음 작업
 
-1. P2 시작: 실시간 프로토콜 v1
-2. docs/20-realtime-protocol-v1.md 작성
-3. docs/21-error-codes-v1.md 작성
-4. docs/22-idempotency-ordering.md 작성
+1. P3 시작: UI/UX 스펙
+2. docs/30-ui-ia.md 작성
+3. docs/31-table-ui-spec.md 작성
+4. docs/32-lobby-ui-spec.md 작성
+5. docs/33-ui-components.md 작성
 
 ---
 
