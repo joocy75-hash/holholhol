@@ -1,0 +1,479 @@
+"""FastAPI application entry point.
+
+홀덤1등 API - Texas Hold'em Poker Game Server
+"""
+
+import logging
+import uuid
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+from typing import Any
+
+from fastapi import FastAPI, HTTPException, Request, status
+from sqlalchemy import text
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+
+from app.api import auth, rooms, users
+from app.config import get_settings
+from app.services.auth import AuthError
+from app.services.room import RoomError
+from app.services.user import UserError
+from app.utils.db import close_db, engine, init_db
+from app.utils.redis_client import close_redis, init_redis, redis_client
+from app.ws.gateway import router as ws_router, get_manager, shutdown_manager
+
+settings = get_settings()
+
+# Configure logging
+logging.basicConfig(
+    level=getattr(logging, settings.log_level.upper()),
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Lifespan Events
+# =============================================================================
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Application lifespan handler for startup and shutdown events."""
+    # Startup
+    logger.info("Starting application...")
+
+    try:
+        # Initialize database connection
+        logger.info("Initializing database connection...")
+        await init_db()
+        logger.info("Database connection established")
+
+        # Initialize Redis connection
+        logger.info("Initializing Redis connection...")
+        await init_redis()
+        logger.info("Redis connection established")
+
+        # Initialize WebSocket connection manager
+        logger.info("Initializing WebSocket gateway...")
+        await get_manager()
+        logger.info("WebSocket gateway initialized")
+
+        logger.info("Application startup complete")
+    except Exception as e:
+        logger.error(f"Startup failed: {e}")
+        raise
+
+    yield
+
+    # Shutdown
+    logger.info("Shutting down application...")
+
+    try:
+        # Shutdown WebSocket manager first
+        logger.info("Shutting down WebSocket gateway...")
+        await shutdown_manager()
+        logger.info("WebSocket gateway shutdown complete")
+
+        # Close database connection
+        logger.info("Closing database connection...")
+        await close_db()
+        logger.info("Database connection closed")
+
+        # Close Redis connection
+        logger.info("Closing Redis connection...")
+        await close_redis()
+        logger.info("Redis connection closed")
+
+        logger.info("Application shutdown complete")
+    except Exception as e:
+        logger.error(f"Shutdown error: {e}")
+
+
+# =============================================================================
+# FastAPI Application
+# =============================================================================
+
+
+app = FastAPI(
+    title="홀덤1등 API",
+    version="1.0.0",
+    description="Texas Hold'em Poker Game Server API",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
+    lifespan=lifespan,
+)
+
+
+# =============================================================================
+# Middleware
+# =============================================================================
+
+
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    """Middleware to add X-Request-ID header to all requests and responses."""
+
+    async def dispatch(self, request: Request, call_next):
+        # Get or generate request ID
+        request_id = request.headers.get("X-Request-ID")
+        if not request_id:
+            request_id = str(uuid.uuid4())
+
+        # Store request ID in request state for access in handlers
+        request.state.request_id = request_id
+
+        # Add request start time for logging
+        request.state.start_time = datetime.now(timezone.utc)
+
+        # Process request
+        response = await call_next(request)
+
+        # Add request ID to response headers
+        response.headers["X-Request-ID"] = request_id
+
+        # Log request completion
+        duration = (datetime.now(timezone.utc) - request.state.start_time).total_seconds()
+        logger.info(
+            f"{request.method} {request.url.path} - "
+            f"Status: {response.status_code} - "
+            f"Duration: {duration:.3f}s - "
+            f"Request-ID: {request_id}"
+        )
+
+        return response
+
+
+# Add Request ID middleware
+app.add_middleware(RequestIDMiddleware)
+
+
+# CORS configuration for development
+cors_origins = [origin.strip() for origin in settings.cors_origins.split(",")]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["X-Request-ID"],
+)
+
+
+# =============================================================================
+# Error Handlers
+# =============================================================================
+
+
+def get_request_id(request: Request) -> str:
+    """Get request ID from request state or headers."""
+    if hasattr(request.state, "request_id"):
+        return request.state.request_id
+    return request.headers.get("X-Request-ID", str(uuid.uuid4()))
+
+
+def create_error_response(
+    code: str,
+    message: str,
+    details: dict[str, Any] | None = None,
+    trace_id: str | None = None,
+) -> dict[str, Any]:
+    """Create standardized error response."""
+    return {
+        "error": {
+            "code": code,
+            "message": message,
+            "details": details or {},
+        },
+        "traceId": trace_id,
+    }
+
+
+@app.exception_handler(AuthError)
+async def auth_error_handler(request: Request, exc: AuthError) -> JSONResponse:
+    """Handle authentication errors."""
+    trace_id = get_request_id(request)
+
+    # Determine status code based on error code
+    status_code = status.HTTP_401_UNAUTHORIZED
+    if "INACTIVE" in exc.code:
+        status_code = status.HTTP_403_FORBIDDEN
+    elif "EXISTS" in exc.code:
+        status_code = status.HTTP_409_CONFLICT
+    elif "NOT_FOUND" in exc.code:
+        status_code = status.HTTP_404_NOT_FOUND
+
+    logger.warning(f"AuthError: {exc.code} - {exc.message} - Request-ID: {trace_id}")
+
+    return JSONResponse(
+        status_code=status_code,
+        content=create_error_response(
+            code=exc.code,
+            message=exc.message,
+            details=exc.details,
+            trace_id=trace_id,
+        ),
+    )
+
+
+@app.exception_handler(RoomError)
+async def room_error_handler(request: Request, exc: RoomError) -> JSONResponse:
+    """Handle room operation errors."""
+    trace_id = get_request_id(request)
+
+    # Determine status code based on error code
+    status_code = status.HTTP_400_BAD_REQUEST
+    if "NOT_FOUND" in exc.code:
+        status_code = status.HTTP_404_NOT_FOUND
+    elif "NOT_OWNER" in exc.code or "PASSWORD" in exc.code:
+        status_code = status.HTTP_403_FORBIDDEN
+    elif "FULL" in exc.code or "ALREADY" in exc.code:
+        status_code = status.HTTP_409_CONFLICT
+
+    logger.warning(f"RoomError: {exc.code} - {exc.message} - Request-ID: {trace_id}")
+
+    return JSONResponse(
+        status_code=status_code,
+        content=create_error_response(
+            code=exc.code,
+            message=exc.message,
+            details=exc.details,
+            trace_id=trace_id,
+        ),
+    )
+
+
+@app.exception_handler(UserError)
+async def user_error_handler(request: Request, exc: UserError) -> JSONResponse:
+    """Handle user operation errors."""
+    trace_id = get_request_id(request)
+
+    # Determine status code based on error code
+    status_code = status.HTTP_400_BAD_REQUEST
+    if "NOT_FOUND" in exc.code:
+        status_code = status.HTTP_404_NOT_FOUND
+    elif "INACTIVE" in exc.code:
+        status_code = status.HTTP_403_FORBIDDEN
+    elif "EXISTS" in exc.code:
+        status_code = status.HTTP_409_CONFLICT
+
+    logger.warning(f"UserError: {exc.code} - {exc.message} - Request-ID: {trace_id}")
+
+    return JSONResponse(
+        status_code=status_code,
+        content=create_error_response(
+            code=exc.code,
+            message=exc.message,
+            details=exc.details,
+            trace_id=trace_id,
+        ),
+    )
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    """Handle HTTP exceptions."""
+    trace_id = get_request_id(request)
+
+    # Check if detail is already formatted
+    if isinstance(exc.detail, dict) and "error" in exc.detail:
+        content = exc.detail
+        content["traceId"] = trace_id
+    else:
+        content = create_error_response(
+            code="HTTP_ERROR",
+            message=str(exc.detail),
+            trace_id=trace_id,
+        )
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=content,
+        headers=getattr(exc, "headers", None),
+    )
+
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Handle unexpected exceptions."""
+    trace_id = get_request_id(request)
+
+    logger.error(
+        f"Unexpected error: {type(exc).__name__}: {exc} - Request-ID: {trace_id}",
+        exc_info=True,
+    )
+
+    # Don't expose internal error details in production
+    message = "Internal server error"
+    if settings.app_debug:
+        message = f"{type(exc).__name__}: {exc}"
+
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content=create_error_response(
+            code="INTERNAL_ERROR",
+            message=message,
+            trace_id=trace_id,
+        ),
+    )
+
+
+# =============================================================================
+# Health Check Endpoints
+# =============================================================================
+
+
+@app.get(
+    "/health",
+    tags=["Health"],
+    summary="Health check endpoint",
+    response_model=dict,
+)
+async def health_check() -> dict[str, Any]:
+    """Check application health status.
+
+    Returns:
+        Health status including database and Redis connectivity.
+    """
+    health_status = {
+        "status": "healthy",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "version": "1.0.0",
+        "services": {
+            "database": "unknown",
+            "redis": "unknown",
+        },
+    }
+
+    overall_healthy = True
+
+    # Check database connection
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        health_status["services"]["database"] = "healthy"
+    except Exception as e:
+        health_status["services"]["database"] = f"unhealthy: {str(e)}"
+        overall_healthy = False
+        logger.error(f"Database health check failed: {e}")
+
+    # Check Redis connection
+    try:
+        if redis_client:
+            await redis_client.ping()
+            health_status["services"]["redis"] = "healthy"
+        else:
+            health_status["services"]["redis"] = "not initialized"
+            overall_healthy = False
+    except Exception as e:
+        health_status["services"]["redis"] = f"unhealthy: {str(e)}"
+        overall_healthy = False
+        logger.error(f"Redis health check failed: {e}")
+
+    if not overall_healthy:
+        health_status["status"] = "degraded"
+
+    return health_status
+
+
+@app.get(
+    "/health/live",
+    tags=["Health"],
+    summary="Liveness probe",
+)
+async def liveness_probe() -> dict[str, str]:
+    """Kubernetes liveness probe endpoint.
+
+    Returns:
+        Simple status indicating the application is running.
+    """
+    return {"status": "alive"}
+
+
+@app.get(
+    "/health/ready",
+    tags=["Health"],
+    summary="Readiness probe",
+)
+async def readiness_probe() -> dict[str, str]:
+    """Kubernetes readiness probe endpoint.
+
+    Checks if the application is ready to receive traffic.
+
+    Returns:
+        Status indicating readiness.
+    """
+    # Check critical dependencies
+    try:
+        # Database check
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+
+        # Redis check
+        if redis_client:
+            await redis_client.ping()
+
+        return {"status": "ready"}
+    except Exception as e:
+        logger.error(f"Readiness probe failed: {e}")
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"status": "not ready", "error": str(e)},
+        )
+
+
+# =============================================================================
+# API Routers
+# =============================================================================
+
+
+# API version prefix
+API_V1_PREFIX = "/api/v1"
+
+# Include routers with API version prefix
+app.include_router(auth.router, prefix=API_V1_PREFIX)
+app.include_router(rooms.router, prefix=API_V1_PREFIX)
+app.include_router(users.router, prefix=API_V1_PREFIX)
+
+# Include WebSocket router (no prefix - endpoint is /ws)
+app.include_router(ws_router)
+
+
+# =============================================================================
+# Root Endpoint
+# =============================================================================
+
+
+@app.get(
+    "/",
+    tags=["Root"],
+    summary="API root endpoint",
+)
+async def root() -> dict[str, str]:
+    """Root endpoint with API information."""
+    return {
+        "name": "홀덤1등 API",
+        "version": "1.0.0",
+        "docs": "/docs",
+        "health": "/health",
+    }
+
+
+# =============================================================================
+# Development Server
+# =============================================================================
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "app.main:app",
+        host=settings.app_host,
+        port=settings.app_port,
+        reload=settings.app_debug,
+        log_level=settings.log_level.lower(),
+    )

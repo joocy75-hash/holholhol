@@ -1,0 +1,45 @@
+# PokerKit Holdem - Production Resource Quota
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: pokerkit-quota
+  namespace: pokerkit-prod
+spec:
+  hard:
+    # CPU
+    requests.cpu: "10"
+    limits.cpu: "20"
+    # Memory
+    requests.memory: "20Gi"
+    limits.memory: "40Gi"
+    # Pods
+    pods: "50"
+    # Storage
+    persistentvolumeclaims: "10"
+    requests.storage: "500Gi"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: pokerkit-limits
+  namespace: pokerkit-prod
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: "500m"
+        memory: "512Mi"
+      defaultRequest:
+        cpu: "100m"
+        memory: "128Mi"
+      max:
+        cpu: "4"
+        memory: "4Gi"
+      min:
+        cpu: "50m"
+        memory: "64Mi"
+    - type: PersistentVolumeClaim
+      max:
+        storage: "200Gi"
+      min:
+        storage: "1Gi"

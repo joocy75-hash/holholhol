@@ -1,0 +1,13 @@
+# PokerKit Holdem - ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pokerkit-config
+  namespace: pokerkit-staging
+data:
+  APP_ENV: "staging"
+  LOG_LEVEL: "INFO"
+  CORS_ORIGINS: "*"
+  JWT_ALGORITHM: "HS256"
+  JWT_ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+  JWT_REFRESH_TOKEN_EXPIRE_DAYS: "7"

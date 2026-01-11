@@ -1,0 +1,164 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Colors from design tokens */
+    --color-primary: #3B82F6;
+    --color-primary-hover: #2563EB;
+    --color-success: #10B981;
+    --color-warning: #F59E0B;
+    --color-danger: #EF4444;
+    --color-bg: #1F2937;
+    --color-bg-dark: #111827;
+    --color-surface: #374151;
+    --color-surface-light: #4B5563;
+    --color-text: #F9FAFB;
+    --color-text-muted: #9CA3AF;
+    --color-felt: #166534;
+    --color-felt-border: #14532D;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  body {
+    @apply bg-bg text-text antialiased;
+    margin: 0;
+    min-height: 100vh;
+  }
+
+  #root {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+@layer components {
+  /* Button variants */
+  .btn {
+    @apply inline-flex items-center justify-center font-medium rounded-button transition-colors;
+    @apply focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-bg;
+    @apply disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply bg-primary text-white hover:bg-primary-hover focus:ring-primary;
+  }
+
+  .btn-secondary {
+    @apply bg-surface text-text hover:bg-surface-light focus:ring-surface;
+  }
+
+  .btn-danger {
+    @apply bg-danger text-white hover:bg-red-600 focus:ring-danger;
+  }
+
+  .btn-ghost {
+    @apply bg-transparent text-text-muted hover:text-text hover:bg-surface/50;
+  }
+
+  .btn-sm {
+    @apply px-3 py-1.5 text-sm;
+  }
+
+  .btn-md {
+    @apply px-4 py-2 text-base;
+  }
+
+  .btn-lg {
+    @apply px-6 py-3 text-lg;
+  }
+
+  /* Card component */
+  .card {
+    @apply bg-surface rounded-card shadow-card;
+  }
+
+  /* Input styles */
+  .input {
+    @apply w-full px-4 py-2 bg-bg border border-surface rounded-button text-text;
+    @apply placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent;
+  }
+
+  /* Playing card styles */
+  .playing-card {
+    @apply relative bg-white rounded-lg shadow-card overflow-hidden;
+    aspect-ratio: 5 / 7;
+  }
+
+  .playing-card-sm {
+    @apply w-10;
+  }
+
+  .playing-card-md {
+    @apply w-16;
+  }
+
+  .playing-card-lg {
+    @apply w-20;
+  }
+
+  /* Poker table felt */
+  .table-felt {
+    @apply bg-felt border-4 border-felt-border rounded-[50%];
+  }
+
+  /* Seat positions */
+  .seat {
+    @apply absolute transform -translate-x-1/2 -translate-y-1/2;
+  }
+
+  /* Toast animations */
+  .toast-enter {
+    @apply animate-slide-up;
+  }
+
+  .toast-exit {
+    @apply opacity-0 transition-opacity duration-300;
+  }
+}
+
+@layer utilities {
+  /* Text utilities */
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Scrollbar styling */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-surface) var(--color-bg);
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: var(--color-bg);
+    border-radius: 3px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: var(--color-surface);
+    border-radius: 3px;
+  }
+
+  /* Card suit colors */
+  .suit-red {
+    @apply text-red-600;
+  }
+
+  .suit-black {
+    @apply text-gray-900;
+  }
+}

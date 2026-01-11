@@ -1,0 +1,16 @@
+# PokerKit Holdem - Monitoring Kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: pokerkit-prod
+
+resources:
+  - prometheus-rules.yaml
+  - service-monitor.yaml
+
+# Note: alertmanager-config.yaml should be applied to the monitoring namespace
+# where AlertManager is installed, not to pokerkit-prod
+
+commonLabels:
+  app: pokerkit
+  monitoring: "true"

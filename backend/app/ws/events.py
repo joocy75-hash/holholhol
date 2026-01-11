@@ -1,0 +1,80 @@
+"""WebSocket event type definitions per realtime-protocol-v1 spec."""
+
+from enum import Enum
+
+
+class EventType(str, Enum):
+    """All WebSocket event types per spec section 4."""
+
+    # System events (4)
+    PING = "PING"
+    PONG = "PONG"
+    CONNECTION_STATE = "CONNECTION_STATE"
+    ERROR = "ERROR"
+
+    # Lobby events (8)
+    SUBSCRIBE_LOBBY = "SUBSCRIBE_LOBBY"
+    UNSUBSCRIBE_LOBBY = "UNSUBSCRIBE_LOBBY"
+    LOBBY_SNAPSHOT = "LOBBY_SNAPSHOT"
+    LOBBY_UPDATE = "LOBBY_UPDATE"
+    ROOM_CREATE_REQUEST = "ROOM_CREATE_REQUEST"
+    ROOM_CREATE_RESULT = "ROOM_CREATE_RESULT"
+    ROOM_JOIN_REQUEST = "ROOM_JOIN_REQUEST"
+    ROOM_JOIN_RESULT = "ROOM_JOIN_RESULT"
+
+    # Table events (10)
+    SUBSCRIBE_TABLE = "SUBSCRIBE_TABLE"
+    UNSUBSCRIBE_TABLE = "UNSUBSCRIBE_TABLE"
+    TABLE_SNAPSHOT = "TABLE_SNAPSHOT"
+    TABLE_STATE_UPDATE = "TABLE_STATE_UPDATE"
+    TURN_PROMPT = "TURN_PROMPT"
+    SEAT_REQUEST = "SEAT_REQUEST"
+    SEAT_RESULT = "SEAT_RESULT"
+    LEAVE_REQUEST = "LEAVE_REQUEST"
+    LEAVE_RESULT = "LEAVE_RESULT"
+
+    # Action events (4)
+    ACTION_REQUEST = "ACTION_REQUEST"
+    ACTION_RESULT = "ACTION_RESULT"
+    SHOWDOWN_RESULT = "SHOWDOWN_RESULT"
+    HAND_RESULT = "HAND_RESULT"
+
+    # Chat events (2)
+    CHAT_MESSAGE = "CHAT_MESSAGE"
+    CHAT_HISTORY = "CHAT_HISTORY"
+
+
+# Event direction mapping
+CLIENT_TO_SERVER_EVENTS = frozenset([
+    EventType.PING,
+    EventType.SUBSCRIBE_LOBBY,
+    EventType.UNSUBSCRIBE_LOBBY,
+    EventType.ROOM_CREATE_REQUEST,
+    EventType.ROOM_JOIN_REQUEST,
+    EventType.SUBSCRIBE_TABLE,
+    EventType.UNSUBSCRIBE_TABLE,
+    EventType.SEAT_REQUEST,
+    EventType.LEAVE_REQUEST,
+    EventType.ACTION_REQUEST,
+    EventType.CHAT_MESSAGE,
+])
+
+SERVER_TO_CLIENT_EVENTS = frozenset([
+    EventType.PONG,
+    EventType.CONNECTION_STATE,
+    EventType.ERROR,
+    EventType.LOBBY_SNAPSHOT,
+    EventType.LOBBY_UPDATE,
+    EventType.ROOM_CREATE_RESULT,
+    EventType.ROOM_JOIN_RESULT,
+    EventType.TABLE_SNAPSHOT,
+    EventType.TABLE_STATE_UPDATE,
+    EventType.TURN_PROMPT,
+    EventType.SEAT_RESULT,
+    EventType.LEAVE_RESULT,
+    EventType.ACTION_RESULT,
+    EventType.SHOWDOWN_RESULT,
+    EventType.HAND_RESULT,
+    EventType.CHAT_MESSAGE,
+    EventType.CHAT_HISTORY,
+])

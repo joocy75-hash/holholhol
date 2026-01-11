@@ -1,0 +1,8 @@
+# PokerKit Holdem - Kubernetes Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pokerkit-staging
+  labels:
+    app: pokerkit
+    env: staging
