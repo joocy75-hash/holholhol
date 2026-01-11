@@ -7,7 +7,7 @@
 
 ## 최종 업데이트
 - 날짜: 2026-01-11
-- 상태: P3 완료, P4 진행 중
+- 상태: P4 완료, P5 진행 중
 
 ---
 
@@ -19,6 +19,7 @@
 | P1 | 엔진 레이어 설계 | [x] 완료 | 2026-01-11 |
 | P2 | 실시간 프로토콜 v1 | [x] 완료 | 2026-01-11 |
 | P3 | UI/UX 스펙 | [x] 완료 | 2026-01-11 |
+| P4 | 안정성 스펙 | [x] 완료 | 2026-01-11 |
 | P2 | 실시간 프로토콜 v1 | [ ] 미완료 | - |
 | P3 | UI/UX 스펙 | [ ] 미완료 | - |
 | P4 | 안정성 스펙 | [ ] 미완료 | - |
@@ -29,10 +30,10 @@
 
 ## 현재 작업 중
 
-- **Phase**: P4
-- **작업 내용**: 안정성 스펙 문서 작성
+- **Phase**: P5
+- **작업 내용**: 테스트/관측/배포 문서 작성
 - **진행률**: 0%
-- **마지막 완료 작업**: P3 UI/UX 스펙 문서 완료
+- **마지막 완료 작업**: P4 안정성 스펙 문서 완료
 
 ---
 
@@ -60,6 +61,11 @@
 - [x] docs/32-lobby-ui-spec.md
 - [x] docs/33-ui-components.md
 
+### P4
+- [x] docs/40-reconnect-recovery.md
+- [x] docs/41-state-consistency.md
+- [x] docs/42-timer-turn-rules.md
+
 ### P1 (완료)
 - [x] docs/10-engine-architecture.md
 - [x] docs/11-engine-state-model.md
@@ -77,9 +83,9 @@
 - [x] docs/33-ui-components.md
 
 ### P4
-- [ ] docs/40-reconnect-recovery.md
-- [ ] docs/41-state-consistency.md
-- [ ] docs/42-timer-turn-rules.md
+- [x] docs/40-reconnect-recovery.md
+- [x] docs/41-state-consistency.md
+- [x] docs/42-timer-turn-rules.md
 
 ### P5
 - [ ] docs/50-test-plan.md
@@ -94,10 +100,10 @@
 
 ## 다음 작업
 
-1. P4 시작: 안정성 스펙
-2. docs/40-reconnect-recovery.md 작성
-3. docs/41-state-consistency.md 작성
-4. docs/42-timer-turn-rules.md 작성
+1. P5 시작: 테스트/관측/배포
+2. docs/50-test-plan.md 작성
+3. docs/51-observability.md 작성
+4. docs/52-deploy-staging.md 작성
 
 ---
 
