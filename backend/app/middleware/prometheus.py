@@ -149,14 +149,11 @@ def setup_prometheus(app: FastAPI, app_version: str = "1.0.0") -> Instrumentator
         inprogress_labels=True,
     )
 
-    # Add default metrics
+    # Add default metrics with updated API
     instrumentator.add(
         metrics.default(
             metric_namespace="pokerkit",
             metric_subsystem="http",
-            should_include_handler=True,
-            should_include_method=True,
-            should_include_status=True,
             latency_highr_buckets=(0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1.0, 2.5),
         )
     )
@@ -166,8 +163,6 @@ def setup_prometheus(app: FastAPI, app_version: str = "1.0.0") -> Instrumentator
         metrics.request_size(
             metric_namespace="pokerkit",
             metric_subsystem="http",
-            should_include_handler=True,
-            should_include_method=True,
         )
     )
 
@@ -176,8 +171,6 @@ def setup_prometheus(app: FastAPI, app_version: str = "1.0.0") -> Instrumentator
         metrics.response_size(
             metric_namespace="pokerkit",
             metric_subsystem="http",
-            should_include_handler=True,
-            should_include_method=True,
         )
     )
 
