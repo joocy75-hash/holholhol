@@ -3,7 +3,7 @@
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, func
+from sqlalchemy import BigInteger, DateTime, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -52,13 +52,57 @@ class User(Base, UUIDMixin, TimestampMixin):
         nullable=False,
     )
 
+    # Balance - user's current chip balance (legacy, kept for compatibility)
+    balance: Mapped[int] = mapped_column(
+        default=10000,  # Initial chips for new users
+        nullable=False,
+    )
+
+    # KRW Balance System (Phase 5) - Primary game currency
+    krw_balance: Mapped[int] = mapped_column(
+        BigInteger,
+        default=0,
+        nullable=False,
+        comment="Game balance in KRW (원화) - deposits converted from crypto",
+    )
+
+    # Pending withdrawal amount (locked during 24h withdrawal process)
+    pending_withdrawal_krw: Mapped[int] = mapped_column(
+        BigInteger,
+        default=0,
+        nullable=False,
+        comment="KRW amount locked for pending withdrawals",
+    )
+
     # Stats (denormalized for quick access)
     total_hands: Mapped[int] = mapped_column(default=0)
     total_winnings: Mapped[int] = mapped_column(default=0)
 
+    # VIP/Rakeback tracking (Phase 6)
+    total_rake_paid_krw: Mapped[int] = mapped_column(
+        BigInteger,
+        default=0,
+        nullable=False,
+        comment="Total rake paid in KRW (for VIP level calculation)",
+    )
+
     # Relationships
     sessions: Mapped[list["Session"]] = relationship(
         "Session",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+    # Wallet relationships (Phase 5)
+    transactions: Mapped[list["WalletTransaction"]] = relationship(
+        "WalletTransaction",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        order_by="desc(WalletTransaction.created_at)",
+    )
+
+    crypto_addresses: Mapped[list["CryptoAddress"]] = relationship(
+        "CryptoAddress",
         back_populates="user",
         cascade="all, delete-orphan",
     )

@@ -15,14 +15,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.api import auth, rooms, users
+from app.api import auth, rooms, users, wallet
 from app.config import get_settings
+from app.middleware.rate_limit import RateLimitMiddleware
+from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.services.auth import AuthError
 from app.services.room import RoomError
 from app.services.user import UserError
-from app.utils.db import close_db, engine, init_db
+from app.utils.db import close_db, engine, init_db, async_session_factory
 from app.utils.redis_client import close_redis, init_redis, redis_client
 from app.ws.gateway import router as ws_router, get_manager, shutdown_manager
+from app.cache import init_cache_manager, shutdown_cache_manager, get_cache_manager
 
 settings = get_settings()
 
@@ -61,6 +64,21 @@ async def lifespan(_app: FastAPI):
         await get_manager()
         logger.info("WebSocket gateway initialized")
 
+        # Initialize cache manager (Phase 4)
+        logger.info("Initializing cache manager...")
+        await init_cache_manager(redis_client, async_session_factory)
+        logger.info("Cache manager initialized")
+
+        # Perform cache warmup
+        logger.info("Warming up cache...")
+        try:
+            cache_mgr = get_cache_manager()
+            async with async_session_factory() as session:
+                warmup_stats = await cache_mgr.warmup(session)
+                logger.info(f"Cache warmup complete: {warmup_stats}")
+        except Exception as e:
+            logger.warning(f"Cache warmup failed (non-critical): {e}")
+
         logger.info("Application startup complete")
     except Exception as e:
         logger.error(f"Startup failed: {e}")
@@ -72,7 +90,12 @@ async def lifespan(_app: FastAPI):
     logger.info("Shutting down application...")
 
     try:
-        # Shutdown WebSocket manager first
+        # Shutdown cache manager first (flushes dirty data to DB)
+        logger.info("Shutting down cache manager...")
+        await shutdown_cache_manager()
+        logger.info("Cache manager shutdown complete")
+
+        # Shutdown WebSocket manager
         logger.info("Shutting down WebSocket gateway...")
         await shutdown_manager()
         logger.info("WebSocket gateway shutdown complete")
@@ -117,6 +140,10 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
     """Middleware to add X-Request-ID header to all requests and responses."""
 
     async def dispatch(self, request: Request, call_next):
+        # Skip WebSocket upgrade requests - BaseHTTPMiddleware doesn't handle them properly
+        if request.headers.get("upgrade", "").lower() == "websocket":
+            return await call_next(request)
+
         # Get or generate request ID
         request_id = request.headers.get("X-Request-ID")
         if not request_id:
@@ -135,7 +162,9 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
         response.headers["X-Request-ID"] = request_id
 
         # Log request completion
-        duration = (datetime.now(timezone.utc) - request.state.start_time).total_seconds()
+        duration = (
+            datetime.now(timezone.utc) - request.state.start_time
+        ).total_seconds()
         logger.info(
             f"{request.method} {request.url.path} - "
             f"Status: {response.status_code} - "
@@ -157,10 +186,16 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
     expose_headers=["X-Request-ID"],
 )
+
+# Security headers middleware
+app.add_middleware(SecurityHeadersMiddleware)
+
+# Rate limiting middleware (uses Redis when available)
+app.add_middleware(RateLimitMiddleware, redis_client=redis_client)
 
 
 # =============================================================================
@@ -362,8 +397,10 @@ async def health_check() -> dict[str, Any]:
 
     # Check Redis connection
     try:
-        if redis_client:
-            await redis_client.ping()
+        from app.utils.redis_client import redis_client as current_redis
+
+        if current_redis:
+            await current_redis.ping()
             health_status["services"]["redis"] = "healthy"
         else:
             health_status["services"]["redis"] = "not initialized"
@@ -413,8 +450,10 @@ async def readiness_probe() -> dict[str, str]:
             await conn.execute(text("SELECT 1"))
 
         # Redis check
-        if redis_client:
-            await redis_client.ping()
+        from app.utils.redis_client import redis_client as current_redis
+
+        if current_redis:
+            await current_redis.ping()
 
         return {"status": "ready"}
     except Exception as e:
@@ -437,6 +476,7 @@ API_V1_PREFIX = "/api/v1"
 app.include_router(auth.router, prefix=API_V1_PREFIX)
 app.include_router(rooms.router, prefix=API_V1_PREFIX)
 app.include_router(users.router, prefix=API_V1_PREFIX)
+app.include_router(wallet.router, prefix=API_V1_PREFIX)
 
 # Include WebSocket router (no prefix - endpoint is /ws)
 app.include_router(ws_router)
@@ -463,17 +503,36 @@ async def root() -> dict[str, str]:
 
 
 # =============================================================================
-# Development Server
+# Development / Production Server
 # =============================================================================
 
 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(
-        "app.main:app",
-        host=settings.app_host,
-        port=settings.app_port,
-        reload=settings.app_debug,
-        log_level=settings.log_level.lower(),
-    )
+    # 프로덕션 환경에서는 멀티 워커 사용 (WebSocket Sticky Session 필요)
+    # 개발 환경에서는 reload=True로 단일 워커 사용
+    if settings.app_debug:
+        # Development: single worker with reload
+        uvicorn.run(
+            "app.main:app",
+            host=settings.app_host,
+            port=settings.app_port,
+            reload=True,
+            log_level=settings.log_level.lower(),
+        )
+    else:
+        # Production: multiple workers (requires Redis Pub/Sub for WebSocket)
+        # 참고: 멀티 워커 시 WebSocket은 Sticky Session 또는 Redis Pub/Sub 필요
+        uvicorn.run(
+            "app.main:app",
+            host=settings.app_host,
+            port=settings.app_port,
+            workers=settings.uvicorn_workers,
+            log_level=settings.log_level.lower(),
+            access_log=True,
+            # Production optimizations
+            limit_concurrency=1000,
+            limit_max_requests=10000,
+            timeout_keep_alive=5,
+        )
