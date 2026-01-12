@@ -1,0 +1,298 @@
+# PokerKit Holdem - Prometheus Alert Rules
+# Production alerts for 300-500 concurrent users
+
+groups:
+  # =============================================================================
+  # API Performance Alerts
+  # =============================================================================
+  - name: pokerkit.api
+    interval: 30s
+    rules:
+      # Warning: p95 latency > 150ms
+      - alert: APILatencyWarning
+        expr: |
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="poker-backend"}[5m])) by (le))
+          > 0.15
+        for: 5m
+        labels:
+          severity: warning
+          service: pokerkit
+          component: api
+        annotations:
+          summary: "API latency is elevated"
+          description: "95th percentile API latency is {{ $value | humanizeDuration }} (threshold: 150ms)"
+          runbook_url: "https://wiki.example.com/runbooks/pokerkit/high-latency"
+
+      # Critical: p95 latency > 200ms
+      - alert: APILatencyCritical
+        expr: |
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="poker-backend"}[5m])) by (le))
+          > 0.2
+        for: 3m
+        labels:
+          severity: critical
+          service: pokerkit
+          component: api
+        annotations:
+          summary: "API latency is critically high"
+          description: "95th percentile API latency is {{ $value | humanizeDuration }} (threshold: 200ms). SLA breach imminent."
+          runbook_url: "https://wiki.example.com/runbooks/pokerkit/critical-latency"
+
+      # Warning: Error rate > 1%
+      - alert: ErrorRateWarning
+        expr: |
+          (
+            sum(rate(http_requests_total{job="poker-backend", status=~"5.."}[5m]))
+            / sum(rate(http_requests_total{job="poker-backend"}[5m]))
+          ) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          service: pokerkit
+          component: api
+        annotations:
+          summary: "HTTP error rate is elevated"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 1%)"
+          runbook_url: "https://wiki.example.com/runbooks/pokerkit/error-rate"
+
+      # Critical: Error rate > 5%
+      - alert: ErrorRateCritical
+        expr: |
+          (
+            sum(rate(http_requests_total{job="poker-backend", status=~"5.."}[5m]))
+            / sum(rate(http_requests_total{job="poker-backend"}[5m]))
+          ) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          service: pokerkit
+          component: api
+        annotations:
+          summary: "HTTP error rate is critically high"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%). Immediate investigation required."
+          runbook_url: "https://wiki.example.com/runbooks/pokerkit/critical-error-rate"
+
+  # =============================================================================
+  # WebSocket Alerts
+  # =============================================================================
+  - name: pokerkit.websocket
+    interval: 30s
+    rules:
+      # Warning: WebSocket connections approaching limit
+      - alert: WebSocketConnectionsHigh
+        expr: sum(websocket_connections_active{job="poker-backend"}) > 400
+        for: 5m
+        labels:
+          severity: warning
+          service: pokerkit
+          component: websocket
+        annotations:
+          summary: "WebSocket connections are high"
+          description: "Active WebSocket connections: {{ $value }} (warning threshold: 400)"
+
+      # Critical: WebSocket connections at limit
+      - alert: WebSocketConnectionsCritical
+        expr: sum(websocket_connections_active{job="poker-backend"}) > 480
+        for: 2m
+        labels:
+          severity: critical
+          service: pokerkit
+          component: websocket
+        annotations:
+          summary: "WebSocket connections approaching capacity"
+          description: "Active WebSocket connections: {{ $value }} (capacity: 500). New connections may be rejected."
+
+      # WebSocket error rate
+      - alert: WebSocketErrorRate
+        expr: |
+          (
+            sum(rate(websocket_errors_total{job="poker-backend"}[5m]))
+            / sum(rate(websocket_messages_total{job="poker-backend"}[5m]))
+          ) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          service: pokerkit
+          component: websocket
+        annotations:
+          summary: "WebSocket error rate is elevated"
+          description: "WebSocket error rate is {{ $value | humanizePercentage }}"
+
+  # =============================================================================
+  # Database Alerts
+  # =============================================================================
+  - name: pokerkit.database
+    interval: 30s
+    rules:
+      # Warning: Connection pool usage > 80%
+      - alert: DatabaseConnectionPoolWarning
+        expr: |
+          (
+            sum(db_pool_connections_active{job="poker-backend"})
+            / 350
+          ) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: pokerkit
+          component: database
+        annotations:
+          summary: "Database connection pool usage is high"
+          description: "Connection pool usage is {{ $value | humanizePercentage }} (threshold: 80%)"
+
+      # Critical: Connection pool usage > 90%
+      - alert: DatabaseConnectionPoolCritical
+        expr: |
+          (
+            sum(db_pool_connections_active{job="poker-backend"})
+            / 350
+          ) > 0.9
+        for: 2m
+        labels:
+          severity: critical
+          service: pokerkit
+          component: database
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "Connection pool usage is {{ $value | humanizePercentage }} (threshold: 90%). Connection failures imminent."
+
+      # PostgreSQL down
+      - alert: PostgreSQLDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: pokerkit
+          component: database
+        annotations:
+          summary: "PostgreSQL is down"
+          description: "PostgreSQL exporter is not responding. Database may be unavailable."
+
+      # Slow queries
+      - alert: SlowQueries
+        expr: |
+          rate(pg_stat_activity_max_tx_duration{job="postgres"}[5m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: pokerkit
+          component: database
+        annotations:
+          summary: "Slow database queries detected"
+          description: "Long-running transactions detected. Query optimization may be needed."
+
+  # =============================================================================
+  # Redis Alerts
+  # =============================================================================
+  - name: pokerkit.redis
+    interval: 30s
+    rules:
+      # Warning: Redis connections > 80%
+      - alert: RedisConnectionsWarning
+        expr: (redis_connected_clients{job="redis"} / 1500) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: pokerkit
+          component: cache
+        annotations:
+          summary: "Redis connections are high"
+          description: "Redis connected clients: {{ $value }} (80% of 1500 limit)"
+
+      # Critical: Redis connections > 90%
+      - alert: RedisConnectionsCritical
+        expr: (redis_connected_clients{job="redis"} / 1500) > 0.9
+        for: 2m
+        labels:
+          severity: critical
+          service: pokerkit
+          component: cache
+        annotations:
+          summary: "Redis connections approaching limit"
+          description: "Redis connected clients: {{ $value }} (90% of 1500 limit). Connection rejections imminent."
+
+      # Redis down
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: pokerkit
+          component: cache
+        annotations:
+          summary: "Redis is down"
+          description: "Redis exporter is not responding. Cache may be unavailable."
+
+      # Redis memory usage
+      - alert: RedisMemoryWarning
+        expr: (redis_memory_used_bytes{job="redis"} / redis_memory_max_bytes{job="redis"}) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: pokerkit
+          component: cache
+        annotations:
+          summary: "Redis memory usage is high"
+          description: "Redis memory usage is {{ $value | humanizePercentage }}"
+
+  # =============================================================================
+  # Application Health Alerts
+  # =============================================================================
+  - name: pokerkit.health
+    interval: 30s
+    rules:
+      # Backend instance down
+      - alert: BackendInstanceDown
+        expr: up{job="poker-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: pokerkit
+          component: backend
+        annotations:
+          summary: "Backend instance is down"
+          description: "Backend instance {{ $labels.instance }} is not responding."
+
+      # All backend instances down
+      - alert: AllBackendInstancesDown
+        expr: sum(up{job="poker-backend"}) == 0
+        for: 30s
+        labels:
+          severity: critical
+          service: pokerkit
+          component: backend
+        annotations:
+          summary: "All backend instances are down"
+          description: "No backend instances are responding. Service is completely unavailable."
+
+      # High CPU usage
+      - alert: HighCPUUsage
+        expr: |
+          (
+            sum(rate(process_cpu_seconds_total{job="poker-backend"}[5m])) by (instance)
+            / sum(process_cpu_cores{job="poker-backend"}) by (instance)
+          ) > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          service: pokerkit
+          component: backend
+        annotations:
+          summary: "High CPU usage detected"
+          description: "Instance {{ $labels.instance }} CPU usage is {{ $value | humanizePercentage }}"
+
+      # High memory usage
+      - alert: HighMemoryUsage
+        expr: |
+          (
+            process_resident_memory_bytes{job="poker-backend"}
+            / process_virtual_memory_max_bytes{job="poker-backend"}
+          ) > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          service: pokerkit
+          component: backend
+        annotations:
+          summary: "High memory usage detected"
+          description: "Instance {{ $labels.instance }} memory usage is {{ $value | humanizePercentage }}"

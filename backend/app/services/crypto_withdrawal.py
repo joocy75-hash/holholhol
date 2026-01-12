@@ -26,6 +26,7 @@ from app.models.wallet import (
 )
 from app.services.exchange_rate import get_exchange_rate_service
 from app.utils.redis_client import get_redis
+from app.utils.crypto_validator import CryptoAddressValidator, ValidationResult
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,12 @@ class InsufficientBalanceError(WithdrawalError):
 
 class WithdrawalLimitError(WithdrawalError):
     """Withdrawal limit exceeded."""
+
+    pass
+
+
+class InvalidAddressError(WithdrawalError):
+    """Invalid cryptocurrency address."""
 
     pass
 
@@ -71,6 +78,7 @@ class CryptoWithdrawalService:
         self.session = session
         self._redis = get_redis()
         self._exchange = get_exchange_rate_service()
+        self._address_validator = CryptoAddressValidator()
 
     async def request_withdrawal(
         self,
@@ -102,9 +110,12 @@ class CryptoWithdrawalService:
         if krw_amount > self.MAX_WITHDRAWAL_KRW:
             raise WithdrawalError(f"Maximum withdrawal is ₩{self.MAX_WITHDRAWAL_KRW:,}")
 
-        # Validate address format
-        if not self._validate_address(crypto_address, crypto_type):
-            raise WithdrawalError(f"Invalid {crypto_type.value} address")
+        # Validate address format with checksum verification
+        validation_result = self._validate_address_with_checksum(crypto_address, crypto_type)
+        if not validation_result.is_valid:
+            raise InvalidAddressError(
+                f"Invalid {crypto_type.value.upper()} address: {validation_result.error_message}"
+            )
 
         # Get user and check balance
         user = await self.session.get(User, user_id)
@@ -306,18 +317,72 @@ class CryptoWithdrawalService:
 
         return sum(abs(tx.krw_amount) for tx in transactions)
 
+    def _validate_address_with_checksum(
+        self, address: str, crypto_type: CryptoType
+    ) -> ValidationResult:
+        """Validate cryptocurrency address with checksum verification.
+        
+        Uses CryptoAddressValidator for full checksum verification:
+        - USDT (TRC-20): Base58Check with Tron checksum
+        - XRP: Base58Check with XRP-specific alphabet
+        - TRX: Base58Check with Tron checksum
+        - SOL: Base58 with 32-byte length verification
+        
+        Args:
+            address: The cryptocurrency address to validate
+            crypto_type: The type of cryptocurrency
+            
+        Returns:
+            ValidationResult with is_valid and error_message
+        """
+        # Import CryptoType from crypto_validator to match enum
+        from app.utils.crypto_validator import CryptoType as ValidatorCryptoType
+        
+        # Map wallet CryptoType to validator CryptoType
+        type_mapping = {
+            CryptoType.USDT: ValidatorCryptoType.USDT,
+            CryptoType.XRP: ValidatorCryptoType.XRP,
+            CryptoType.TRX: ValidatorCryptoType.TRX,
+            CryptoType.SOL: ValidatorCryptoType.SOL,
+        }
+        
+        validator_type = type_mapping.get(crypto_type)
+        if not validator_type:
+            return ValidationResult(
+                is_valid=False,
+                error_message=f"Unsupported cryptocurrency type: {crypto_type.value}"
+            )
+        
+        return self._address_validator.validate_address(address, validator_type)
+
     @staticmethod
     def _validate_address(address: str, crypto_type: CryptoType) -> bool:
-        """Validate cryptocurrency address format."""
+        """Validate cryptocurrency address format (basic check).
+        
+        NOTE: This is a legacy method for backward compatibility.
+        Use _validate_address_with_checksum for full validation.
+        
+        빠른 송금 코인 주소 형식 검증:
+        - USDT (TRC-20): T로 시작, 34자
+        - XRP: r로 시작, 25-35자
+        - TRX: T로 시작, 34자
+        - SOL: Base58, 32-44자
+        """
         if not address:
             return False
 
-        if crypto_type == CryptoType.BTC:
-            # Basic Bitcoin address validation
-            return address.startswith(("1", "3", "bc1")) and 26 <= len(address) <= 62
-        elif crypto_type in (CryptoType.ETH, CryptoType.USDT, CryptoType.USDC):
-            # Basic Ethereum address validation
-            return address.startswith("0x") and len(address) == 42
+        if crypto_type == CryptoType.USDT:
+            # TRC-20 (Tron network) address
+            return address.startswith("T") and len(address) == 34
+        elif crypto_type == CryptoType.XRP:
+            # Ripple address
+            return address.startswith("r") and 25 <= len(address) <= 35
+        elif crypto_type == CryptoType.TRX:
+            # Tron address
+            return address.startswith("T") and len(address) == 34
+        elif crypto_type == CryptoType.SOL:
+            # Solana address (base58 encoded)
+            return 32 <= len(address) <= 44
 
         return False
 

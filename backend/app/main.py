@@ -28,11 +28,21 @@ from app.services.user import UserError
 from app.utils.db import close_db, engine, init_db, async_session_factory
 from app.utils.redis_client import close_redis, init_redis, redis_client
 from app.utils.json_utils import ORJSONResponse
+from app.utils.secrets_validator import validate_startup_secrets
 from app.ws.gateway import router as ws_router, get_manager, shutdown_manager
 from app.cache import init_cache_manager, shutdown_cache_manager, get_cache_manager
 from app.logging_config import configure_logging, get_logger
 
 settings = get_settings()
+
+# Validate secrets at module load time (before app starts)
+validate_startup_secrets(
+    jwt_secret_key=settings.jwt_secret_key,
+    serialization_hmac_key=settings.serialization_hmac_key,
+    session_secret_key=getattr(settings, 'session_secret_key', None),
+    deposit_webhook_secret=getattr(settings, 'deposit_webhook_secret', None),
+    environment=settings.app_env,
+)
 
 # Configure structured logging (Phase 11)
 configure_logging(
@@ -44,12 +54,15 @@ logger = get_logger(__name__)
 
 # Initialize Sentry (Phase 11)
 sentry_enabled = init_sentry(
+    dsn=settings.sentry_dsn,
     environment=settings.app_env,
-    traces_sample_rate=0.1 if settings.app_env == "production" else 0.0,
-    profiles_sample_rate=0.1 if settings.app_env == "production" else 0.0,
+    traces_sample_rate=settings.sentry_traces_sample_rate if settings.app_env == "production" else 0.0,
+    profiles_sample_rate=settings.sentry_profiles_sample_rate if settings.app_env == "production" else 0.0,
 )
 if sentry_enabled:
     logger.info("Sentry error tracking initialized")
+elif settings.app_env == "production":
+    logger.warning("Sentry DSN not configured - error tracking disabled")
 
 
 # =============================================================================

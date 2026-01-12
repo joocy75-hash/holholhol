@@ -1,7 +1,7 @@
 """Phase 5: KRW Balance + Cryptocurrency Deposit/Withdrawal System.
 
 Revision ID: phase5_wallet_001
-Revises: add_performance_indexes
+Revises: add_perf_indexes_001
 Create Date: 2026-01-12
 
 This migration adds:
@@ -16,7 +16,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "phase5_wallet_001"
-down_revision = "add_performance_indexes"
+down_revision = "add_perf_indexes_001"
 branch_labels = None
 depends_on = None
 
@@ -79,7 +79,7 @@ def upgrade() -> None:
         "admin_adjust",
         "bonus",
         name="transactiontype",
-        create_type=True,
+        create_type=False,
     )
     transaction_type_enum.create(op.get_bind(), checkfirst=True)
 
@@ -90,12 +90,12 @@ def upgrade() -> None:
         "failed",
         "cancelled",
         name="transactionstatus",
-        create_type=True,
+        create_type=False,
     )
     transaction_status_enum.create(op.get_bind(), checkfirst=True)
 
     crypto_type_enum = postgresql.ENUM(
-        "btc", "eth", "usdt", "usdc", name="cryptotype", create_type=True
+        "btc", "eth", "usdt", "usdc", name="cryptotype", create_type=False
     )
     crypto_type_enum.create(op.get_bind(), checkfirst=True)
 

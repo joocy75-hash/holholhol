@@ -26,6 +26,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         "/api/v1/auth/register": (3, 60),    # 3 requests per 60 seconds
         "/api/v1/auth/refresh": (10, 60),    # 10 requests per 60 seconds
         "/api/v1/rooms": (30, 60),           # 30 requests per 60 seconds
+        # Wallet endpoints - stricter limits for financial security
+        "/api/v1/wallet/withdraw": (5, 3600),  # 5 requests per hour
+        "/api/v1/wallet/deposit-address": (10, 60),  # 10 requests per minute
+        "/api/v1/wallet/balance": (30, 60),   # 30 requests per minute
+        "/api/v1/wallet/transactions": (20, 60),  # 20 requests per minute
+        "/api/v1/wallet/rates": (60, 60),     # 60 requests per minute (cached)
     }
 
     # Default rate limit for unspecified endpoints

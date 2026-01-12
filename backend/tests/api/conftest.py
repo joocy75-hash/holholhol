@@ -40,9 +40,11 @@ def get_test_settings() -> Settings:
         app_env="test",
         app_debug=False,
         database_url=TEST_DATABASE_URL,
-        jwt_secret_key="test-secret-key-for-testing-only",
+        redis_url="redis://localhost:6379/0",
+        jwt_secret_key="a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6",
         jwt_access_token_expire_minutes=30,
         jwt_refresh_token_expire_days=7,
+        serialization_hmac_key="x1y2z3a4b5c6d7e8f9g0h1i2j3k4l5m6n7o8p9q0r1s2t3u4v5w6",
     )
 
 

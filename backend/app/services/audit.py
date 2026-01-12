@@ -9,6 +9,7 @@ Features:
 """
 
 import hashlib
+import hmac
 import json
 import logging
 import os
@@ -217,7 +218,8 @@ class AuditService:
             tx_id = data.get(b"tx_id", b"").decode()
             if tx_id == tx.id:
                 stored_hash = data.get(b"integrity_hash", b"").decode()
-                redis_valid = stored_hash == expected_hash
+                # Use timing-safe comparison
+                redis_valid = hmac.compare_digest(stored_hash, expected_hash)
                 break
 
         # TODO: File verification would require scanning log files
@@ -251,10 +253,11 @@ class AuditService:
         balance_after: int,
         expected_hash: str,
     ) -> bool:
-        """Verify integrity hash."""
+        """Verify integrity hash using timing-safe comparison."""
         data = f"{user_id}:{tx_type.value}:{amount}:{balance_before}:{balance_after}"
         computed = hashlib.sha256(data.encode()).hexdigest()
-        return computed == expected_hash
+        # Use timing-safe comparison to prevent timing attacks
+        return hmac.compare_digest(computed, expected_hash)
 
 
 # Singleton instance

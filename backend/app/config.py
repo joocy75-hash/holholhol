@@ -83,6 +83,20 @@ class Settings(BaseSettings):
         description="HMAC key for state serialization integrity (required)",
     )
 
+    # Sentry Error Tracking (Phase 11)
+    sentry_dsn: str | None = Field(
+        default=None,
+        description="Sentry DSN for error tracking (required in production)",
+    )
+    sentry_traces_sample_rate: float = Field(
+        default=0.05,
+        description="Sentry transaction sampling rate (0.0-1.0, default 5%)",
+    )
+    sentry_profiles_sample_rate: float = Field(
+        default=0.01,
+        description="Sentry profiling sampling rate (0.0-1.0, default 1%)",
+    )
+
     # CORS
     cors_origins: str = "http://localhost:3000"
 
@@ -167,9 +181,10 @@ class Settings(BaseSettings):
 
         return self
 
-    class Config:
-        env_file = ".env"
-        extra = "ignore"
+    model_config = {
+        "env_file": ".env",
+        "extra": "ignore",
+    }
 
 
 @lru_cache

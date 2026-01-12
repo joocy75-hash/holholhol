@@ -43,3 +43,10 @@ celery>=5.3.0
 orjson>=3.9.0
 slowapi>=0.1.9
 sentry-sdk[fastapi]>=1.39.0
+
+# Cryptocurrency Address Validation
+base58>=2.1.0
+
+# Two-Factor Authentication
+pyotp>=2.9.0
+qrcode>=7.4.0

@@ -323,10 +323,15 @@ async def deposit_webhook(
     It's secured by a secret token and not exposed in API docs.
     """
     import os
+    import secrets
 
-    # Validate webhook secret
-    expected_secret = os.environ.get("DEPOSIT_WEBHOOK_SECRET", "dev-secret")
-    if webhook.secret != expected_secret:
+    # Validate webhook secret using timing-safe comparison
+    expected_secret = os.environ.get("DEPOSIT_WEBHOOK_SECRET")
+    if not expected_secret:
+        logger.error("DEPOSIT_WEBHOOK_SECRET not configured")
+        raise HTTPException(status_code=500, detail="Webhook not configured")
+    
+    if not secrets.compare_digest(webhook.secret, expected_secret):
         raise HTTPException(status_code=403, detail="Invalid webhook secret")
 
     service = CryptoDepositService(session)

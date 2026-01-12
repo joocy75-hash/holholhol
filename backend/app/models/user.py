@@ -159,3 +159,73 @@ class Session(Base, UUIDMixin):
 
     def __repr__(self) -> str:
         return f"<Session {self.id[:8]}... user={self.user_id[:8]}...>"
+
+
+class UserTwoFactor(Base, UUIDMixin):
+    """User two-factor authentication configuration.
+    
+    Stores TOTP secrets and backup codes for 2FA.
+    """
+
+    __tablename__ = "user_two_factor"
+
+    # Foreign key to user
+    user_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,  # One 2FA config per user
+        index=True,
+    )
+
+    # Encrypted TOTP secret (Base32 encoded)
+    # In production, this should be encrypted at rest
+    secret_encrypted: Mapped[str] = mapped_column(
+        String(256),
+        nullable=False,
+        comment="Encrypted TOTP secret (Base32)",
+    )
+
+    # Whether 2FA is enabled for this user
+    is_enabled: Mapped[bool] = mapped_column(
+        default=False,
+        nullable=False,
+    )
+
+    # Hashed backup codes (JSON array of SHA-256 hashes)
+    backup_codes_hash: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="JSON array of hashed backup codes",
+    )
+
+    # Number of backup codes remaining
+    backup_codes_remaining: Mapped[int] = mapped_column(
+        default=10,
+        nullable=False,
+    )
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    # Last time 2FA was used successfully
+    last_used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    # Last time a backup code was used
+    last_backup_used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    # Relationship back to user
+    user: Mapped["User"] = relationship("User", backref="two_factor")
+
+    def __repr__(self) -> str:
+        return f"<UserTwoFactor user={self.user_id[:8]}... enabled={self.is_enabled}>"

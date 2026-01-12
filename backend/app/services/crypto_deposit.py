@@ -51,19 +51,20 @@ class CryptoDepositService:
     """
 
     # Minimum confirmations required for each crypto
+    # 빠른 송금 코인들은 확인 수가 적음
     MIN_CONFIRMATIONS = {
-        CryptoType.BTC: 3,
-        CryptoType.ETH: 12,
-        CryptoType.USDT: 12,
-        CryptoType.USDC: 12,
+        CryptoType.USDT: 20,   # TRC-20 (Tron network)
+        CryptoType.XRP: 1,     # Ripple - 거의 즉시
+        CryptoType.TRX: 20,    # Tron
+        CryptoType.SOL: 32,    # Solana - 약 12초
     }
 
     # Minimum deposit amounts (in crypto)
     MIN_DEPOSIT = {
-        CryptoType.BTC: "0.0001",
-        CryptoType.ETH: "0.001",
-        CryptoType.USDT: "10",
-        CryptoType.USDC: "10",
+        CryptoType.USDT: "10",    # $10 상당
+        CryptoType.XRP: "20",     # ~$10 상당
+        CryptoType.TRX: "100",    # ~$10 상당
+        CryptoType.SOL: "0.1",    # ~$15 상당
     }
 
     def __init__(self, session: AsyncSession) -> None:
@@ -264,12 +265,19 @@ class CryptoDepositService:
         hash_val = hashlib.sha256(data.encode()).hexdigest()
 
         # Format based on crypto type
-        if crypto_type == CryptoType.BTC:
-            return f"bc1q{hash_val[:32]}"
-        elif crypto_type == CryptoType.ETH:
-            return f"0x{hash_val[:40]}"
+        if crypto_type == CryptoType.USDT:
+            # TRC-20 address (Tron network)
+            return f"T{hash_val[:33]}"
+        elif crypto_type == CryptoType.XRP:
+            # Ripple address
+            return f"r{hash_val[:33]}"
+        elif crypto_type == CryptoType.TRX:
+            # Tron address
+            return f"T{hash_val[:33]}"
+        elif crypto_type == CryptoType.SOL:
+            # Solana address (base58)
+            return f"{hash_val[:44]}"
         else:
-            # USDT/USDC (assume ERC-20)
             return f"0x{hash_val[:40]}"
 
     @staticmethod

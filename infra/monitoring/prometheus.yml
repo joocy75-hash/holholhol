@@ -1,0 +1,95 @@
+# PokerKit Holdem - Prometheus Configuration
+# Production monitoring for 300-500 concurrent users
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: production
+    service: pokerkit
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# Rule files
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+# Scrape configurations
+scrape_configs:
+  # =============================================================================
+  # Backend Application Metrics
+  # =============================================================================
+  - job_name: 'poker-backend'
+    static_configs:
+      - targets:
+          - 'backend-1:8000'
+          - 'backend-2:8000'
+          - 'backend-3:8000'
+          - 'backend-4:8000'
+        labels:
+          app: pokerkit
+          component: backend
+    metrics_path: /metrics
+    scrape_interval: 15s
+    scrape_timeout: 10s
+
+  # =============================================================================
+  # PostgreSQL Metrics (via postgres_exporter)
+  # =============================================================================
+  - job_name: 'postgres'
+    static_configs:
+      - targets:
+          - 'postgres-exporter:9187'
+        labels:
+          app: pokerkit
+          component: database
+    scrape_interval: 30s
+
+  # =============================================================================
+  # Redis Metrics (via redis_exporter)
+  # =============================================================================
+  - job_name: 'redis'
+    static_configs:
+      - targets:
+          - 'redis-exporter:9121'
+        labels:
+          app: pokerkit
+          component: cache
+    scrape_interval: 15s
+
+  # =============================================================================
+  # Nginx Metrics (via nginx-prometheus-exporter)
+  # =============================================================================
+  - job_name: 'nginx'
+    static_configs:
+      - targets:
+          - 'nginx-exporter:9113'
+        labels:
+          app: pokerkit
+          component: loadbalancer
+    scrape_interval: 15s
+
+  # =============================================================================
+  # Node Metrics (via node_exporter)
+  # =============================================================================
+  - job_name: 'node'
+    static_configs:
+      - targets:
+          - 'node-exporter:9100'
+        labels:
+          app: pokerkit
+          component: infrastructure
+    scrape_interval: 30s
+
+  # =============================================================================
+  # Prometheus Self-Monitoring
+  # =============================================================================
+  - job_name: 'prometheus'
+    static_configs:
+      - targets:
+          - 'localhost:9090'

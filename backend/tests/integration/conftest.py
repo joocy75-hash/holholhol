@@ -54,6 +54,7 @@ def get_integration_test_settings() -> Settings:
         jwt_access_token_expire_minutes=60,
         jwt_refresh_token_expire_days=7,
         redis_url="redis://localhost:6379/1",  # Use DB 1 for tests
+        serialization_hmac_key="x1y2z3a4b5c6d7e8f9g0h1i2j3k4l5m6n7o8p9q0r1s2t3u4v5w6",
     )
 
 

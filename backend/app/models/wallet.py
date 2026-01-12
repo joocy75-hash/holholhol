@@ -1,7 +1,7 @@
 """Wallet and Transaction models for KRW + Cryptocurrency support.
 
 Phase 5: KRW Balance + Cryptocurrency Deposit/Withdrawal System
-- CryptoType: Supported cryptocurrencies (BTC, ETH, USDT, USDC)
+- CryptoType: Supported cryptocurrencies (USDT, XRP, TRX, SOL) - 빠른 송금 코인 위주
 - TransactionType: All transaction types for the gaming platform
 - WalletTransaction: Full transaction history with crypto details
 - CryptoAddress: User deposit address management
@@ -29,12 +29,19 @@ if TYPE_CHECKING:
 
 
 class CryptoType(str, Enum):
-    """Supported cryptocurrency types."""
+    """Supported cryptocurrency types.
+    
+    빠른 송금이 가능한 코인 위주로 선정:
+    - USDT (TRC-20): 트론 네트워크, 수수료 저렴, 1-3분
+    - XRP (Ripple): 3-5초 송금, 수수료 매우 저렴
+    - TRX (Tron): 1-3분 송금, 수수료 저렴
+    - SOL (Solana): 400ms 블록타임, 수수료 매우 저렴
+    """
 
-    BTC = "btc"
-    ETH = "eth"
-    USDT = "usdt"
-    USDC = "usdc"
+    USDT = "usdt"  # TRC-20 (Tron network)
+    XRP = "xrp"    # Ripple
+    TRX = "trx"    # Tron
+    SOL = "sol"    # Solana
 
 
 class TransactionType(str, Enum):

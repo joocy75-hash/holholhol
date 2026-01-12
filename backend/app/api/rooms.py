@@ -56,7 +56,7 @@ async def list_rooms(
                 name=room.name,
                 blinds=f"{room.small_blind}/{room.big_blind}",
                 max_seats=room.max_seats,
-                current_players=room.current_players,
+                player_count=room.current_players,
                 status=room.status,
                 is_private=room.config.get("is_private", False),
             )

@@ -39,7 +39,7 @@ class TestListRooms:
         assert "name" in room
         assert "blinds" in room
         assert "maxSeats" in room
-        assert "currentPlayers" in room
+        assert "playerCount" in room
         assert "status" in room
         assert "isPrivate" in room
 

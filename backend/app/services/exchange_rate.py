@@ -4,6 +4,12 @@ Phase 5.5: Real-time exchange rate API integration.
 - CoinGecko as primary API
 - Binance as fallback
 - Redis caching with 1-minute TTL
+
+지원 코인 (빠른 송금 위주):
+- USDT (TRC-20): 테더
+- XRP: 리플
+- TRX: 트론
+- SOL: 솔라나
 """
 
 import asyncio
@@ -38,26 +44,26 @@ class ExchangeRateService:
     - Real-time rate fetching from CoinGecko/Binance
     - Redis caching with 60-second TTL
     - Fallback to cached rate on API failure
-    - Support for BTC, ETH, USDT, USDC
+    - Support for USDT, XRP, TRX, SOL (빠른 송금 코인)
     """
 
     CACHE_TTL = 60  # 1 minute cache
     CACHE_KEY_PREFIX = "exchange_rate:"
 
-    # CoinGecko ID mapping
+    # CoinGecko ID mapping (빠른 송금 코인)
     COINGECKO_IDS = {
-        CryptoType.BTC: "bitcoin",
-        CryptoType.ETH: "ethereum",
         CryptoType.USDT: "tether",
-        CryptoType.USDC: "usd-coin",
+        CryptoType.XRP: "ripple",
+        CryptoType.TRX: "tron",
+        CryptoType.SOL: "solana",
     }
 
     # Binance symbol mapping (fallback)
     BINANCE_SYMBOLS = {
-        CryptoType.BTC: "BTCKRW",
-        CryptoType.ETH: "ETHKRW",
         CryptoType.USDT: "USDTKRW",
-        CryptoType.USDC: "USDCKRW",
+        CryptoType.XRP: "XRPKRW",
+        CryptoType.TRX: "TRXKRW",
+        CryptoType.SOL: "SOLKRW",
     }
 
     def __init__(self) -> None:
