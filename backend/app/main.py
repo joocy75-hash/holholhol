@@ -1,6 +1,9 @@
 """FastAPI application entry point.
 
 홀덤1등 API - Texas Hold'em Poker Game Server
+
+Phase 8: Prometheus metrics integration
+Phase 11: Sentry error tracking, structlog, orjson
 """
 
 import logging
@@ -12,29 +15,41 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request, status
 from sqlalchemy import text
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api import auth, rooms, users, wallet
 from app.config import get_settings
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.security_headers import SecurityHeadersMiddleware
+from app.middleware.sentry import init_sentry
 from app.services.auth import AuthError
 from app.services.room import RoomError
 from app.services.user import UserError
 from app.utils.db import close_db, engine, init_db, async_session_factory
 from app.utils.redis_client import close_redis, init_redis, redis_client
+from app.utils.json_utils import ORJSONResponse
 from app.ws.gateway import router as ws_router, get_manager, shutdown_manager
 from app.cache import init_cache_manager, shutdown_cache_manager, get_cache_manager
+from app.logging_config import configure_logging, get_logger
 
 settings = get_settings()
 
-# Configure logging
-logging.basicConfig(
-    level=getattr(logging, settings.log_level.upper()),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+# Configure structured logging (Phase 11)
+configure_logging(
+    log_level=settings.log_level,
+    json_logs=settings.app_env == "production",
+    app_env=settings.app_env,
 )
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
+
+# Initialize Sentry (Phase 11)
+sentry_enabled = init_sentry(
+    environment=settings.app_env,
+    traces_sample_rate=0.1 if settings.app_env == "production" else 0.0,
+    profiles_sample_rate=0.1 if settings.app_env == "production" else 0.0,
+)
+if sentry_enabled:
+    logger.info("Sentry error tracking initialized")
 
 
 # =============================================================================
@@ -128,7 +143,12 @@ app = FastAPI(
     redoc_url="/redoc",
     openapi_url="/openapi.json",
     lifespan=lifespan,
+    default_response_class=ORJSONResponse,  # Phase 11: orjson for faster JSON
 )
+
+# Setup Prometheus metrics (Phase 8)
+from app.middleware.prometheus import setup_prometheus
+prometheus_instrumentator = setup_prometheus(app, app_version="1.0.0")
 
 
 # =============================================================================
@@ -228,7 +248,7 @@ def create_error_response(
 
 
 @app.exception_handler(AuthError)
-async def auth_error_handler(request: Request, exc: AuthError) -> JSONResponse:
+async def auth_error_handler(request: Request, exc: AuthError) -> ORJSONResponse:
     """Handle authentication errors."""
     trace_id = get_request_id(request)
 
@@ -241,9 +261,9 @@ async def auth_error_handler(request: Request, exc: AuthError) -> JSONResponse:
     elif "NOT_FOUND" in exc.code:
         status_code = status.HTTP_404_NOT_FOUND
 
-    logger.warning(f"AuthError: {exc.code} - {exc.message} - Request-ID: {trace_id}")
+    logger.warning("auth_error", code=exc.code, message=exc.message, trace_id=trace_id)
 
-    return JSONResponse(
+    return ORJSONResponse(
         status_code=status_code,
         content=create_error_response(
             code=exc.code,
@@ -255,7 +275,7 @@ async def auth_error_handler(request: Request, exc: AuthError) -> JSONResponse:
 
 
 @app.exception_handler(RoomError)
-async def room_error_handler(request: Request, exc: RoomError) -> JSONResponse:
+async def room_error_handler(request: Request, exc: RoomError) -> ORJSONResponse:
     """Handle room operation errors."""
     trace_id = get_request_id(request)
 
@@ -268,9 +288,9 @@ async def room_error_handler(request: Request, exc: RoomError) -> JSONResponse:
     elif "FULL" in exc.code or "ALREADY" in exc.code:
         status_code = status.HTTP_409_CONFLICT
 
-    logger.warning(f"RoomError: {exc.code} - {exc.message} - Request-ID: {trace_id}")
+    logger.warning("room_error", code=exc.code, message=exc.message, trace_id=trace_id)
 
-    return JSONResponse(
+    return ORJSONResponse(
         status_code=status_code,
         content=create_error_response(
             code=exc.code,
@@ -282,7 +302,7 @@ async def room_error_handler(request: Request, exc: RoomError) -> JSONResponse:
 
 
 @app.exception_handler(UserError)
-async def user_error_handler(request: Request, exc: UserError) -> JSONResponse:
+async def user_error_handler(request: Request, exc: UserError) -> ORJSONResponse:
     """Handle user operation errors."""
     trace_id = get_request_id(request)
 
@@ -295,9 +315,9 @@ async def user_error_handler(request: Request, exc: UserError) -> JSONResponse:
     elif "EXISTS" in exc.code:
         status_code = status.HTTP_409_CONFLICT
 
-    logger.warning(f"UserError: {exc.code} - {exc.message} - Request-ID: {trace_id}")
+    logger.warning("user_error", code=exc.code, message=exc.message, trace_id=trace_id)
 
-    return JSONResponse(
+    return ORJSONResponse(
         status_code=status_code,
         content=create_error_response(
             code=exc.code,
@@ -309,7 +329,7 @@ async def user_error_handler(request: Request, exc: UserError) -> JSONResponse:
 
 
 @app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+async def http_exception_handler(request: Request, exc: HTTPException) -> ORJSONResponse:
     """Handle HTTP exceptions."""
     trace_id = get_request_id(request)
 
@@ -324,7 +344,7 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
             trace_id=trace_id,
         )
 
-    return JSONResponse(
+    return ORJSONResponse(
         status_code=exc.status_code,
         content=content,
         headers=getattr(exc, "headers", None),
@@ -332,12 +352,15 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
 
 
 @app.exception_handler(Exception)
-async def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+async def general_exception_handler(request: Request, exc: Exception) -> ORJSONResponse:
     """Handle unexpected exceptions."""
     trace_id = get_request_id(request)
 
     logger.error(
-        f"Unexpected error: {type(exc).__name__}: {exc} - Request-ID: {trace_id}",
+        "unexpected_error",
+        error_type=type(exc).__name__,
+        error_message=str(exc),
+        trace_id=trace_id,
         exc_info=True,
     )
 
@@ -346,7 +369,7 @@ async def general_exception_handler(request: Request, exc: Exception) -> JSONRes
     if settings.app_debug:
         message = f"{type(exc).__name__}: {exc}"
 
-    return JSONResponse(
+    return ORJSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content=create_error_response(
             code="INTERNAL_ERROR",
@@ -457,8 +480,8 @@ async def readiness_probe() -> dict[str, str]:
 
         return {"status": "ready"}
     except Exception as e:
-        logger.error(f"Readiness probe failed: {e}")
-        return JSONResponse(
+        logger.error("readiness_probe_failed", error=str(e))
+        return ORJSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={"status": "not ready", "error": str(e)},
         )

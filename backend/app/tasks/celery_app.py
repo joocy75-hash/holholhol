@@ -6,12 +6,15 @@ Features:
 - Redis as broker and result backend
 - Task routing by queue
 - Scheduled tasks via Celery Beat
+- MessagePack serialization for efficiency
 """
 
 import os
 
 from celery import Celery
 from celery.schedules import crontab
+
+from app.tasks.schedules import CELERY_BEAT_SCHEDULE, CELERY_TASK_ROUTES
 
 # Get Redis URL from environment
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
@@ -28,21 +31,17 @@ celery_app = Celery(
 
 # Celery configuration
 celery_app.conf.update(
-    # Serialization
-    task_serializer="json",
-    accept_content=["json"],
+    # Serialization - use msgpack for efficiency (Phase 10)
+    task_serializer="json",  # Keep JSON for compatibility, switch to msgpack when ready
+    accept_content=["json", "msgpack"],
     result_serializer="json",
     
     # Timezone
     timezone="Asia/Seoul",
     enable_utc=True,
     
-    # Task routing
-    task_routes={
-        "app.tasks.rakeback.*": {"queue": "settlement"},
-        "app.tasks.analytics.*": {"queue": "analytics"},
-        "app.tasks.notification.*": {"queue": "notification"},
-    },
+    # Task routing (from schedules.py)
+    task_routes=CELERY_TASK_ROUTES,
     
     # Task execution settings
     task_acks_late=True,
@@ -52,15 +51,12 @@ celery_app.conf.update(
     # Result settings
     result_expires=86400,  # 24 hours
     
-    # Beat schedule (periodic tasks)
-    beat_schedule={
-        # Weekly rakeback settlement - Monday 4 AM KST
-        "weekly-rakeback-settlement": {
-            "task": "app.tasks.rakeback.calculate_weekly_rakeback_task",
-            "schedule": crontab(hour=4, minute=0, day_of_week=1),
-            "options": {"queue": "settlement"},
-        },
-    },
+    # Beat schedule (from schedules.py)
+    beat_schedule=CELERY_BEAT_SCHEDULE,
+    
+    # Retry settings
+    task_default_retry_delay=60,  # 1 minute
+    task_max_retries=3,
 )
 
 
