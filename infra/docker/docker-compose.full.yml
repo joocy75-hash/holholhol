@@ -1,0 +1,72 @@
+# PokerKit Holdem - Full Stack Docker Compose
+# 백엔드 + PostgreSQL + Redis 전체 실행
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pokerkit-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-pokerkit}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d pokerkit"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - pokerkit-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: pokerkit-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pokerkit-network
+
+  backend:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    container_name: pokerkit-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/pokerkit
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-secret-key-change-in-production-12345}
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      JWT_REFRESH_TOKEN_EXPIRE_DAYS: 7
+      SERIALIZATION_HMAC_KEY: ${SERIALIZATION_HMAC_KEY:-dev-hmac-key-change-in-production-12345}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - pokerkit-network
+
+volumes:
+  postgres_data:
+    name: pokerkit-postgres-data
+  redis_data:
+    name: pokerkit-redis-data
+
+networks:
+  pokerkit-network:
+    name: pokerkit-network
+    driver: bridge
