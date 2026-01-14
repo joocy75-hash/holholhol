@@ -43,6 +43,7 @@ export default function LobbyPage() {
 
   const [activeGameTab, setActiveGameTab] = useState<GameTabType>('all');
   const [activeNavTab, setActiveNavTab] = useState<NavTab>('lobby');
+  const [resettingTableId, setResettingTableId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchUser();
@@ -98,6 +99,35 @@ export default function LobbyPage() {
 
   const handleTournamentJoin = () => {
     alert('토너먼트 기능은 준비중입니다');
+  };
+
+  // [DEV] 테이블 리셋 핸들러 (로비에서 만석 방 리셋)
+  const handleResetTable = async (tableId: string) => {
+    if (resettingTableId) return;
+    setResettingTableId(tableId);
+    try {
+      const token = localStorage.getItem('access_token');
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+      // 1. 봇 제거
+      await fetch(`${baseUrl}/api/v1/rooms/${tableId}/dev/remove-bots`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      // 2. 테이블 리셋
+      await fetch(`${baseUrl}/api/v1/rooms/${tableId}/dev/reset`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      // 테이블 목록 새로고침
+      await fetchTables();
+    } catch (err) {
+      console.error('테이블 리셋 실패:', err);
+    } finally {
+      setResettingTableId(null);
+    }
   };
 
   if (authLoading) {
@@ -186,12 +216,14 @@ export default function LobbyPage() {
                         홀덤
                       </span>
                     </div>
-                    {tables.map((table) => (
+                    {tables.slice(0, 2).map((table) => (
                       <HoldemCard
                         key={table.id}
                         table={table}
                         onJoin={handleJoinClick}
+                        onReset={handleResetTable}
                         isLoading={isLoading}
+                        isResetting={resettingTableId === table.id}
                       />
                     ))}
                   </>
@@ -200,12 +232,14 @@ export default function LobbyPage() {
             ) : activeGameTab === 'holdem' ? (
               // 홀덤 채널
               tables.length > 0 ? (
-                tables.map((table) => (
+                tables.slice(0, 2).map((table) => (
                   <HoldemCard
                     key={table.id}
                     table={table}
                     onJoin={handleJoinClick}
+                    onReset={handleResetTable}
                     isLoading={isLoading}
+                    isResetting={resettingTableId === table.id}
                   />
                 ))
               ) : (

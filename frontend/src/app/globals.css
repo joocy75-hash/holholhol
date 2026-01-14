@@ -6,6 +6,82 @@
    ============================================ */
 
 /* --------------------------------------------
+   FONT: 페이퍼로지 (Paperlogy)
+   Weights: 100-900 (Thin to Black)
+   -------------------------------------------- */
+@font-face {
+  font-family: 'Paperlogy';
+  src: url('/fonts/Paperlogy-1Thin.woff2') format('woff2');
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Paperlogy';
+  src: url('/fonts/Paperlogy-2ExtraLight.woff2') format('woff2');
+  font-weight: 200;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Paperlogy';
+  src: url('/fonts/Paperlogy-3Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Paperlogy';
+  src: url('/fonts/Paperlogy-4Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Paperlogy';
+  src: url('/fonts/Paperlogy-5Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Paperlogy';
+  src: url('/fonts/Paperlogy-6SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Paperlogy';
+  src: url('/fonts/Paperlogy-7Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Paperlogy';
+  src: url('/fonts/Paperlogy-8ExtraBold.woff2') format('woff2');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Paperlogy';
+  src: url('/fonts/Paperlogy-9Black.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* --------------------------------------------
    0. MOBILE-FIRST BASE (375px 기준)
    -------------------------------------------- */
 html {
@@ -168,7 +244,8 @@ html {
 body {
   background: var(--background);
   color: var(--text-primary);
-  font-family: var(--font-sans), system-ui, sans-serif;
+  font-family: 'Paperlogy', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-weight: 400;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -341,14 +418,25 @@ body {
 .poker-table {
   position: relative;
   background: radial-gradient(ellipse at center, var(--table-felt-light) 0%, var(--table-felt) 100%);
-  border: 12px solid var(--table-border);
+  border: 16px solid var(--table-border);
   border-radius: 50%;
   box-shadow:
     inset 0 0 50px rgba(0, 0, 0, 0.3),
     0 10px 30px var(--table-shadow);
 }
 
-/* Playing Card */
+/* Playing Card - 스프라이트 기반 (Cards.png) */
+.playing-card-sprite {
+  width: 100%;
+  height: 100%;
+  background-size: 784px 480px; /* Cards.png 원본 크기 */
+  background-repeat: no-repeat;
+  border-radius: 3px;
+  image-rendering: crisp-edges;
+  image-rendering: -webkit-optimize-contrast;
+}
+
+/* 레거시 Playing Card (텍스트 기반) */
 .playing-card {
   width: 100%;
   height: 100%;
@@ -396,6 +484,89 @@ body {
 
 .card-suit-black {
   color: var(--suit-black);
+}
+
+/* 3D 카드 플립 컨테이너 */
+.card-flip-container {
+  perspective: 1000px;
+  width: 100%;
+  height: 100%;
+}
+
+.card-flip-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-style: preserve-3d;
+}
+
+.card-flip-inner.flipped {
+  transform: rotateY(180deg);
+}
+
+.card-flip-front,
+.card-flip-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.card-flip-front {
+  /* 뒷면 (기본) */
+}
+
+.card-flip-back {
+  /* 앞면 */
+  transform: rotateY(180deg);
+}
+
+/* 탭 가능한 카드 힌트 */
+.card-tappable {
+  cursor: pointer;
+  animation: cardTapHint 2s ease-in-out infinite;
+}
+
+/* 개별 카드 ::after 제거됨 - JSX에서 카드 위 중앙에 하나만 표시 */
+
+@keyframes cardTapHint {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(251, 191, 36, 0);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 0 15px rgba(251, 191, 36, 0.5);
+  }
+}
+
+@keyframes fadeInOut {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* 딜링 애니메이션 */
+.dealing-card {
+  position: absolute;
+  z-index: 100;
+  pointer-events: none;
+}
+
+@keyframes dealCard {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(0.8) rotate(0deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(var(--deal-x), var(--deal-y)) scale(1) rotate(var(--deal-rotate, 0deg));
+  }
+}
+
+.dealing-card.animating {
+  animation: dealCard 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
 }
 
 /* Poker Chip */
@@ -609,13 +780,93 @@ body {
   animation: bounceIn 0.4s ease-out forwards;
 }
 
+/* 액션 모달용 - translateX 없는 버전 */
+@keyframes bounceInCenter {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.3);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(5px) scale(1.05);
+  }
+  70% {
+    transform: translateY(-2px) scale(0.95);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-bounce-in-center {
+  animation: bounceInCenter 0.4s ease-out forwards;
+}
+
 .animate-scale-in {
   animation: scaleIn 0.2s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+/* 바이인 모달 고급 애니메이션 */
+@keyframes bottomSheetSlideUp {
+  0% {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes backdropFadeIn {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(4px);
+  }
+}
+
+.animate-bottom-sheet {
+  animation: bottomSheetSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-backdrop {
+  animation: backdropFadeIn 0.3s ease-out forwards;
 }
 
 /* --------------------------------------------
    7. UTILITY CLASSES
    -------------------------------------------- */
+
+/* 페이퍼로지 폰트 굵기 유틸리티 (1-10 = 100-900) */
+.font-w1, .font-thin { font-weight: 100; }
+.font-w2, .font-extralight { font-weight: 200; }
+.font-w3, .font-light { font-weight: 300; }
+.font-w4, .font-regular { font-weight: 400; }
+.font-w5, .font-medium { font-weight: 500; }
+.font-w6, .font-semibold { font-weight: 600; }
+.font-w7, .font-bold { font-weight: 700; }
+.font-w8, .font-extrabold { font-weight: 800; }
+.font-w9, .font-black { font-weight: 900; }
+
 .glass {
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
@@ -1400,3 +1651,201 @@ body {
   from { transform: translateX(0); opacity: 1; }
   to { transform: translateX(-100%); opacity: 0; }
 }
+
+/* ============================================
+   11. WINNER EFFECTS
+   쇼다운 시 승리자 강조 효과
+   ============================================ */
+
+/* 승리자 플레이어 좌석 글로우 */
+.player-seat.winner-glow {
+  z-index: 20;
+}
+
+/* 승리자 아바타 글로우 */
+.player-avatar.winner-avatar {
+  border-color: #fbbf24 !important;
+  box-shadow: 
+    0 0 20px rgba(251, 191, 36, 0.6),
+    0 0 40px rgba(251, 191, 36, 0.4),
+    0 0 60px rgba(251, 191, 36, 0.2);
+  animation: winner-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes winner-pulse {
+  0%, 100% {
+    box-shadow: 
+      0 0 20px rgba(251, 191, 36, 0.6),
+      0 0 40px rgba(251, 191, 36, 0.4),
+      0 0 60px rgba(251, 191, 36, 0.2);
+  }
+  50% {
+    box-shadow: 
+      0 0 30px rgba(251, 191, 36, 0.8),
+      0 0 50px rgba(251, 191, 36, 0.5),
+      0 0 80px rgba(251, 191, 36, 0.3);
+  }
+}
+
+/* 승리자 카드 빛나는 효과 */
+@keyframes card-glow {
+  0%, 100% {
+    box-shadow: 
+      0 0 10px rgba(251, 191, 36, 0.5),
+      0 0 20px rgba(251, 191, 36, 0.3);
+  }
+  50% {
+    box-shadow: 
+      0 0 15px rgba(251, 191, 36, 0.7),
+      0 0 30px rgba(251, 191, 36, 0.4);
+  }
+}
+
+/* ============================================
+   12. PLAYER ELIMINATED EFFECTS
+   플레이어 탈락(칩 0) 퇴장 애니메이션
+   ============================================ */
+
+/* 탈락 플레이어 퇴장 애니메이션 */
+.player-seat.player-eliminated {
+  animation: playerEliminatedExit 3s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes playerEliminatedExit {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+    filter: grayscale(0) brightness(1);
+  }
+  20% {
+    opacity: 1;
+    transform: scale(1.1);
+    filter: grayscale(0) brightness(1.2);
+  }
+  40% {
+    opacity: 0.8;
+    transform: scale(1.05);
+    filter: grayscale(0.3) brightness(1);
+  }
+  60% {
+    opacity: 0.6;
+    transform: scale(0.95) translateY(-10px);
+    filter: grayscale(0.6) brightness(0.8);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.5) translateY(-30px);
+    filter: grayscale(1) brightness(0.5);
+  }
+}
+
+/* 탈락 메시지 표시 (아바타 위) */
+.player-seat.player-eliminated::after {
+  content: '탈락!';
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+  color: white;
+  padding: 6px 16px;
+  border-radius: 9999px;
+  font-size: 14px;
+  font-weight: bold;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.5);
+  animation: eliminatedBadgePulse 0.5s ease-out;
+  z-index: 100;
+}
+
+@keyframes eliminatedBadgePulse {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.5);
+  }
+  50% {
+    transform: translateX(-50%) scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+}
+
+/* ============================================
+   SHOWDOWN ANIMATIONS
+   ============================================ */
+
+/* 쇼다운 인트로 텍스트 애니메이션 */
+@keyframes showdown-text {
+  0% {
+    opacity: 0;
+    transform: scale(0.3) rotateX(90deg);
+    filter: blur(10px);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1.2) rotateX(0deg);
+    filter: blur(0px);
+  }
+  50% {
+    transform: scale(1) rotateX(0deg);
+  }
+  70% {
+    transform: scale(1.05) rotateX(0deg);
+  }
+  100% {
+    transform: scale(1) rotateX(0deg);
+  }
+}
+
+.animate-showdown-text {
+  animation: showdown-text 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* 페이드 인 애니메이션 */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+/* 페이드 아웃 애니메이션 */
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.animate-fade-out {
+  animation: fade-out 0.3s ease-out forwards;
+}
+
+/* 쇼다운 시 자신(0번) 카드 오픈 모션 - 위로 살짝 올림 */
+@keyframes cardRevealSubmit {
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2%);
+  }
+  100% {
+    transform: translateY(-2%);
+  }
+}
+
+.my-cards-revealed {
+  animation: cardRevealSubmit 0.6s ease-out forwards;
+}
+

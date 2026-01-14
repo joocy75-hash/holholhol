@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 from redis.asyncio import Redis
 
 from app.game import game_manager, Player
+from app.game.hand_evaluator import evaluate_hand_for_bot
 from app.utils.redis_client import RedisService
 from app.ws.connection import WebSocketConnection
 from app.ws.events import EventType
@@ -67,6 +68,8 @@ class ActionHandler(BaseHandler):
         self.redis_service = RedisService(redis) if redis else None
         # 테이블별 Lock - 동시 액션 처리 방지
         self._table_locks: dict[str, asyncio.Lock] = {}
+        # 테이블별 타임아웃 태스크 관리
+        self._timeout_tasks: dict[str, asyncio.Task] = {}
 
     def _get_table_lock(self, room_id: str) -> asyncio.Lock:
         """Get or create lock for a table."""
@@ -154,6 +157,9 @@ class ActionHandler(BaseHandler):
                     room_id, "NOT_YOUR_TURN", "당신의 차례가 아닙니다",
                     request_id, event.trace_id
                 )
+
+            # 4.5. Cancel timeout
+            await self._cancel_turn_timeout(room_id)
 
             # 5. Process action
             result = table.process_action(conn.user_id, action_type, amount)
@@ -349,9 +355,15 @@ class ActionHandler(BaseHandler):
                 logger.debug("[BOT] No actions available")
                 return
 
-            # Bot decision logic (conservative)
+            # Bot decision logic with hand strength evaluation
             action, amount = self._decide_bot_action(
-                actions, call_amount, current_player.stack, available
+                actions=actions,
+                call_amount=call_amount,
+                stack=current_player.stack,
+                available=available,
+                hole_cards=current_player.hole_cards or [],
+                community_cards=table.community_cards or [],
+                pot=table.pot,
             )
 
             logger.info(f"[BOT] {current_player.username} chose: {action} {amount}")
@@ -391,40 +403,242 @@ class ActionHandler(BaseHandler):
         call_amount: int,
         stack: int,
         available: dict,
+        hole_cards: list = None,
+        community_cards: list = None,
+        pot: int = 0,
     ) -> tuple[str, int]:
-        """Decide bot action (conservative strategy)."""
+        """핸드 강도 기반 봇 결정 로직.
+
+        실제 홀덤 플레이어처럼 행동:
+        - 핸드 강도에 따라 베팅/레이즈/콜/폴드 결정
+        - 팟 오즈 고려
+        - 드로우 가능성 고려
+        - 약간의 무작위성 추가 (예측 불가능하게)
+        """
+        hole_cards = hole_cards or []
+        community_cards = community_cards or []
+
+        # 핸드 강도 평가
+        eval_result = evaluate_hand_for_bot(
+            hole_cards=hole_cards,
+            community_cards=community_cards,
+            pot=pot,
+            to_call=call_amount,
+        )
+
+        strength = eval_result["strength"]
+        has_draw = eval_result["has_draw"]
+        recommendation = eval_result["recommendation"]
+
+        logger.info(
+            f"[BOT] Hand eval: strength={strength:.2f}, "
+            f"phase={eval_result['phase']}, draw={has_draw}, "
+            f"rec={recommendation}, desc={eval_result['description']}"
+        )
+
+        # 무작위성 추가 (5% 확률로 예상 밖 행동)
         roll = random.random()
 
-        if "check" in actions:
-            return "check", 0
+        # ========================================
+        # 강한 핸드 (strength >= 0.70): 공격적
+        # ========================================
+        if strength >= 0.70:
+            # 레이즈/베팅 우선
+            if "raise" in actions and roll < 0.85:
+                min_raise = available.get("min_raise", call_amount * 2)
+                max_raise = available.get("max_raise", stack)
+                # 강도에 따라 레이즈 크기 조절
+                if strength >= 0.90:
+                    # 매우 강함: 큰 레이즈 (50-100% pot)
+                    raise_amount = min(max_raise, max(min_raise, int(pot * random.uniform(0.5, 1.0))))
+                else:
+                    # 강함: 중간 레이즈 (30-60% pot)
+                    raise_amount = min(max_raise, max(min_raise, int(pot * random.uniform(0.3, 0.6))))
+                return "raise", raise_amount
 
-        if "call" in actions:
-            # Call if affordable, otherwise fold
-            if call_amount <= stack * 0.3 or roll < 0.8:
+            if "bet" in actions:
+                min_bet = available.get("min_bet", 0)
+                max_bet = available.get("max_bet", stack)
+                bet_amount = min(max_bet, max(min_bet, int(pot * random.uniform(0.4, 0.75))))
+                return "bet", bet_amount
+
+            # 레이즈/베팅 불가시 콜
+            if "call" in actions:
                 return "call", call_amount
-            else:
+
+            if "check" in actions:
+                return "check", 0
+
+        # ========================================
+        # 중간 핸드 (0.45 <= strength < 0.70): 밸런스
+        # ========================================
+        elif strength >= 0.45:
+            # 가끔 베팅/레이즈 (40% 확률)
+            if roll < 0.40:
+                if "bet" in actions:
+                    min_bet = available.get("min_bet", 0)
+                    max_bet = available.get("max_bet", stack)
+                    bet_amount = min(max_bet, max(min_bet, int(pot * random.uniform(0.3, 0.5))))
+                    return "bet", bet_amount
+
+                if "raise" in actions and call_amount < stack * 0.15:
+                    min_raise = available.get("min_raise", call_amount * 2)
+                    return "raise", min_raise
+
+            # 체크 가능하면 체크
+            if "check" in actions:
+                return "check", 0
+
+            # 콜 금액이 적당하면 콜 (스택의 20% 이하)
+            if "call" in actions:
+                if call_amount <= stack * 0.20:
+                    return "call", call_amount
+                # 드로우가 있으면 좀 더 콜
+                if has_draw and call_amount <= stack * 0.30:
+                    return "call", call_amount
+                # 아니면 폴드
                 return "fold", 0
 
-        # Occasionally raise
-        if "raise" in actions and call_amount < stack * 0.1 and roll < 0.15:
-            min_raise = available.get("min_raise", call_amount * 2)
-            return "raise", min_raise
+        # ========================================
+        # 약한 핸드 + 드로우 (0.30 <= strength < 0.45)
+        # ========================================
+        elif strength >= 0.30 and has_draw:
+            if "check" in actions:
+                return "check", 0
 
-        if "bet" in actions and roll < 0.2:
-            min_bet = available.get("min_bet", 0)
-            return "bet", min_bet
+            # 팟 오즈가 좋으면 콜 (콜 금액이 팟의 25% 이하)
+            if "call" in actions:
+                pot_odds_ok = call_amount <= pot * 0.25
+                stack_ok = call_amount <= stack * 0.15
+                if pot_odds_ok and stack_ok:
+                    return "call", call_amount
 
-        if "fold" in actions:
             return "fold", 0
 
+        # ========================================
+        # 약한 핸드 (strength < 0.30): 수비적
+        # ========================================
+        else:
+            if "check" in actions:
+                # 가끔 블러프 (10% 확률, 프리플롭 제외)
+                if roll < 0.10 and community_cards and "bet" in actions:
+                    min_bet = available.get("min_bet", 0)
+                    return "bet", min_bet
+                return "check", 0
+
+            # 매우 적은 금액만 콜 (스택의 5% 이하)
+            if "call" in actions and call_amount <= stack * 0.05:
+                # 그래도 30% 확률로만 콜
+                if roll < 0.30:
+                    return "call", call_amount
+
+            return "fold", 0
+
+        # ========================================
         # Fallback
+        # ========================================
+        if "check" in actions:
+            return "check", 0
+        if "fold" in actions:
+            return "fold", 0
         if actions:
             return actions[0], call_amount if actions[0] == "call" else 0
 
         return "fold", 0
 
+    async def _start_turn_timeout(self, room_id: str, table, position: int, turn_time: int = 15) -> None:
+        """서버 측 턴 타임아웃 시작.
+
+        지정된 시간(초) 후 자동 폴드.
+        """
+        # 기존 타임아웃 취소
+        await self._cancel_turn_timeout(room_id)
+
+        player = table.players.get(position)
+        if not player:
+            return
+
+        # 봇은 타임아웃 처리 안 함 (봇 루프에서 별도 처리)
+        if is_bot_player(player):
+            return
+
+        async def timeout_handler():
+            try:
+                await asyncio.sleep(turn_time)
+
+                # 아직 이 플레이어 턴인지 확인 후 자동 폴드
+                if table.current_player_seat == position:
+                    await self._execute_timeout_fold(room_id, table, position)
+
+            except asyncio.CancelledError:
+                pass  # 정상적으로 취소됨 (액션 수행)
+
+        self._timeout_tasks[room_id] = asyncio.create_task(timeout_handler())
+        logger.info(f"[TIMEOUT] Started for room={room_id}, seat={position}, time={turn_time}s")
+
+    async def _cancel_turn_timeout(self, room_id: str) -> None:
+        """진행 중인 타임아웃 태스크 취소."""
+        if room_id in self._timeout_tasks:
+            self._timeout_tasks[room_id].cancel()
+            try:
+                await self._timeout_tasks[room_id]
+            except asyncio.CancelledError:
+                pass
+            del self._timeout_tasks[room_id]
+            logger.debug(f"[TIMEOUT] Cancelled for room={room_id}")
+
+    async def _execute_timeout_fold(self, room_id: str, table, position: int) -> None:
+        """타임아웃으로 인한 자동 액션 실행.
+
+        - 체크 가능하면 자동 체크
+        - 콜해야 하면 자동 폴드
+        """
+        table_lock = self._get_table_lock(room_id)
+        async with table_lock:
+            player = table.players.get(position)
+            if not player or table.current_player_seat != position:
+                return
+
+            # 체크 가능한지 확인 (현재 베팅이 내 베팅과 같으면 체크 가능)
+            can_check = player.current_bet >= table.current_bet
+
+            # 체크 가능하면 자동 체크, 아니면 자동 폴드
+            action_type = "check" if can_check else "fold"
+            result = table.process_action(player.user_id, action_type, 0)
+
+            if result.get("success"):
+                result["timeout"] = True
+                result["timed_out_position"] = position
+
+                logger.warning(f"[TIMEOUT_{action_type.upper()}] room={room_id}, seat={position}")
+
+                # TIMEOUT_FOLD 이벤트 브로드캐스트 (체크든 폴드든 타임아웃 이벤트 전송)
+                timeout_message = MessageEnvelope.create(
+                    event_type=EventType.TIMEOUT_FOLD,
+                    payload={
+                        "tableId": room_id,
+                        "position": position,
+                        "action": action_type,
+                    },
+                )
+                channel = f"table:{room_id}"
+                await self.manager.broadcast_to_channel(channel, timeout_message.to_dict())
+
+                # 핸드 완료 여부에 따라 처리
+                if result.get("hand_complete"):
+                    await self._broadcast_hand_result(room_id, result.get("hand_result"))
+                    await self._broadcast_action(room_id, result)
+                    await self._broadcast_personalized_states(room_id, table)
+                    asyncio.create_task(self._auto_start_next_hand(room_id, table))
+                else:
+                    await self._broadcast_action(room_id, result)
+                    await self._process_next_turn(room_id, table)
+            else:
+                # 둘 다 실패하면 로그 (일반적으로 발생하지 않아야 함)
+                logger.error(f"[TIMEOUT] Failed to execute {action_type}: {result.get('error')}")
+
     async def _send_turn_prompt(self, room_id: str, table) -> None:
-        """Send TURN_PROMPT to current player."""
+        """Send TURN_PROMPT to current player. UTG gets 20s, others get 15s."""
         if table.current_player_seat is None:
             return
 
@@ -449,12 +663,21 @@ class ActionHandler(BaseHandler):
                 action_dict["maxAmount"] = available.get("max_raise", 0)
             allowed.append(action_dict)
 
-        # Calculate deadline and turn start time
-        turn_timeout = 30  # seconds
+        # 타이머 설정: 프리플랍 UTG는 20초, 나머지는 15초
+        from app.game.poker_table import GamePhase
+        is_utg = table.phase == GamePhase.PREFLOP and getattr(table, '_is_preflop_first_turn', False)
+        turn_time = 20 if is_utg else 15
+
+        # UTG 턴이 시작되면 플래그 해제
+        if is_utg:
+            table._is_preflop_first_turn = False
+
         now = datetime.utcnow()
-        deadline = now + timedelta(seconds=turn_timeout)
-        # 서버 기준 턴 시작 시간 (밀리초 타임스탬프)
+        deadline = now + timedelta(seconds=turn_time)
         turn_start_time = int(now.timestamp() * 1000)
+
+        # 테이블에 턴 시작 시간 기록
+        table._turn_started_at = now
 
         message = MessageEnvelope.create(
             event_type=EventType.TURN_PROMPT,
@@ -463,7 +686,8 @@ class ActionHandler(BaseHandler):
                 "position": table.current_player_seat,
                 "allowedActions": allowed,
                 "deadlineAt": deadline.isoformat(),
-                "turnStartTime": turn_start_time,  # 서버 기준 턴 시작 시간 (밀리초)
+                "turnStartTime": turn_start_time,
+                "turnTime": turn_time,  # 이번 턴 시간 (초)
                 "pot": table.pot,
                 "currentBet": table.current_bet,
             },
@@ -471,7 +695,11 @@ class ActionHandler(BaseHandler):
 
         channel = f"table:{room_id}"
         await self.manager.broadcast_to_channel(channel, message.to_dict())
-        logger.info(f"[TURN_PROMPT] seat={table.current_player_seat}, turnStartTime={turn_start_time}")
+        logger.info(f"[TURN_PROMPT] seat={table.current_player_seat}, time={turn_time}s, utg={is_utg}")
+
+        # 서버 타임아웃 시작 (휴먼 플레이어만)
+        if not is_bot_player(current_player):
+            await self._start_turn_timeout(room_id, table, table.current_player_seat, turn_time)
 
     async def _broadcast_action(self, room_id: str, result: dict) -> None:
         """Broadcast action result to all players."""
@@ -528,6 +756,25 @@ class ActionHandler(BaseHandler):
 
         channel = f"table:{room_id}"
         await self.manager.broadcast_to_channel(channel, message.to_dict())
+
+        # 탈락한 플레이어가 있으면 PLAYER_ELIMINATED 이벤트 전송
+        eliminated_players = hand_result.get("eliminatedPlayers", [])
+        if eliminated_players:
+            await self._broadcast_player_eliminated(room_id, eliminated_players)
+
+    async def _broadcast_player_eliminated(self, room_id: str, eliminated_players: list) -> None:
+        """Broadcast player eliminated event."""
+        message = MessageEnvelope.create(
+            event_type=EventType.PLAYER_ELIMINATED,
+            payload={
+                "tableId": room_id,
+                "eliminatedPlayers": eliminated_players,
+            },
+        )
+
+        channel = f"table:{room_id}"
+        await self.manager.broadcast_to_channel(channel, message.to_dict())
+        logger.info(f"[ELIMINATED] {len(eliminated_players)} player(s) eliminated: {[p['nickname'] for p in eliminated_players]}")
 
     async def _broadcast_hand_started(self, room_id: str, result: dict) -> None:
         """Broadcast hand started."""

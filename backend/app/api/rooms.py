@@ -488,22 +488,33 @@ async def close_room(
 async def dev_reset_table(
     room_id: str,
     current_user: CurrentUser,
+    db: DbSession,
     trace_id: TraceId,
 ):
     """[DEV] Reset table - remove all players/bots and reset game state."""
-    table = game_manager.reset_table(room_id)
-    if not table:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={
-                "error": {
-                    "code": "TABLE_NOT_FOUND",
-                    "message": "테이블을 찾을 수 없습니다",
-                    "details": {},
-                },
-                "traceId": trace_id,
-            },
-        )
+    # 1. GameManager 리셋
+    game_manager.reset_table(room_id)
+
+    # 2. DB 업데이트 (seats 비우기, current_players 0으로)
+    from sqlalchemy import select
+    from sqlalchemy.orm import attributes
+    from app.models import Room, Table
+
+    result = await db.execute(select(Room).where(Room.id == room_id))
+    room = result.scalar_one_or_none()
+
+    if room:
+        # Room의 current_players를 0으로
+        room.current_players = 0
+
+        # Table의 seats를 빈 객체로
+        table_result = await db.execute(select(Table).where(Table.room_id == room_id))
+        table = table_result.scalar_one_or_none()
+        if table:
+            table.seats = {}
+            attributes.flag_modified(table, "seats")
+
+        await db.commit()
 
     return SuccessResponse(
         success=True,
@@ -519,10 +530,38 @@ async def dev_reset_table(
 async def dev_remove_bots(
     room_id: str,
     current_user: CurrentUser,
+    db: DbSession,
     trace_id: TraceId,
 ):
     """[DEV] Remove all bots from the table."""
+    # 1. GameManager에서 봇 제거
     removed = game_manager.remove_bots_from_table(room_id)
+
+    # 2. DB에서도 봇 제거 (is_bot이 true인 좌석)
+    from sqlalchemy import select
+    from sqlalchemy.orm import attributes
+    from app.models import Room, Table
+
+    table_result = await db.execute(select(Table).where(Table.room_id == room_id))
+    table = table_result.scalar_one_or_none()
+
+    if table and table.seats:
+        seats = dict(table.seats)
+        # is_bot이 true인 좌석 제거
+        seats_to_remove = [pos for pos, data in seats.items() if data.get("is_bot")]
+        for pos in seats_to_remove:
+            del seats[pos]
+
+        table.seats = seats
+        attributes.flag_modified(table, "seats")
+
+        # Room의 current_players 업데이트
+        room_result = await db.execute(select(Room).where(Room.id == room_id))
+        room = room_result.scalar_one_or_none()
+        if room:
+            room.current_players = len(seats)
+
+        await db.commit()
 
     return SuccessResponse(
         success=True,

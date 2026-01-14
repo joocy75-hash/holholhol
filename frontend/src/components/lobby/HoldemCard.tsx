@@ -15,7 +15,9 @@ interface Table {
 interface HoldemCardProps {
   table: Table;
   onJoin: (table: Table) => void;
+  onReset?: (tableId: string) => void;
   isLoading?: boolean;
+  isResetting?: boolean;
 }
 
 // Card icon with gradient - SVG 필터 제거 (CSS drop-shadow로 대체)
@@ -59,7 +61,7 @@ function GoldIcon() {
   );
 }
 
-export default function HoldemCard({ table, onJoin, isLoading = false }: HoldemCardProps) {
+export default function HoldemCard({ table, onJoin, onReset, isLoading = false, isResetting = false }: HoldemCardProps) {
   const isFull = table.playerCount >= table.maxSeats;
 
   const formatBuyIn = (amount: number) => {
@@ -119,14 +121,26 @@ export default function HoldemCard({ table, onJoin, isLoading = false }: HoldemC
             </span>
           </div>
 
-          <button
-            onClick={() => onJoin(table)}
-            disabled={isLoading || isFull}
-            className="btn-join"
-          >
-            <span className="btn-join-arrow">&gt;</span>
-            <span>{isFull ? '만석' : '참여하기'}</span>
-          </button>
+          <div className="flex gap-2">
+            {/* DEV: 리셋 버튼 (만석일 때만 표시) */}
+            {isFull && onReset && (
+              <button
+                onClick={() => onReset(table.id)}
+                disabled={isResetting}
+                className="px-3 py-2 rounded-lg bg-red-500/80 hover:bg-red-500 text-white text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                {isResetting ? '...' : '리셋'}
+              </button>
+            )}
+            <button
+              onClick={() => onJoin(table)}
+              disabled={isLoading || isFull}
+              className="btn-join"
+            >
+              <span className="btn-join-arrow">&gt;</span>
+              <span>{isFull ? '만석' : '참여하기'}</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

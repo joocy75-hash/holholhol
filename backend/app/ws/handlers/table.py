@@ -54,6 +54,7 @@ class TableHandler(BaseHandler):
             EventType.SEAT_REQUEST,
             EventType.LEAVE_REQUEST,
             EventType.ADD_BOT_REQUEST,
+            EventType.START_BOT_LOOP_REQUEST,
         )
 
     async def handle(
@@ -72,6 +73,8 @@ class TableHandler(BaseHandler):
                 return await self._handle_leave(conn, event)
             case EventType.ADD_BOT_REQUEST:
                 return await self._handle_add_bot(conn, event)
+            case EventType.START_BOT_LOOP_REQUEST:
+                return await self._handle_start_bot_loop(conn, event)
         return None
 
     async def _handle_subscribe(
@@ -428,6 +431,172 @@ class TableHandler(BaseHandler):
                 trace_id=event.trace_id,
             )
 
+    async def _handle_start_bot_loop(
+        self,
+        conn: WebSocketConnection,
+        event: MessageEnvelope,
+    ) -> MessageEnvelope:
+        """Handle START_BOT_LOOP_REQUEST event.
+
+        봇 여러 개를 하나씩 자리에 앉히고 자동으로 게임을 시작합니다.
+        """
+        import asyncio
+        import random
+
+        payload = event.payload
+        table_id = payload.get("tableId")
+        bot_count = payload.get("botCount", 4)
+        buy_in = payload.get("buyIn")
+
+        try:
+            self.db.expire_all()
+
+            table = await self._get_table_by_id_or_room(table_id, load_room=True)
+            if not table:
+                raise RoomError("TABLE_NOT_FOUND", "Table not found")
+
+            room_id = str(table.room_id)
+            room = table.room
+            if not room:
+                raise RoomError("ROOM_NOT_FOUND", "Room not found")
+
+            config = room.config or {}
+            max_seats = config.get("max_seats", 6)
+            default_buy_in = buy_in or config.get("buy_in_min", 1000)
+
+            # Ensure GameManager table exists
+            game_table = await self._ensure_game_table(table)
+            if not game_table:
+                raise RoomError("GAME_TABLE_ERROR", "Failed to create game table")
+
+            # 게임이 진행 중이면 중단
+            if game_table.phase.value != "waiting":
+                raise RoomError("GAME_IN_PROGRESS", "게임이 진행 중입니다. 리셋 후 다시 시도하세요.")
+
+            # 봇을 하나씩 추가 (실제처럼 보이게)
+            bots_added = []
+            seats = dict(table.seats) if table.seats else {}
+
+            for i in range(bot_count):
+                # Find empty position
+                empty_position = None
+                for pos in range(max_seats):
+                    if game_table.players.get(pos) is None:
+                        empty_position = pos
+                        break
+
+                if empty_position is None:
+                    break  # 더 이상 빈 자리 없음
+
+                # Generate bot ID and name
+                bot_id = f"bot_{uuid.uuid4().hex[:8]}"
+                bot_nickname = f"Bot_{bot_id[-4:]}"
+
+                # Add bot to GameManager
+                bot_player = Player(
+                    user_id=bot_id,
+                    username=bot_nickname,
+                    seat=empty_position,
+                    stack=default_buy_in,
+                    is_bot=True,
+                )
+                game_table.seat_player(empty_position, bot_player)
+
+                # Add to DB seats
+                seats[str(empty_position)] = {
+                    "user_id": bot_id,
+                    "nickname": bot_nickname,
+                    "stack": default_buy_in,
+                    "status": "active",
+                    "is_bot": True,
+                }
+
+                bots_added.append({
+                    "botId": bot_id,
+                    "nickname": bot_nickname,
+                    "position": empty_position,
+                    "stack": default_buy_in,
+                })
+
+                logger.info(f"[BOT-LOOP] Bot {bot_nickname} joined at position {empty_position}")
+
+                # Save to DB (매번 저장)
+                table.seats = seats
+                attributes.flag_modified(table, "seats")
+                room.current_players = len(seats)
+                await self.db.commit()
+
+                # 봇이 자리에 앉은 것을 브로드캐스트 (하나씩!)
+                await self._broadcast_table_update(
+                    room_id,
+                    "bot_added",
+                    {
+                        "position": empty_position,
+                        "botId": bot_id,
+                        "nickname": bot_nickname,
+                        "stack": default_buy_in,
+                    },
+                )
+
+                # 다음 봇이 앉기 전에 딜레이 (0.8-1.5초)
+                if i < bot_count - 1:  # 마지막 봇이 아니면
+                    delay = random.uniform(0.8, 1.5)
+                    await asyncio.sleep(delay)
+
+            # 모든 봇이 앉은 후 잠시 대기 (게임 시작 전)
+            await asyncio.sleep(1.0)
+
+            # 2명 이상이면 ActionHandler를 통해 게임 시작
+            if game_table.can_start_hand():
+                logger.info(f"[BOT-LOOP] Auto-starting game with {len(bots_added)} bots")
+                # ActionHandler의 기존 로직 사용 (봇 딜레이, 브로드캐스트 등 포함)
+                from app.ws.handlers.action import ActionHandler
+                from app.utils.redis_client import redis_client
+
+                action_handler = ActionHandler(self.manager, redis_client)
+                start_event = MessageEnvelope.create(
+                    event_type=EventType.START_GAME,
+                    payload={"tableId": room_id},
+                )
+                await action_handler._handle_start_game(conn, start_event)
+
+            return MessageEnvelope.create(
+                event_type=EventType.START_BOT_LOOP_RESULT,
+                payload={
+                    "success": True,
+                    "tableId": room_id,
+                    "botsAdded": len(bots_added),
+                    "bots": bots_added,
+                    "gameStarted": game_table.phase.value != "waiting",
+                },
+                request_id=event.request_id,
+                trace_id=event.trace_id,
+            )
+
+        except RoomError as e:
+            return MessageEnvelope.create(
+                event_type=EventType.START_BOT_LOOP_RESULT,
+                payload={
+                    "success": False,
+                    "errorCode": e.code,
+                    "errorMessage": e.message,
+                },
+                request_id=event.request_id,
+                trace_id=event.trace_id,
+            )
+        except Exception as e:
+            logger.error(f"Start bot loop failed: {e}", exc_info=True)
+            return MessageEnvelope.create(
+                event_type=EventType.START_BOT_LOOP_RESULT,
+                payload={
+                    "success": False,
+                    "errorCode": "BOT_LOOP_FAILED",
+                    "errorMessage": str(e),
+                },
+                request_id=event.request_id,
+                trace_id=event.trace_id,
+            )
+
     async def _ensure_game_table(self, table: Table):
         """Ensure table exists in GameManager and sync from DB if needed."""
         room_id = str(table.room_id)
@@ -549,6 +718,7 @@ class TableHandler(BaseHandler):
                         "stack": player.stack,
                         "status": player.status,
                         "betAmount": player.current_bet,
+                        "totalBet": player.total_bet_this_hand,  # 핸드 전체 누적 베팅
                         "isDealer": i == game_table.dealer_seat,
                         "isCurrent": i == game_table.current_player_seat,
                     })
@@ -559,6 +729,7 @@ class TableHandler(BaseHandler):
                         "stack": 0,
                         "status": "empty",
                         "betAmount": 0,
+                        "totalBet": 0,
                     })
 
             # Build hand info

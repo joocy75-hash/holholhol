@@ -92,6 +92,10 @@ class PokerTable:
     _hand_actions: List[Dict] = field(default_factory=list)
     _hand_starting_stacks: Dict[int, int] = field(default_factory=dict)
     _saw_flop: bool = field(default=False)
+    _is_preflop_first_turn: bool = field(default=True)  # UTG 첫 턴 여부 (20초 부여용)
+
+    # Turn timer tracking
+    _turn_started_at: Optional[datetime] = field(default=None, repr=False)
 
     def __post_init__(self):
         for i in range(self.max_players):
@@ -183,6 +187,7 @@ class PokerTable:
         self._hand_actions = []
         self._hand_starting_stacks = {seat: p.stack for seat, p in seated}
         self._saw_flop = False
+        self._is_preflop_first_turn = True  # UTG 첫 턴에 20초 부여
 
         # Build mapping between seat numbers and PokerKit player indices
         self._seat_to_index = {seat: idx for idx, (seat, _) in enumerate(seated)}
@@ -371,6 +376,7 @@ class PokerTable:
                     "position": seat,
                     "stack": p.stack,
                     "bet": p.current_bet,
+                    "totalBet": p.total_bet_this_hand,  # 핸드 전체 누적 베팅
                     "status": p.status,
                 })
 
@@ -489,6 +495,7 @@ class PokerTable:
                     "username": player.username,
                     "stack": player.stack,
                     "bet": player.current_bet,
+                    "totalBet": player.total_bet_this_hand,  # 핸드 전체 누적 베팅
                     "status": player.status,
                     "isBot": player.is_bot,
                     "isCurrent": seat == self.current_player_seat,
@@ -621,7 +628,12 @@ class PokerTable:
             if player and idx < len(self._state.stacks):
                 player.stack = self._state.stacks[idx]
                 if self._state.bets and idx < len(self._state.bets):
-                    player.current_bet = self._state.bets[idx]
+                    new_bet = self._state.bets[idx]
+                    # 베팅 금액이 증가한 경우에만 total_bet_this_hand에 누적
+                    bet_increase = new_bet - player.current_bet
+                    if bet_increase > 0:
+                        player.total_bet_this_hand += bet_increase
+                    player.current_bet = new_bet
 
         # Update current bet to call
         if self._state.bets:
@@ -650,6 +662,15 @@ class PokerTable:
                 player.stack = final_stack
                 final_stacks[seat] = final_stack
 
+        # 먼저 active/all_in 플레이어 수 계산 (폴드하지 않은 플레이어)
+        # 2명 이상일 때만 실제 쇼다운 (카드 공개)
+        # 1명만 남으면 폴드-아웃 승리 (카드 공개 없음)
+        active_player_count = sum(
+            1 for seat in self._seat_to_index
+            if (p := self.players.get(seat)) and p.status in ("active", "all_in")
+        )
+        is_actual_showdown = active_player_count >= 2
+
         # 승리액 및 팟 계산
         # PokerKit이 칩을 이미 분배했으므로 시작/최종 스택 차이로 계산
         total_pot = 0  # 총 팟 = 손실 합계 = 이익 합계
@@ -672,7 +693,9 @@ class PokerTable:
                     "amount": net_gain,  # 실제 순이익 (최종 스택 - 시작 스택)
                 })
 
-            if player.status in ("active", "all_in") and player.hole_cards:
+            # 실제 쇼다운(2명 이상)일 때만 카드 공개
+            # 폴드-아웃 승리(1명만 남음)는 카드 공개 안함
+            if is_actual_showdown and player.status in ("active", "all_in") and player.hole_cards:
                 showdown_cards.append({
                     "seat": seat,
                     "position": seat,
@@ -713,13 +736,25 @@ class PokerTable:
         self.pot = 0
         self.community_cards = []  # 커뮤니티 카드 초기화
 
+        # 탈락한 플레이어 추적 (stack이 0인 플레이어)
+        eliminated_players = []
+
         for seat in seat_to_index_copy:
             player = self.players.get(seat)
             if player:
                 player.current_bet = 0
                 player.total_bet_this_hand = 0
                 player.hole_cards = None
-                if player.status != "sitting_out":
+
+                # stack이 0이면 sitting_out으로 전환 (탈락)
+                if player.stack == 0:
+                    player.status = "sitting_out"
+                    eliminated_players.append({
+                        "seat": seat,
+                        "userId": player.user_id,
+                        "nickname": player.nickname,
+                    })
+                elif player.status != "sitting_out":
                     player.status = "active"
 
         # 매핑 변수도 초기화
@@ -729,10 +764,12 @@ class PokerTable:
         self._hand_starting_stacks = {}
         self._hand_start_time = None
         self._saw_flop = False
+        self._is_preflop_first_turn = True
 
         return {
             "winners": winners,
             "showdown": showdown_cards,
             "pot": total_pot,  # 계산된 총 팟 반환
             "communityCards": result_community_cards,  # 초기화 전 값 반환
+            "eliminatedPlayers": eliminated_players,  # 탈락한 플레이어 목록
         }
