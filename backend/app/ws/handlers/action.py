@@ -313,89 +313,135 @@ class ActionHandler(BaseHandler):
         """Process next turn - with bot loop (poker style).
 
         Uses iteration instead of recursion to prevent stack overflow.
+        Includes retry logic for phase transitions where actor may be temporarily None.
         """
         MAX_ITERATIONS = 50  # Safety limit
+        MAX_RETRY_FOR_NONE_SEAT = 5  # current_player_seat가 None일 때 재시도 횟수
+        RETRY_DELAY = 0.3  # 재시도 대기 시간 (초)
 
-        for iteration in range(MAX_ITERATIONS):
-            logger.info(f"[TURN] iter={iteration}, current_seat={table.current_player_seat}, phase={table.phase}")
+        none_seat_retry_count = 0
+        no_actions_retry_count = 0
 
-            if table.current_player_seat is None:
-                logger.info("[TURN] No current player seat")
-                return
+        try:
+            for iteration in range(MAX_ITERATIONS):
+                logger.info(f"[TURN] iter={iteration}, current_seat={table.current_player_seat}, phase={table.phase}")
 
-            current_player = table.players.get(table.current_player_seat)
-            if not current_player:
-                logger.info(f"[TURN] No player at seat {table.current_player_seat}")
-                return
+                # 핸드가 완료된 상태면 종료
+                if table.phase.value == "waiting":
+                    logger.info("[TURN] Hand complete, phase is waiting")
+                    return
 
-            # Check if current player is a bot
-            is_bot = is_bot_player(current_player)
-            logger.info(f"[TURN] Player {current_player.username} is_bot={is_bot}, user_id={current_player.user_id}")
+                if table.current_player_seat is None:
+                    none_seat_retry_count += 1
+                    if none_seat_retry_count <= MAX_RETRY_FOR_NONE_SEAT:
+                        logger.info(f"[TURN] No current player seat, retry {none_seat_retry_count}/{MAX_RETRY_FOR_NONE_SEAT}")
+                        await asyncio.sleep(RETRY_DELAY)
+                        # 테이블 상태 갱신 시도
+                        table._update_current_player()
+                        continue
+                    else:
+                        logger.warning("[TURN] No current player seat after max retries - hand may be complete")
+                        return
 
-            if not is_bot:
-                # Human player - send TURN_PROMPT and exit loop
-                logger.info(f"[TURN] Human player at seat {table.current_player_seat}, sending TURN_PROMPT")
-                await self._send_turn_prompt(room_id, table)
-                return
+                # 유효한 seat을 찾았으면 재시도 카운터 리셋
+                none_seat_retry_count = 0
 
-            # Bot auto-play with human-like thinking delay
-            delay = random.triangular(2.0, 5.0, 3.0)  # 평균 3초, 2-5초 범위
-            if random.random() < 0.2:  # 20% 확률로 추가 시간
-                delay += random.uniform(1.0, 2.0)
-            logger.debug(f"[BOT] {current_player.username} thinking for {delay:.1f}s...")
-            await asyncio.sleep(delay)
+                current_player = table.players.get(table.current_player_seat)
+                if not current_player:
+                    logger.info(f"[TURN] No player at seat {table.current_player_seat}")
+                    return
 
-            available = table.get_available_actions(current_player.user_id)
-            actions = available.get("actions", [])
-            call_amount = available.get("call_amount", 0)
+                # Check if current player is a bot
+                is_bot = is_bot_player(current_player)
+                logger.info(f"[TURN] Player {current_player.username} is_bot={is_bot}, user_id={current_player.user_id}")
 
-            logger.info(f"[BOT] {current_player.username} actions: {actions}, call={call_amount}")
+                if not is_bot:
+                    # Human player - send TURN_PROMPT and exit loop
+                    logger.info(f"[TURN] Human player at seat {table.current_player_seat}, sending TURN_PROMPT")
+                    await self._send_turn_prompt(room_id, table)
+                    return
 
-            if not actions:
-                logger.debug("[BOT] No actions available")
-                return
+                # Bot auto-play with human-like thinking delay
+                delay = random.triangular(2.0, 5.0, 3.0)  # 평균 3초, 2-5초 범위
+                if random.random() < 0.2:  # 20% 확률로 추가 시간
+                    delay += random.uniform(1.0, 2.0)
+                logger.debug(f"[BOT] {current_player.username} thinking for {delay:.1f}s...")
+                await asyncio.sleep(delay)
 
-            # Bot decision logic with hand strength evaluation
-            action, amount = self._decide_bot_action(
-                actions=actions,
-                call_amount=call_amount,
-                stack=current_player.stack,
-                available=available,
-                hole_cards=current_player.hole_cards or [],
-                community_cards=table.community_cards or [],
-                pot=table.pot,
-            )
+                available = table.get_available_actions(current_player.user_id)
+                actions = available.get("actions", [])
+                call_amount = available.get("call_amount", 0)
 
-            logger.info(f"[BOT] {current_player.username} chose: {action} {amount}")
+                logger.info(f"[BOT] {current_player.username} actions: {actions}, call={call_amount}")
 
-            # Process bot action
-            result = table.process_action(current_player.user_id, action, amount)
+                if not actions:
+                    no_actions_retry_count += 1
+                    if no_actions_retry_count <= 3:
+                        logger.info(f"[BOT] No actions available, retry {no_actions_retry_count}/3")
+                        await asyncio.sleep(RETRY_DELAY)
+                        table._update_current_player()
+                        continue
+                    else:
+                        logger.warning("[BOT] No actions available after retries")
+                        return
 
-            if not result.get("success"):
-                logger.error(f"[BOT] Action failed: {result.get('error')}")
-                return
+                # 유효한 actions를 찾았으면 재시도 카운터 리셋
+                no_actions_retry_count = 0
 
-            # Hand complete - 결과 먼저 전송
-            if result.get("hand_complete"):
-                await self._broadcast_hand_result(room_id, result.get("hand_result"))
+                # Bot decision logic with hand strength evaluation
+                action, amount = self._decide_bot_action(
+                    actions=actions,
+                    call_amount=call_amount,
+                    stack=current_player.stack,
+                    available=available,
+                    hole_cards=current_player.hole_cards or [],
+                    community_cards=table.community_cards or [],
+                    pot=table.pot,
+                )
+
+                logger.info(f"[BOT] {current_player.username} chose: {action} {amount}")
+
+                # Process bot action
+                result = table.process_action(current_player.user_id, action, amount)
+
+                if not result.get("success"):
+                    error_msg = result.get('error', 'Unknown error')
+                    logger.error(f"[BOT] Action failed: {error_msg}")
+                    # should_refresh가 있으면 상태 갱신 후 재시도
+                    if result.get("should_refresh"):
+                        logger.info("[BOT] Refreshing state and retrying...")
+                        table._update_current_player()
+                        continue
+                    return
+
+                # Hand complete - 결과 먼저 전송
+                if result.get("hand_complete"):
+                    await self._broadcast_hand_result(room_id, result.get("hand_result"))
+                    await self._broadcast_action(room_id, result)
+                    await self._broadcast_personalized_states(room_id, table)
+                    # Auto-start next hand
+                    asyncio.create_task(self._auto_start_next_hand(room_id, table))
+                    return
+
+                # Broadcast action
                 await self._broadcast_action(room_id, result)
-                await self._broadcast_personalized_states(room_id, table)
-                # Auto-start next hand
-                asyncio.create_task(self._auto_start_next_hand(room_id, table))
-                return
 
-            # Broadcast action
-            await self._broadcast_action(room_id, result)
+                # Phase changed - broadcast community cards (핸드 완료 시에는 전송 안 함)
+                if result.get("phase_changed"):
+                    await self._broadcast_community_cards(room_id, table)
+                    # 페이즈 전환 후 커뮤니티 카드 애니메이션 대기 (1.5초)
+                    await asyncio.sleep(1.5)
+                    table._update_current_player()
 
-            # Phase changed - broadcast community cards (핸드 완료 시에는 전송 안 함)
-            if result.get("phase_changed"):
-                await self._broadcast_community_cards(room_id, table)
+                # Broadcast turn changed
+                await self._broadcast_turn_changed(room_id, table)
+                # Loop continues to handle next player
 
-            # Broadcast turn changed
-            await self._broadcast_turn_changed(room_id, table)
-            # Loop continues to handle next player
-
-        logger.warning(f"[BOT] Max iterations ({MAX_ITERATIONS}) reached!")
+            logger.warning(f"[BOT] Max iterations ({MAX_ITERATIONS}) reached!")
+        except Exception as e:
+            logger.error(f"[BOT] Exception in _process_next_turn: {e}", exc_info=True)
+            import traceback
+            traceback.print_exc()
 
     def _decide_bot_action(
         self,
@@ -457,9 +503,9 @@ class ActionHandler(BaseHandler):
                 return "raise", raise_amount
 
             if "bet" in actions:
-                min_bet = available.get("min_bet", 0)
-                max_bet = available.get("max_bet", stack)
-                bet_amount = min(max_bet, max(min_bet, int(pot * random.uniform(0.4, 0.75))))
+                min_raise = available.get("min_raise", 0)
+                max_raise = available.get("max_raise", stack)
+                bet_amount = min(max_raise, max(min_raise, int(pot * random.uniform(0.4, 0.75))))
                 return "bet", bet_amount
 
             # 레이즈/베팅 불가시 콜
@@ -476,9 +522,9 @@ class ActionHandler(BaseHandler):
             # 가끔 베팅/레이즈 (40% 확률)
             if roll < 0.40:
                 if "bet" in actions:
-                    min_bet = available.get("min_bet", 0)
-                    max_bet = available.get("max_bet", stack)
-                    bet_amount = min(max_bet, max(min_bet, int(pot * random.uniform(0.3, 0.5))))
+                    min_raise = available.get("min_raise", 0)
+                    max_raise = available.get("max_raise", stack)
+                    bet_amount = min(max_raise, max(min_raise, int(pot * random.uniform(0.3, 0.5))))
                     return "bet", bet_amount
 
                 if "raise" in actions and call_amount < stack * 0.15:
@@ -522,8 +568,8 @@ class ActionHandler(BaseHandler):
             if "check" in actions:
                 # 가끔 블러프 (10% 확률, 프리플롭 제외)
                 if roll < 0.10 and community_cards and "bet" in actions:
-                    min_bet = available.get("min_bet", 0)
-                    return "bet", min_bet
+                    min_raise = available.get("min_raise", 0)
+                    return "bet", min_raise
                 return "check", 0
 
             # 매우 적은 금액만 콜 (스택의 5% 이하)

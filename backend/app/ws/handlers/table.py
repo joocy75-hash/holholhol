@@ -538,13 +538,12 @@ class TableHandler(BaseHandler):
                     },
                 )
 
-                # 다음 봇이 앉기 전에 딜레이 (0.8-1.5초)
-                if i < bot_count - 1:  # 마지막 봇이 아니면
-                    delay = random.uniform(0.8, 1.5)
-                    await asyncio.sleep(delay)
+                # 봇 착석은 빠르게 (0.3초)
+                if i < bot_count - 1:
+                    await asyncio.sleep(0.3)
 
-            # 모든 봇이 앉은 후 잠시 대기 (게임 시작 전)
-            await asyncio.sleep(1.0)
+            # 모든 봇이 앉은 후 게임 시작 전 대기 (2초)
+            await asyncio.sleep(2.0)
 
             # 2명 이상이면 ActionHandler를 통해 게임 시작
             if game_table.can_start_hand():
