@@ -4,7 +4,7 @@ from math import ceil
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.api.deps import CurrentUser, DbSession, TraceId
+from app.api.deps import CurrentUser, DbSession, OptionalUser, TraceId
 from app.game.manager import game_manager
 from app.schemas import (
     CreateRoomRequest,
@@ -12,6 +12,8 @@ from app.schemas import (
     JoinRoomRequest,
     JoinRoomResponse,
     PaginationMeta,
+    QuickJoinRequest,
+    QuickJoinResponse,
     RoomConfigResponse,
     RoomDetailResponse,
     RoomListResponse,
@@ -94,6 +96,124 @@ async def list_rooms(
             has_prev=page > 1,
         ),
     )
+
+
+@router.post(
+    "/quick-join",
+    response_model=QuickJoinResponse,
+    responses={
+        400: {"model": ErrorResponse, "description": "Insufficient balance"},
+        401: {"model": ErrorResponse, "description": "Not authenticated"},
+        404: {"model": ErrorResponse, "description": "No available room"},
+        409: {"model": ErrorResponse, "description": "Already seated or room full"},
+    },
+)
+async def quick_join(
+    current_user: CurrentUser,
+    db: DbSession,
+    trace_id: TraceId,
+    request_body: QuickJoinRequest | None = None,
+):
+    """Quick join to an available room.
+
+    Automatically finds the best available room based on user's balance
+    and optional blind level preference. Calculates optimal buy-in amount.
+    """
+    from app.services.room_matcher import RoomMatcher, calculate_default_buy_in
+    from app.utils.errors import (
+        NoAvailableRoomError,
+        InsufficientBalanceError,
+        RoomFullError,
+        AlreadySeatedError,
+    )
+
+    room_service = RoomService(db)
+    room_matcher = RoomMatcher(db)
+
+    blind_level = request_body.blind_level if request_body else None
+
+    try:
+        # Check if user is already seated somewhere
+        existing_rooms = await room_service.get_user_rooms(current_user.id)
+        if existing_rooms:
+            raise AlreadySeatedError(room_id=existing_rooms[0])
+
+        # Find best room
+        room = await room_matcher.find_best_room(
+            user_id=current_user.id,
+            user_balance=current_user.balance,
+            blind_level=blind_level,
+            exclude_room_ids=existing_rooms,
+        )
+
+        if not room:
+            raise NoAvailableRoomError(blind_level=blind_level)
+
+        # Find available seat
+        seat = room_matcher.get_available_seat(room)
+        if seat is None:
+            raise RoomFullError(room_id=room.id)
+
+        # Calculate buy-in
+        buy_in_min = room.config.get("buy_in_min", 400)
+        buy_in_max = room.config.get("buy_in_max", 2000)
+        buy_in = calculate_default_buy_in(buy_in_min, buy_in_max, current_user.balance)
+
+        # Join room
+        result = await room_service.quick_join_room(
+            user_id=current_user.id,
+            room_id=room.id,
+            seat=seat,
+            buy_in=buy_in,
+        )
+
+        return QuickJoinResponse(
+            success=True,
+            room_id=room.id,
+            table_id=result["table_id"],
+            seat=result["position"],
+            buy_in=buy_in,
+            room_name=room.name,
+            blinds=f"{room.small_blind}/{room.big_blind}",
+        )
+
+    except (NoAvailableRoomError, InsufficientBalanceError, RoomFullError, AlreadySeatedError) as e:
+        status_code = status.HTTP_400_BAD_REQUEST
+        if isinstance(e, NoAvailableRoomError):
+            status_code = status.HTTP_404_NOT_FOUND
+        elif isinstance(e, (RoomFullError, AlreadySeatedError)):
+            status_code = status.HTTP_409_CONFLICT
+
+        raise HTTPException(
+            status_code=status_code,
+            detail={
+                "error": {
+                    "code": e.code,
+                    "message": e.message,
+                    "details": e.details,
+                },
+                "traceId": trace_id,
+            },
+        )
+
+    except RoomError as e:
+        status_code = status.HTTP_400_BAD_REQUEST
+        if "NOT_FOUND" in e.code:
+            status_code = status.HTTP_404_NOT_FOUND
+        elif "FULL" in e.code or "ALREADY" in e.code:
+            status_code = status.HTTP_409_CONFLICT
+
+        raise HTTPException(
+            status_code=status_code,
+            detail={
+                "error": {
+                    "code": e.code,
+                    "message": e.message,
+                    "details": e.details,
+                },
+                "traceId": trace_id,
+            },
+        )
 
 
 @router.post(
@@ -487,11 +607,24 @@ async def close_room(
 )
 async def dev_reset_table(
     room_id: str,
-    current_user: CurrentUser,
     db: DbSession,
     trace_id: TraceId,
+    current_user: OptionalUser = None,
 ):
-    """[DEV] Reset table - remove all players/bots and reset game state."""
+    """[DEV] Reset table - remove all players/bots and reset game state.
+    
+    DEV 환경에서는 인증 없이도 접근 가능합니다.
+    """
+    from app.config import get_settings
+    settings = get_settings()
+    
+    # 프로덕션 환경에서는 인증 필수
+    if settings.app_env == "production" and not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": {"code": "AUTH_REQUIRED", "message": "Authentication required"}},
+        )
+    
     # 1. GameManager 리셋
     game_manager.reset_table(room_id)
 
@@ -529,11 +662,24 @@ async def dev_reset_table(
 )
 async def dev_remove_bots(
     room_id: str,
-    current_user: CurrentUser,
     db: DbSession,
     trace_id: TraceId,
+    current_user: OptionalUser = None,
 ):
-    """[DEV] Remove all bots from the table."""
+    """[DEV] Remove all bots from the table.
+    
+    DEV 환경에서는 인증 없이도 접근 가능합니다.
+    """
+    from app.config import get_settings
+    settings = get_settings()
+    
+    # 프로덕션 환경에서는 인증 필수
+    if settings.app_env == "production" and not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": {"code": "AUTH_REQUIRED", "message": "Authentication required"}},
+        )
+    
     # 1. GameManager에서 봇 제거
     removed = game_manager.remove_bots_from_table(room_id)
 

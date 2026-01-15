@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { tablesApi } from '@/lib/api';
+import { extractErrorMessage } from '@/types/errors';
 
 export interface Table {
   id: string;
@@ -40,9 +41,9 @@ export const useGameStore = create<GameState>((set) => ({
     try {
       const response = await tablesApi.list();
       set({ tables: response.data.rooms || [], isLoading: false });
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({
-        error: error.response?.data?.error?.message || '테이블 목록을 불러올 수 없습니다.',
+        error: extractErrorMessage(error, '테이블 목록을 불러올 수 없습니다.'),
         isLoading: false,
       });
     }
@@ -53,9 +54,9 @@ export const useGameStore = create<GameState>((set) => ({
     try {
       const response = await tablesApi.get(tableId);
       set({ currentTable: response.data, isLoading: false });
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({
-        error: error.response?.data?.detail || '테이블 정보를 불러올 수 없습니다.',
+        error: extractErrorMessage(error, '테이블 정보를 불러올 수 없습니다.'),
         isLoading: false,
       });
     }
@@ -67,7 +68,7 @@ export const useGameStore = create<GameState>((set) => ({
       const roomIds = response.data.rooms || [];
       set({ seatedRoomIds: roomIds });
       return roomIds;
-    } catch (error) {
+    } catch {
       set({ seatedRoomIds: [] });
       return [];
     }
@@ -81,13 +82,9 @@ export const useGameStore = create<GameState>((set) => ({
       const tableResponse = await tablesApi.get(tableId);
       set({ currentTable: tableResponse.data, isLoading: false });
       return joinResponse.data;
-    } catch (error: any) {
-      const detail = error.response?.data?.detail;
-      const errorMsg = typeof detail === 'string'
-        ? detail
-        : error.response?.data?.error?.message || '테이블 참가에 실패했습니다.';
+    } catch (error: unknown) {
       set({
-        error: errorMsg,
+        error: extractErrorMessage(error, '테이블 참가에 실패했습니다.'),
         isLoading: false,
       });
       throw error;
@@ -99,9 +96,9 @@ export const useGameStore = create<GameState>((set) => ({
     try {
       await tablesApi.leave(tableId);
       set({ currentTable: null, isLoading: false });
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({
-        error: error.response?.data?.detail || '테이블 퇴장에 실패했습니다.',
+        error: extractErrorMessage(error, '테이블 퇴장에 실패했습니다.'),
         isLoading: false,
       });
     }

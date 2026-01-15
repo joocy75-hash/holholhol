@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/services/exchange_rate.py
+# hypothesis_version: 6.150.2
+
+[5.0, 10.0, 86400, 'SOLKRW', 'TRXKRW', 'USDTKRW', 'XRPKRW', 'exchange_rate:', 'krw', 'price', 'ripple', 'solana', 'tether', 'tron']

@@ -23,12 +23,18 @@ class ErrorCode(str, Enum):
     TABLE_FULL = "TABLE_FULL"
     TABLE_CLOSED = "TABLE_CLOSED"
 
+    # Room errors
+    ROOM_NOT_FOUND = "ROOM_NOT_FOUND"
+    NO_AVAILABLE_ROOM = "NO_AVAILABLE_ROOM"
+    ROOM_FULL = "ROOM_FULL"
+
     # Player errors
     PLAYER_NOT_FOUND = "PLAYER_NOT_FOUND"
     NOT_YOUR_TURN = "NOT_YOUR_TURN"
     NOT_A_PLAYER = "NOT_A_PLAYER"
     ALREADY_SEATED = "ALREADY_SEATED"
     INSUFFICIENT_FUNDS = "INSUFFICIENT_FUNDS"
+    INSUFFICIENT_BALANCE = "INSUFFICIENT_BALANCE"
 
     # Action errors
     INVALID_ACTION = "INVALID_ACTION"
@@ -199,5 +205,68 @@ class NotEnoughPlayersError(GameError):
             code=ErrorCode.NOT_ENOUGH_PLAYERS,
             message=f"Not enough players: {current}/{required}",
             details={"current": current, "required": required},
+            recoverable=True,
+        )
+
+
+# =============================================================================
+# Quick Join Errors
+# =============================================================================
+
+
+class NoAvailableRoomError(GameError):
+    """Raised when no available room is found for quick join."""
+
+    def __init__(
+        self,
+        blind_level: str | None = None,
+    ):
+        message = "No available room found"
+        if blind_level:
+            message += f" for blind level: {blind_level}"
+        super().__init__(
+            code=ErrorCode.NO_AVAILABLE_ROOM,
+            message=message,
+            details={"blindLevel": blind_level} if blind_level else {},
+            recoverable=True,
+        )
+
+
+class InsufficientBalanceError(GameError):
+    """Raised when user balance is insufficient for minimum buy-in."""
+
+    def __init__(
+        self,
+        balance: int,
+        min_buy_in: int,
+    ):
+        super().__init__(
+            code=ErrorCode.INSUFFICIENT_BALANCE,
+            message=f"Insufficient balance: {balance}, minimum buy-in required: {min_buy_in}",
+            details={"balance": balance, "minBuyIn": min_buy_in},
+            recoverable=True,
+        )
+
+
+class RoomFullError(GameError):
+    """Raised when trying to join a full room (race condition)."""
+
+    def __init__(self, room_id: str):
+        super().__init__(
+            code=ErrorCode.ROOM_FULL,
+            message="Room is full",
+            details={"roomId": room_id},
+            recoverable=True,
+        )
+
+
+class AlreadySeatedError(GameError):
+    """Raised when user is already seated in another room."""
+
+    def __init__(self, room_id: str):
+        super().__init__(
+            code=ErrorCode.ALREADY_SEATED,
+            message="Already seated in another room",
+            details={"roomId": room_id},
             recoverable=True,
         )

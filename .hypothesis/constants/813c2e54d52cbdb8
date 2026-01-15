@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/services/auth.py
+# hypothesis_version: 6.150.2
+
+['AUTH_EMAIL_EXISTS', 'AUTH_INVALID_TOKEN', 'AUTH_NICKNAME_EXISTS', 'AUTH_SESSION_EXPIRED', 'Session has expired', 'Session not found', 'avatar_url', 'balance', 'id', 'nickname', 'refresh_token', 'sub', 'tokens', 'user']

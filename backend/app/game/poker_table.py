@@ -7,7 +7,7 @@ Key difference: State is managed in memory, no DB serialization.
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Any, List, Tuple
 from enum import Enum
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import asyncio
 import logging
 
@@ -75,6 +75,7 @@ class Player:
     status: str = "active"  # active, folded, all_in, sitting_out
     total_bet_this_hand: int = 0
     is_bot: bool = False
+    time_bank_remaining: int = 3  # 남은 타임 뱅크 횟수
 
 
 @dataclass
@@ -91,6 +92,10 @@ class PokerTable:
     min_buy_in: int
     max_buy_in: int
     max_players: int = 9
+
+    # Time Bank 설정
+    TIME_BANK_COUNT: int = 3  # 기본 타임 뱅크 횟수
+    TIME_BANK_SECONDS: int = 30  # 타임 뱅크당 추가 시간 (초)
 
     players: Dict[int, Optional[Player]] = field(default_factory=dict)
     dealer_seat: int = -1
@@ -115,6 +120,7 @@ class PokerTable:
 
     # Turn timer tracking
     _turn_started_at: Optional[datetime] = field(default=None, repr=False)
+    _turn_extra_seconds: int = field(default=0)  # 타임 뱅크로 추가된 시간
 
     def __post_init__(self):
         for i in range(self.max_players):
@@ -188,6 +194,104 @@ class PokerTable:
         player.status = "active"
         logger.info(f"Player {player.username} (seat {seat}) is now active")
         return True
+
+    # =========================================================================
+    # Time Bank Methods
+    # =========================================================================
+
+    def use_time_bank(self, seat: int) -> Dict[str, Any]:
+        """Use time bank for the current player.
+        
+        Args:
+            seat: The seat number of the player requesting time bank
+            
+        Returns:
+            TimeBankResult dict with success, remaining, added_seconds, new_deadline, error
+        """
+        from app.game.types import TimeBankResult
+        
+        # 현재 턴인지 확인
+        if self.current_player_seat != seat:
+            return {
+                "success": False,
+                "remaining": 0,
+                "added_seconds": 0,
+                "error": "NOT_YOUR_TURN",
+            }
+        
+        # 플레이어 확인
+        player = self.players.get(seat)
+        if player is None:
+            return {
+                "success": False,
+                "remaining": 0,
+                "added_seconds": 0,
+                "error": "PLAYER_NOT_FOUND",
+            }
+        
+        # 타임 뱅크 횟수 확인
+        if player.time_bank_remaining <= 0:
+            return {
+                "success": False,
+                "remaining": 0,
+                "added_seconds": 0,
+                "error": "NO_TIME_BANK",
+            }
+        
+        # 진행 중인 핸드 확인
+        if self.phase == GamePhase.WAITING:
+            return {
+                "success": False,
+                "remaining": player.time_bank_remaining,
+                "added_seconds": 0,
+                "error": "NO_ACTIVE_HAND",
+            }
+        
+        # 타임 뱅크 사용
+        player.time_bank_remaining -= 1
+        self._turn_extra_seconds += self.TIME_BANK_SECONDS
+        
+        # 새 마감 시간 계산
+        new_deadline = None
+        if self._turn_started_at:
+            # 기본 턴 시간 (30초) + 추가 시간
+            base_timeout = 30
+            total_seconds = base_timeout + self._turn_extra_seconds
+            new_deadline = (self._turn_started_at + 
+                          timedelta(seconds=total_seconds)).isoformat()
+        
+        logger.info(
+            f"Player {player.username} (seat {seat}) used time bank. "
+            f"Remaining: {player.time_bank_remaining}, Added: {self.TIME_BANK_SECONDS}s"
+        )
+        
+        return {
+            "success": True,
+            "remaining": player.time_bank_remaining,
+            "added_seconds": self.TIME_BANK_SECONDS,
+            "new_deadline": new_deadline,
+        }
+
+    def reset_time_banks(self) -> None:
+        """Reset all players' time banks at hand start."""
+        for seat, player in self.players.items():
+            if player is not None:
+                player.time_bank_remaining = self.TIME_BANK_COUNT
+        logger.debug(f"Reset time banks for all players to {self.TIME_BANK_COUNT}")
+
+    def get_time_bank_remaining(self, seat: int) -> int:
+        """Get remaining time bank count for a player.
+        
+        Args:
+            seat: The seat number
+            
+        Returns:
+            Remaining time bank count, or 0 if player not found
+        """
+        player = self.players.get(seat)
+        if player is None:
+            return 0
+        return player.time_bank_remaining
 
     def is_sitting_out(self, seat: int) -> bool:
         """Check if a player is sitting out.
@@ -304,6 +408,10 @@ class PokerTable:
             player.current_bet = 0
             player.hole_cards = None
             player.total_bet_this_hand = 0
+
+        # Reset time banks for all players (핸드 시작 시 타임 뱅크 초기화)
+        self.reset_time_banks()
+        self._turn_extra_seconds = 0  # 추가 시간도 리셋
 
         # Move dealer
         self._move_dealer()

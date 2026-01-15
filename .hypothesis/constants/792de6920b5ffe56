@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/models/user.py
+# hypothesis_version: 6.150.2
+
+[255, 256, 500, 10000, 'CASCADE', 'CryptoAddress', 'Session', 'User', 'WalletTransaction', 'active', 'all, delete-orphan', 'deleted', 'sessions', 'suspended', 'two_factor', 'user', 'user_two_factor', 'users', 'users.id']

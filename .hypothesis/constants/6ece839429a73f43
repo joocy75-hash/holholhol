@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/api/deps.py
+# hypothesis_version: 6.150.2
+
+['AUTH_INVALID_TOKEN', 'AUTH_REQUIRED', 'AUTH_USER_NOT_FOUND', 'Bearer', 'User not found', 'WWW-Authenticate', 'active', 'code', 'details', 'error', 'ip_address', 'message', 'sub', 'user-agent', 'user_agent']

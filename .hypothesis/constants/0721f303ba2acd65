@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/services/audit.py
+# hypothesis_version: 6.150.2
+
+[b'integrity_hash', b'tx_id', 100, 1000, 100000, '%Y-%m-%d', 'a', 'audit:transactions', 'audit_hash', 'audit_id', 'audit_logs', 'context', 'crypto_address', 'crypto_amount', 'crypto_tx_hash', 'crypto_type', 'database', 'exchange_rate_krw', 'file', 'integrity_hash', 'krw_amount', 'krw_balance_after', 'krw_balance_before', 'redis', 'status', 'timestamp', 'tx_id', 'tx_type', 'user_id', 'utf-8']

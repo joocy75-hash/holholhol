@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/ws/worker_health.py
+# hypothesis_version: 6.150.2
+
+[100, 'alive', 'connection_count', 'instance', 'is_self', 'last_heartbeat', 'started_at', 'ws:channel:*', 'ws:connections:*', 'ws:workers']

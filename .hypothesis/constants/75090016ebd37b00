@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/api/rooms.py
+# hypothesis_version: 6.150.2
+
+[100, 400, 401, 403, 404, 409, 2000, '/my-seats', '/quick-join', '/rooms', '/{room_id}', '/{room_id}/dev/reset', '/{room_id}/join', '/{room_id}/leave', 'ALREADY', 'Dev', 'FULL', 'Filter by status', 'Insufficient balance', 'Invalid buy-in', 'Invalid password', 'Items per page', 'NOT_FOUND', 'NOT_OWNER', 'NOT_SEATED', 'No available room', 'Not authenticated', 'Not room owner', 'PASSWORD', 'Page number', 'ROOM_NOT_FOUND', 'Room not found', 'Rooms', 'Validation error', 'buy_in_max', 'buy_in_min', 'code', 'description', 'details', 'error', 'is_bot', 'is_private', 'message', 'model', 'pageSize', 'position', 'rooms', 'seats', 'status', 'table_id', 'traceId', 'turn_timeout', '테이블이 리셋되었습니다']

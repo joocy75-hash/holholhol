@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/engine/snapshot.py
+# hypothesis_version: 6.150.2
+
+['actionType', 'admin', 'allowedActions', 'amount', 'ante', 'avatarUrl', 'betAmount', 'bigBlind', 'communityCards', 'config', 'currentTurn', 'dealerPosition', 'eligiblePositions', 'hand', 'handId', 'handNumber', 'holeCards', 'lastAction', 'lastAggressor', 'mainPot', 'maxAmount', 'maxBuyIn', 'maxSeats', 'minAmount', 'minBuyIn', 'minRaise', 'myHoleCards', 'myPosition', 'nickname', 'phase', 'player', 'playerStates', 'position', 'pot', 'seats', 'sidePots', 'smallBlind', 'spectator', 'stack', 'startedAt', 'stateVersion', 'status', 'tableId', 'timestamp', 'total', 'totalBet', 'turnDeadlineAt', 'turnTimeoutSeconds', 'type', 'updatedAt', 'userId', 'viewType']

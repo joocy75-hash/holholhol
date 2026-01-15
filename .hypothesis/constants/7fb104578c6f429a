@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/utils/errors.py
+# hypothesis_version: 6.150.2
+
+['ALREADY_SEATED', 'CANNOT_CALL', 'CANNOT_CHECK', 'CANNOT_FOLD', 'CANNOT_RAISE', 'CONNECTION_LOST', 'FORBIDDEN', 'GAME_ALREADY_STARTED', 'HAND_IN_PROGRESS', 'INSUFFICIENT_BALANCE', 'INSUFFICIENT_FUNDS', 'INTERNAL_ERROR', 'INVALID_ACTION', 'INVALID_ACTION_TYPE', 'INVALID_AMOUNT', 'INVALID_PAYLOAD', 'INVALID_REQUEST', 'Invalid action', "It's not your turn", 'MISSING_FIELD', 'NOT_A_PLAYER', 'NOT_ENOUGH_PLAYERS', 'NOT_YOUR_TURN', 'NO_ACTIVE_HAND', 'NO_AVAILABLE_ROOM', 'PLAYER_NOT_FOUND', 'RECONNECT_FAILED', 'ROOM_FULL', 'ROOM_NOT_FOUND', 'Room is full', 'TABLE_CLOSED', 'TABLE_FULL', 'TABLE_NOT_FOUND', 'UNAUTHORIZED', 'amount', 'available', 'balance', 'blindLevel', 'current', 'details', 'errorCode', 'errorMessage', 'maxAmount', 'minAmount', 'minBuyIn', 'recoverable', 'required', 'roomId', 'tableId']

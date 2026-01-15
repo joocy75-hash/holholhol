@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/ws/connection.py
+# hypothesis_version: 6.150.2
+
+[1000, 'connected', 'disconnected', 'reconnecting', 'recovered']

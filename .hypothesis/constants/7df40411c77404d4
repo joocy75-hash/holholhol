@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/api/users.py
+# hypothesis_version: 6.150.2
+
+[400, 401, 404, 409, '***@***.***', '/me', '/me/password', '/me/stats', '/users', '/{user_id}', 'NICKNAME_EXISTS', 'Not authenticated', 'USER_NOT_FOUND', 'User not found', 'Users', 'biggest_pot', 'code', 'description', 'details', 'error', 'hands_won', 'message', 'model', 'pfr', 'total_hands', 'total_winnings', 'traceId', 'vpip']

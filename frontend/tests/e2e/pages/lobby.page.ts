@@ -19,6 +19,7 @@ export class LobbyPage {
   readonly tableCards: Locator;
   readonly continueButton: Locator;
   readonly logoutButton: Locator;
+  readonly quickJoinButton: Locator;
   
   // Filter tabs
   readonly allTab: Locator;
@@ -38,6 +39,7 @@ export class LobbyPage {
     );
     this.continueButton = page.locator('button:has-text("계속하기")');
     this.logoutButton = page.locator('button:has-text("로그아웃")');
+    this.quickJoinButton = page.locator('button:has-text("빠른 입장")');
     
     // Tab filters - GameTabs component
     this.allTab = page.locator('button:has-text("전체")');

@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/services/crypto_deposit.py
+# hypothesis_version: 6.150.2
+
+[3600, '0.1', '10', '100', '20']

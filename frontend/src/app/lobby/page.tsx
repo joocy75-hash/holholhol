@@ -8,6 +8,7 @@ import GameTabs from '@/components/lobby/GameTabs';
 import TournamentCard from '@/components/lobby/TournamentCard';
 import HoldemCard from '@/components/lobby/HoldemCard';
 import BottomNavigation from '@/components/lobby/BottomNavigation';
+// import QuickJoinButton from '@/components/lobby/QuickJoinButton'; // 임시 숨김
 import { tablesApi } from '@/lib/api';
 
 interface Room {
@@ -46,7 +47,7 @@ export default function LobbyPage() {
     router.push(`/table/${roomId}`);
   };
 
-  // 로딩 중이면 간단한 로딩 표시
+  // 로딩 중이면 스켈레톤 UI 표시
   if (loading) {
     return (
       <div
@@ -56,16 +57,50 @@ export default function LobbyPage() {
           minHeight: '858px',
           margin: '0 auto',
           background: 'var(--figma-bg-main)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'white',
         }}
       >
-        로딩 중...
+        {/* 헤더 스켈레톤 */}
+        <div style={{ padding: '16px' }}>
+          <div className="flex justify-between items-center mb-4">
+            <div className="w-24 h-8 bg-surface animate-pulse rounded-md" />
+            <div className="flex gap-2">
+              <div className="w-8 h-8 bg-surface animate-pulse rounded-full" />
+              <div className="w-8 h-8 bg-surface animate-pulse rounded-full" />
+            </div>
+          </div>
+        </div>
+
+        {/* 배너 스켈레톤 */}
+        <div style={{ position: 'absolute', left: '8px', top: '156px', right: '8px' }}>
+          <div className="w-full h-[180px] bg-surface animate-pulse rounded-xl" />
+        </div>
+
+        {/* 탭 스켈레톤 */}
+        <div style={{ position: 'absolute', left: '10px', top: '380px' }}>
+          <div className="flex gap-4">
+            <div className="w-16 h-8 bg-surface animate-pulse rounded-md" />
+            <div className="w-16 h-8 bg-surface animate-pulse rounded-md" />
+            <div className="w-16 h-8 bg-surface animate-pulse rounded-md" />
+          </div>
+        </div>
+
+        {/* 카드 스켈레톤들 */}
+        <div style={{ position: 'absolute', left: '10px', top: '414px', right: '10px' }}>
+          <div className="w-full h-[120px] bg-surface animate-pulse rounded-xl mb-4" />
+          <div className="w-full h-[120px] bg-surface animate-pulse rounded-xl" />
+        </div>
+
+        {/* 중앙 로딩 인디케이터 */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <span className="text-text-secondary text-sm">테이블 목록 로딩 중...</span>
+          </div>
+        </div>
       </div>
     );
   }
+
   return (
     <div
       style={{
@@ -114,6 +149,12 @@ export default function LobbyPage() {
       <div style={{ position: 'absolute', left: '10px', top: '380px', zIndex: 1 }}>
         <GameTabs />
       </div>
+
+      {/* 빠른 입장 버튼 - 임시 숨김 처리
+      <div style={{ position: 'absolute', right: '10px', top: '350px', zIndex: 2 }}>
+        <QuickJoinButton />
+      </div>
+      */}
 
       {/* 토너먼트 카드 (414px) */}
       <div style={{ position: 'absolute', left: '10px', top: '414px', zIndex: 1 }}>

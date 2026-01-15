@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/services/rake.py
+# hypothesis_version: 6.150.2
+
+[100, 500, 1000, 2000, 2500, 5000, 10000, 20000, 25000, 50000, 100000, 200000, '0.035', '0.04', '0.045', '0.05', 'GamePhase', 'amount', 'inf', 'position', 'transaction_id', 'user_id']

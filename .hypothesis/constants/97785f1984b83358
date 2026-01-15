@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/services/room_matcher.py
+# hypothesis_version: 6.150.2
+
+[100, 400, 1000, '/', 'buy_in_min', 'high', 'low', 'max_sb', 'max_seats', 'medium', 'min_sb', 'user_id']

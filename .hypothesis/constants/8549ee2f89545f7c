@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/ws/schemas.py
+# hypothesis_version: 6.150.2
+
+[500, 1000, 10000, 'Action type', 'Bet/raise amount', 'Big blind amount', 'Bot buy-in amount', 'Buy-in amount', 'Chat message', 'Maximum buy-in', 'Maximum seats', 'Minimum buy-in', 'Preferred seat', 'Private room flag', 'Room ID', 'Room name', 'Small blind amount', 'Table/Room ID', 'actionType', 'all_in', 'before', 'bet', 'call', 'check', 'fold', 'raise']

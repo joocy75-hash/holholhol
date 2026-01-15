@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/api/auth.py
+# hypothesis_version: 6.150.2
+
+[400, 401, 403, 409, '/2fa', '/2fa/setup', '/2fa/status', '/2fa/verify', '/auth', '/login', '/logout', '/refresh', '/register', '2FA already enabled', '2FA_ALREADY_ENABLED', '2FA_NOT_ENABLED', '2FA_NOT_SETUP', '6-digit TOTP code', 'Account inactive', 'Authentication', 'EMAIL_EXISTS', 'INACTIVE', 'INVALID_2FA_CODE', 'Invalid credentials', 'NICKNAME_EXISTS', 'Not authenticated', 'Validation error', 'access_token', 'avatar_url', 'balance', 'code', 'description', 'details', 'error', 'expires_in', 'id', 'ip_address', 'login_failed', 'login_success', 'message', 'model', 'nickname', 'refresh_token', 'token_type', 'tokens', 'traceId', 'user', 'user_agent']

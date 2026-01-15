@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/services/room.py
+# hypothesis_version: 6.150.2
+
+[400, 2000, 'INSUFFICIENT_BALANCE', 'Invalid password', 'No seats available', 'No table available', 'Password required', 'ROOM_CLOSED', 'ROOM_FULL', 'ROOM_INVALID_BUYIN', 'ROOM_NOT_FOUND', 'ROOM_NOT_OWNER', 'ROOM_NO_TABLE', 'Room is closed', 'Room is full', 'Room not found', 'TABLE_FULL', 'TABLE_NOT_FOUND', 'TABLE_NOT_SEATED', 'Table not found', 'USER_NOT_FOUND', 'User not found', 'active', 'already_seated', 'available', 'bet_amount', 'big_blind', 'buy_in_max', 'buy_in_min', 'is_private', 'max_seats', 'message', 'nickname', 'password_hash', 'position', 'required', 'seats', 'small_blind', 'stack', 'status', 'table_id', 'turn_timeout', 'user_id', 'waiting']

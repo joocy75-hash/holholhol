@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/game/hand_evaluator.py
+# hypothesis_version: 6.150.2
+
+[0.042, 0.05, 0.08, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.5, 0.55, 0.65, 0.75, 0.82, 0.9, 0.95, 0.98, 1.0, 140, 280, ' (탑 페어)', '10', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'J', 'K', 'No cards', 'Q', 'T', 'bet', 'call', 'check', 'description', 'fold', 'has_draw', 'o', 'phase', 'postflop', 'pot_odds', 'preflop', 'raise', 'rank', 'recommendation', 's', 'strength', 'x', '로얄 플러시', '프리플롭']

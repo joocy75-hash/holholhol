@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/ws/messages.py
+# hypothesis_version: 6.150.2
+
+[1000, 'details', 'errorCode', 'errorMessage', 'payload', 'requestId', 'traceId', 'ts', 'type', 'v1', 'version']

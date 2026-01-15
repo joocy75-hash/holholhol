@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/logging_config.py
+# hypothesis_version: 6.150.2
+
+['INFO', 'development', 'httpcore', 'httpx', 'iso', 'production', 'sqlalchemy.engine', 'uvicorn.access', 'uvicorn.error']

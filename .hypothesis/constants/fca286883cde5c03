@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/services/crypto_withdrawal.py
+# hypothesis_version: 6.150.2
+
+[10000, 1000000, 100000000, 500000000, 'Permission denied', 'T', 'r']

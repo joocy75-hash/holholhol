@@ -493,3 +493,167 @@ class RoomService:
                 pass
 
         return left_count
+
+    # =========================================================================
+    # Quick Join Methods
+    # =========================================================================
+
+    async def find_available_rooms(
+        self,
+        user_balance: int,
+        blind_level: str | None = None,
+        exclude_user_id: str | None = None,
+    ) -> list[Room]:
+        """Find rooms where user can join based on balance.
+
+        Args:
+            user_balance: User's current balance
+            blind_level: Optional blind level filter ('low', 'medium', 'high', or '10/20')
+            exclude_user_id: User ID to exclude rooms they're already in
+
+        Returns:
+            List of available rooms sorted by priority
+        """
+        from app.services.room_matcher import RoomMatcher, calculate_room_score
+
+        # Get rooms user is already in
+        exclude_room_ids = []
+        if exclude_user_id:
+            exclude_room_ids = await self.get_user_rooms(exclude_user_id)
+
+        # Query available rooms
+        query = select(Room).options(
+            selectinload(Room.tables)
+        ).where(
+            Room.status.in_([RoomStatus.WAITING.value, RoomStatus.PLAYING.value]),
+            Room.current_players < Room.max_seats,
+        )
+
+        if exclude_room_ids:
+            query = query.where(Room.id.notin_(exclude_room_ids))
+
+        result = await self.db.execute(query)
+        rooms = list(result.scalars().all())
+
+        # Filter by user balance (must afford min buy-in)
+        affordable_rooms = [
+            room for room in rooms
+            if room.config.get("buy_in_min", 400) <= user_balance
+        ]
+
+        # Filter by blind level if specified
+        if blind_level and affordable_rooms:
+            matcher = RoomMatcher(self.db)
+            affordable_rooms = matcher._filter_by_blind_level(affordable_rooms, blind_level)
+
+        # Sort by priority score
+        affordable_rooms.sort(key=lambda r: calculate_room_score(r), reverse=True)
+
+        return affordable_rooms
+
+    async def quick_join_room(
+        self,
+        user_id: str,
+        room_id: str,
+        seat: int,
+        buy_in: int,
+    ) -> dict[str, Any]:
+        """Join a room via quick join.
+
+        Similar to join_room but with pre-selected seat and buy-in.
+
+        Args:
+            user_id: User ID
+            room_id: Room ID
+            seat: Pre-selected seat number
+            buy_in: Pre-calculated buy-in amount
+
+        Returns:
+            Dict with table_id, position, stack
+
+        Raises:
+            RoomError: If join fails
+        """
+        # Get room with tables
+        room = await self.get_room_with_tables(room_id)
+
+        if not room:
+            raise RoomError("ROOM_NOT_FOUND", "Room not found")
+
+        if room.status == RoomStatus.CLOSED.value:
+            raise RoomError("ROOM_CLOSED", "Room is closed")
+
+        # Check if room is full
+        if room.is_full:
+            raise RoomError("ROOM_FULL", "Room is full")
+
+        # Find table
+        table = room.tables[0] if room.tables else None
+        if not table:
+            raise RoomError("ROOM_NO_TABLE", "No table available")
+
+        # Check if seat is available
+        seats = table.seats or {}
+        seat_key = str(seat)
+
+        if seat_key in seats and seats[seat_key] is not None:
+            # Seat taken - find another available seat
+            max_seats = room.max_seats
+            seat = None
+            for i in range(max_seats):
+                if str(i) not in seats or seats[str(i)] is None:
+                    seat = i
+                    seat_key = str(i)
+                    break
+
+            if seat is None:
+                raise RoomError("TABLE_FULL", "No seats available")
+
+        # Check if user already seated
+        for pos, seat_data in seats.items():
+            if seat_data and seat_data.get("user_id") == user_id:
+                return {
+                    "table_id": table.id,
+                    "position": int(pos),
+                    "stack": seat_data.get("stack", 0),
+                    "message": f"Already seated at position {pos}",
+                    "already_seated": True,
+                }
+
+        # Verify user and balance
+        user = await self.db.get(User, user_id)
+        if not user:
+            raise RoomError("USER_NOT_FOUND", "User not found")
+
+        if user.balance < buy_in:
+            raise RoomError(
+                "INSUFFICIENT_BALANCE",
+                f"Insufficient balance. Required: {buy_in}, Available: {user.balance}",
+                {"required": buy_in, "available": user.balance},
+            )
+
+        # Deduct buy-in from user balance
+        user.balance -= buy_in
+
+        # Add player to seat
+        seats[seat_key] = {
+            "user_id": user_id,
+            "nickname": user.nickname,
+            "stack": buy_in,
+            "status": "active",
+            "bet_amount": 0,
+        }
+        table.seats = seats
+        attributes.flag_modified(table, "seats")
+        room.current_players += 1
+
+        # Update room status if enough players
+        if room.current_players >= 2 and room.status == RoomStatus.WAITING.value:
+            room.status = RoomStatus.PLAYING.value
+
+        return {
+            "table_id": table.id,
+            "position": seat,
+            "stack": buy_in,
+            "message": f"Quick joined room at position {seat}",
+        }

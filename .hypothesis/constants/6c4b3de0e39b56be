@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/models/wallet.py
+# hypothesis_version: 6.150.2
+
+[100, 500, 'CASCADE', 'RESTRICT', 'SET NULL', 'User', 'admin_adjust', 'bonus', 'buy_in', 'cancelled', 'cash_out', 'comment', 'completed', 'crypto_addresses', 'crypto_deposit', 'crypto_withdrawal', 'failed', 'hands.id', 'lose', 'pending', 'processing', 'rake', 'rakeback', 'sol', 'tables.id', 'transactions', 'trx', 'usdt', 'users.id', 'wallet_transactions', 'win', 'xrp']

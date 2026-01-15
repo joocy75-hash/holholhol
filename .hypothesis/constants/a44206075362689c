@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/models/hand.py
+# hypothesis_version: 6.150.2
+
+['CASCADE', 'Hand', 'HandEvent', 'HandEvent.seq_no', 'Table', 'all, delete-orphan', 'all_in', 'bet', 'call', 'check', 'deal_flop', 'deal_hole_cards', 'deal_river', 'deal_turn', 'events', 'finished', 'flop', 'fold', 'hand', 'hand_end', 'hand_events', 'hands', 'hands.id', 'player_disconnect', 'player_timeout', 'post_ante', 'post_blind', 'pot_won', 'preflop', 'raise', 'river', 'showdown', 'tables.id', 'turn']

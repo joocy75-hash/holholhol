@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/models/table.py
+# hypothesis_version: 6.150.2
+
+['CASCADE', 'Hand', 'Room', 'active', 'all, delete-orphan', 'between_hands', 'paused', 'playing', 'rooms.id', 'status', 'table', 'tables', 'waiting']

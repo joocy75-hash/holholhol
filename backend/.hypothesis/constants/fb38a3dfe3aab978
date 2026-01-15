@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/schemas/responses.py
+# hypothesis_version: 6.150.2
+
+[400, 2000, '1.0.0', 'Bearer', 'RoomSummaryResponse', 'accessToken', 'avatarUrl', 'bigBlind', 'biggestPot', 'buyIn', 'buyInMax', 'buyInMin', 'buy_in_max', 'buy_in_min', 'createdAt', 'currentPlayers', 'expiresIn', 'handsWon', 'healthy', 'isPrivate', 'is_private', 'maxSeats', 'playerCount', 'refreshToken', 'roomId', 'roomName', 'smallBlind', 'tableId', 'tokenType', 'totalHands', 'totalWinnings', 'turnTimeout', 'updatedAt']

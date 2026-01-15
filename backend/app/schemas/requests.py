@@ -220,3 +220,39 @@ class ChangePasswordRequest(BaseModel):
         if not re.search(r"\d", v):
             raise ValueError("Password must contain at least one number")
         return v
+
+
+# =============================================================================
+# Quick Join Requests
+# =============================================================================
+
+
+class QuickJoinRequest(BaseModel):
+    """Quick join request for automatic room matching."""
+
+    blind_level: str | None = Field(
+        default=None,
+        alias="blindLevel",
+        description="Preferred blind level: 'low' (10/20), 'medium' (25/50), 'high' (50/100), or specific like '10/20'",
+    )
+
+    @field_validator("blind_level")
+    @classmethod
+    def validate_blind_level(cls, v: str | None) -> str | None:
+        """Validate blind level format."""
+        if v is None:
+            return v
+        valid_levels = {"low", "medium", "high"}
+        if v.lower() in valid_levels:
+            return v.lower()
+        # Check for specific format like "10/20"
+        if "/" in v:
+            parts = v.split("/")
+            if len(parts) == 2:
+                try:
+                    int(parts[0])
+                    int(parts[1])
+                    return v
+                except ValueError:
+                    pass
+        raise ValueError("Invalid blind level. Use 'low', 'medium', 'high', or specific format like '10/20'")

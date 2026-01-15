@@ -10,6 +10,7 @@ export { TurnTimer, DEFAULT_TURN_TIME, COUNTDOWN_START } from './TimerDisplay';
 export { BettingChips } from './BettingChips';
 export { DealingAnimation, calculateDealingSequence } from './DealingAnimation';
 export { DevAdminPanel } from './DevAdminPanel';
+export { TimeBankButton } from './TimeBankButton';
 
 // Re-export pmang components
 export * from './pmang';

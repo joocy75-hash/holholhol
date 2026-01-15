@@ -1,35 +1,51 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 // 숫자 애니메이션 훅 - 증가할 때만 애니메이션 (감소 시 즉시 변경)
 export function useAnimatedNumber(value: number, duration: number = 500) {
-  const [displayValue, setDisplayValue] = useState(value);
-  const previousValue = useRef(value);
+  // 첫 렌더링 시 value로 초기화
+  const [displayValue, setDisplayValue] = useState(() => value);
+  const previousValueRef = useRef(value);
   const animationRef = useRef<number | null>(null);
+  const isFirstRenderRef = useRef(true);
 
-  useEffect(() => {
-    const startValue = previousValue.current;
-    const endValue = value;
-    const diff = endValue - startValue;
-
-    // 이전 애니메이션 취소
+  // 애니메이션 취소 함수
+  const cancelAnimation = useCallback(() => {
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
       animationRef.current = null;
     }
+  }, []);
 
-    // 값이 같으면 바로 설정
-    if (diff === 0) {
-      setDisplayValue(value);
+  useEffect(() => {
+    // 첫 렌더링인 경우 애니메이션 없이 초기값 설정만 하고 끝
+    if (isFirstRenderRef.current) {
+      isFirstRenderRef.current = false;
+      previousValueRef.current = value;
       return;
     }
 
-    // 감소할 때는 애니메이션 없이 즉시 변경 (새 핸드 시작 시 pot이 0으로 리셋될 때)
-    if (diff < 0) {
-      setDisplayValue(value);
-      previousValue.current = value;
+    const startValue = previousValueRef.current;
+    const endValue = value;
+    const diff = endValue - startValue;
+
+    // 이전 애니메이션 취소
+    cancelAnimation();
+
+    // 값이 같으면 아무것도 하지 않음
+    if (diff === 0) {
       return;
+    }
+
+    // 감소할 때는 다음 프레임에 즉시 설정 (새 핸드 시작 시 pot이 0으로 리셋될 때)
+    if (diff < 0) {
+      animationRef.current = requestAnimationFrame(() => {
+        setDisplayValue(value);
+        previousValueRef.current = value;
+        animationRef.current = null;
+      });
+      return cancelAnimation;
     }
 
     // 증가할 때만 애니메이션
@@ -49,18 +65,15 @@ export function useAnimatedNumber(value: number, duration: number = 500) {
         animationRef.current = requestAnimationFrame(animate);
       } else {
         setDisplayValue(endValue);
-        previousValue.current = endValue;
+        previousValueRef.current = endValue;
+        animationRef.current = null;
       }
     };
 
     animationRef.current = requestAnimationFrame(animate);
 
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, [value, duration]);
+    return cancelAnimation;
+  }, [value, duration, cancelAnimation]);
 
   return displayValue;
 }

@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/ws/handlers/chat.py
+# hypothesis_version: 6.150.2
+
+[500, 3600, 'ConnectionManager', 'message', 'messageId', 'messages', 'nickname', 'tableId', 'timestamp', 'userId']

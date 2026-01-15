@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/middleware/security_headers.py
+# hypothesis_version: 6.150.2
+
+['/api/', '0', '1; mode=block', '; ', 'Cache-Control', 'DENY', 'Expires', 'Permissions-Policy', 'Pragma', 'Referrer-Policy', 'X-Frame-Options', 'X-XSS-Protection', "base-uri 'self'", "default-src 'self'", 'development', "form-action 'self'", 'no-cache', 'nosniff', 'production', "script-src 'self'", 'upgrade', 'websocket']

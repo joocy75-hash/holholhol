@@ -66,6 +66,10 @@ export enum EventType {
   // Timer events
   TIMEOUT_FOLD = 'TIMEOUT_FOLD',
 
+  // Time Bank events
+  TIME_BANK_REQUEST = 'TIME_BANK_REQUEST',
+  TIME_BANK_USED = 'TIME_BANK_USED',
+
   // Chat events
   CHAT_MESSAGE = 'CHAT_MESSAGE',
   CHAT_HISTORY = 'CHAT_HISTORY',
@@ -311,6 +315,25 @@ export interface TimeoutFoldPayload {
 }
 
 // =============================================================================
+// Time Bank Types
+// =============================================================================
+
+export interface TimeBankRequestPayload {
+  tableId: string;
+}
+
+export interface TimeBankUsedPayload {
+  success: boolean;
+  tableId: string;
+  seat?: number;
+  remaining?: number;
+  addedSeconds?: number;
+  newDeadline?: string | null;
+  errorCode?: string;
+  errorMessage?: string;
+}
+
+// =============================================================================
 // Client → Server Payloads
 // =============================================================================
 
@@ -386,6 +409,7 @@ export interface TypedEventHandlers {
   [EventType.HAND_RESULT]: EventHandler<HandResultPayload>;
   [EventType.STACK_ZERO]: EventHandler<StackZeroPayload>;
   [EventType.TIMEOUT_FOLD]: EventHandler<TimeoutFoldPayload>;
+  [EventType.TIME_BANK_USED]: EventHandler<TimeBankUsedPayload>;
 }
 
 // =============================================================================

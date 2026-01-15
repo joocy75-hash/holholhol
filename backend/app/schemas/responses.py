@@ -165,6 +165,20 @@ class JoinRoomResponse(BaseModel):
     message: str
 
 
+class QuickJoinResponse(BaseModel):
+    """Quick join result response."""
+
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+    success: bool = True
+    room_id: str = Field(..., alias="roomId")
+    table_id: str = Field(..., alias="tableId")
+    seat: int = Field(..., description="Assigned seat position")
+    buy_in: int = Field(..., alias="buyIn", description="Auto-calculated buy-in amount")
+    room_name: str = Field(..., alias="roomName")
+    blinds: str = Field(..., description="Room blinds (e.g., '10/20')")
+
+
 # =============================================================================
 # Health Check Response
 # =============================================================================

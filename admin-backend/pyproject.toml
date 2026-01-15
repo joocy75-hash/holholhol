@@ -1,0 +1,44 @@
+[project]
+name = "admin-backend"
+version = "0.1.0"
+description = "Admin Dashboard Backend for Holdem Game"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "sqlalchemy[asyncio]>=2.0.25",
+    "asyncpg>=0.29.0",
+    "alembic>=1.13.1",
+    "pydantic>=2.5.3",
+    "pydantic-settings>=2.1.0",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "pyotp>=2.9.0",
+    "qrcode>=7.4.2",
+    "redis>=5.0.1",
+    "httpx>=0.26.0",
+    "python-multipart>=0.0.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.4",
+    "pytest-asyncio>=0.23.3",
+    "pytest-cov>=4.1.0",
+    "hypothesis>=6.92.2",
+    "black>=23.12.1",
+    "ruff>=0.1.11",
+    "mypy>=1.8.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true

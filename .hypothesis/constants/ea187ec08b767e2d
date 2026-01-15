@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/services/vip.py
+# hypothesis_version: 6.150.2
+
+[b'total_rake', 0.0, 100.0, 100, 3600, 100000, 500000, 2000000, 5000000, '0.20', '0.25', '0.30', '0.35', '0.40', 'Bronze', 'Diamond', 'Gold', 'Platinum', 'Silver', 'bronze', 'diamond', 'gold', 'platinum', 'silver', 'total_rake', 'updated_at', 'vip:level:']

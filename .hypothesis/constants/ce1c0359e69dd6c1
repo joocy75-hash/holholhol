@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/models/audit.py
+# hypothesis_version: 6.150.2
+
+['SET NULL', 'audit_logs', 'system', 'users.id']

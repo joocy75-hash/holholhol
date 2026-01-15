@@ -65,6 +65,7 @@ interface PlayerSeatProps {
   onRevealCards?: () => void;
   isDealingComplete?: boolean;
   isShowdownRevealed?: boolean;
+  gameInProgress?: boolean; // 게임 진행 중 여부 (스폿라이트 효과용)
 }
 
 export function PlayerSeat({
@@ -84,12 +85,17 @@ export function PlayerSeat({
   bestFiveCards,
   isCardsRevealed,
   onRevealCards,
-  isDealingComplete,
   isShowdownRevealed,
+  gameInProgress,
 }: PlayerSeatProps) {
   // 사용하지 않는 props (향후 기능 확장용)
   void _handResult;
   void _draws;
+
+  // DEBUG: 카드 렌더링 조건 확인
+  if (isCurrentUser && player) {
+    console.log(`🃏 [PlayerSeat ${seatPosition}] isCurrentUser=${isCurrentUser}, cards=${JSON.stringify(player.cards)}, folded=${player.folded}, cardsLength=${player.cards.length}`);
+  }
   
   // 액션 표시 여부 관리 (3초 후 자동 숨김)
   const [visibleAction, setVisibleAction] = useState<typeof lastAction>(null);
@@ -120,17 +126,38 @@ export function PlayerSeat({
   const actionInfo = visibleAction ? ACTION_LABELS[visibleAction.type.toLowerCase()] || { text: visibleAction.type.toUpperCase(), className: 'bg-gray-500/80' } : null;
 
   if (!player) {
+    // 빈 좌석 - 클릭 가능 여부에 따라 다르게 렌더링
+    const isClickable = !!onSeatClick;
+    
     return (
       <div
-        className="player-seat cursor-pointer hover:opacity-80 transition-opacity"
-        style={position}
+        className={`player-seat ${isClickable ? 'cursor-pointer hover:opacity-80' : ''} transition-opacity z-20`}
+        style={{
+          ...position,
+          minWidth: '60px',
+          minHeight: '80px',
+        }}
         data-testid={`seat-${seatPosition}`}
         data-occupied="false"
-        onClick={() => onSeatClick?.(seatPosition)}
       >
+        {/* 클릭 가능한 영역 - 전체를 덮는 버튼 */}
+        {isClickable && (
+          <button
+            type="button"
+            className="absolute inset-0 -m-4 z-20 bg-transparent"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log(`[SEAT ${seatPosition}] Empty seat button clicked`);
+              onSeatClick(seatPosition);
+            }}
+            aria-label={`좌석 ${seatPosition} 선택`}
+          />
+        )}
+        
         {/* 게임참여하기 말풍선 */}
         {showJoinBubble && (
-          <div className="absolute -top-12 left-1/2 -translate-x-1/2 whitespace-nowrap z-10 animate-bounce">
+          <div className="absolute -top-12 left-1/2 -translate-x-1/2 whitespace-nowrap z-10 animate-bounce pointer-events-none">
             <div className="relative bg-[var(--neon-purple)] text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg">
               게임참여하기
               {/* 말풍선 꼬리 */}
@@ -138,39 +165,53 @@ export function PlayerSeat({
             </div>
           </div>
         )}
-        <div className={`player-avatar bg-[var(--surface-hover)] flex items-center justify-center ${showJoinBubble ? 'opacity-100 ring-2 ring-[var(--neon-purple)] ring-offset-2 ring-offset-transparent' : 'opacity-30'}`}>
+        <div className={`player-avatar bg-[var(--surface-hover)] flex items-center justify-center pointer-events-none ${showJoinBubble ? 'opacity-100 ring-2 ring-[var(--neon-purple)] ring-offset-2 ring-offset-transparent' : 'opacity-30'}`}>
           <span className="text-xl text-[var(--text-muted)]">▼</span>
         </div>
-        <div className="player-info flex flex-col items-center invisible">
+        <div className="player-info flex flex-col items-center invisible pointer-events-none">
           <span className="player-name">-</span>
           <span className="player-chips text-xs">0</span>
         </div>
         {/* 베팅 영역 placeholder (h-[20px]) - 플레이어와 동일한 구조 */}
-        <div className="h-[20px] mt-1" />
+        <div className="h-[20px] mt-1 pointer-events-none" />
       </div>
     );
   }
 
-  // 폴드 상태 스타일
-  const foldedClass = player.folded ? 'opacity-40 grayscale' : '';
-  // 액션 표시 중일 때 z-index 높임 (다른 player-seat 위에 표시)
-  const actionZIndex = showAction ? 'z-50' : '';
+  // 폴드 상태 스타일 (스폿라이트와 별개로 항상 적용)
+  const foldedClass = player.folded ? 'player-folded' : '';
+  // 액션 표시 중일 때 z-index 높임 (다른 player-seat 및 칩 위에 표시)
+  const actionZIndex = showAction ? 'z-[55]' : '';
   // 승리자 글로우 효과
   const winnerClass = player.isWinner ? 'winner-glow' : '';
+  // 스폿라이트 효과 (현재 턴 플레이어에게만 적용)
+  const spotlightClass = gameInProgress && !player.folded && isActive
+    ? 'spotlight-active'
+    : '';
 
   return (
-    <div className={`player-seat ${foldedClass} ${actionZIndex} ${winnerClass}`} style={position} data-testid={`seat-${seatPosition}`} data-occupied="true" data-is-me={isCurrentUser ? 'true' : 'false'} data-status={player.folded ? 'folded' : (player.isActive ? 'active' : 'waiting')}>
+    <div 
+      className={`player-seat ${foldedClass} ${actionZIndex} ${winnerClass} ${spotlightClass} z-30`} 
+      style={position} 
+      data-testid={`seat-${seatPosition}`} 
+      data-occupied="true" 
+      data-is-me={isCurrentUser ? 'true' : 'false'} 
+      data-status={player.folded ? 'folded' : (player.isActive ? 'active' : 'waiting')}
+    >
       {/* 메인 플레이어 카드 (프로필 위) - 플립 기능 포함 */}
       {isCurrentUser && (
         <div className="flex flex-col items-center mb-3">
-          {/* 폴드하지 않았을 때: 정상 카드 표시 */}
-          {player.cards.length > 0 && !player.folded && isDealingComplete && (
+          {/* 폴드하지 않았을 때: 정상 카드 표시 - 카드가 있으면 바로 표시 */}
+          {player.cards.length > 0 && !player.folded && (
             <div
-              className={`flex gap-1.5 relative ${isShowdownRevealed ? 'my-cards-revealed' : ''}`}
+              className={`relative ${isShowdownRevealed ? 'hand-cards-spread' : 'hand-cards-stacked'}`}
               onClick={() => !isCardsRevealed && onRevealCards?.()}
             >
               {player.cards.map((card, i) => (
-                <div key={i} className="w-[57px] h-[80px]">
+                <div
+                  key={i}
+                  className={`w-[57px] h-[80px] ${isShowdownRevealed ? '' : `hand-card-${i}`}`}
+                >
                   <FlippableCard
                     card={card}
                     isRevealed={isCardsRevealed ?? false}
@@ -181,7 +222,7 @@ export function PlayerSeat({
               ))}
               {/* 탭하여 오픈 - 카드 위 중앙에 하나만 표시 */}
               {!isCardsRevealed && onRevealCards && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
                   <div className="px-3 py-1 bg-black/70 rounded-full text-white text-xs font-medium animate-pulse">
                     👆 OPEN
                   </div>
@@ -232,12 +273,12 @@ export function PlayerSeat({
               marginTop: '8px',
             };
           } else if (isBottomSeat) {
-            // 하단 (0번): 카드 위에 표시하므로 더 위로
+            // 하단 (0번): 카드 바로 위에 표시
             positionStyle = {
               bottom: '100%',
               left: '50%',
               transform: 'translateX(-50%)',
-              marginBottom: '110px', // 카드 높이 + 간격
+              marginBottom: '8px',
             };
           } else if (isLeftSeat) {
             // 좌측 플레이어: 프로필 오른쪽에 표시 (카드가 오른쪽에 겹쳐있으므로 그 위)
@@ -266,7 +307,7 @@ export function PlayerSeat({
           }
 
           return (
-            <div className="absolute z-50" style={positionStyle}>
+            <div className="absolute z-[60]" style={positionStyle}>
               <div className={`px-3 py-1.5 rounded-full text-white text-sm font-bold shadow-xl animate-bounce-in-center whitespace-nowrap ${actionInfo.className}`}>
                 {actionInfo.text}
                 {!!visibleAction.amount && ` ${visibleAction.amount.toLocaleString()}`}
@@ -290,7 +331,7 @@ export function PlayerSeat({
         </TurnTimer>
 
         {/* 다른 플레이어 카드 오픈 시 - 프로필 정중앙 배치 */}
-        {!isCurrentUser && !player.folded && isDealingComplete && player.cards.length > 0 && (() => {
+        {!isCurrentUser && !player.folded && player.cards.length > 0 && (() => {
           return (
             <div className="absolute flex gap-0.5 z-20 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
               {player.cards.map((card, i) => {
@@ -310,7 +351,7 @@ export function PlayerSeat({
         })()}
 
         {/* 다른 플레이어 카드 뒷면 - 좌석 위치에 따라 좌/우 배치 */}
-        {!isCurrentUser && !player.folded && isDealingComplete && player.hasCards && player.cards.length === 0 && (() => {
+        {!isCurrentUser && !player.folded && player.hasCards && player.cards.length === 0 && (() => {
           const isLeftSeat = [1, 3, 5, 7].includes(seatPosition);
           const isRightSeat = [2, 4, 6, 8].includes(seatPosition);
 
@@ -378,28 +419,28 @@ export function PlayerSeat({
 // Seat positions for 9-max table - vertical layout
 // Top: 2, Sides: 2-2-2, Bottom: 1 (player)
 export const SEAT_POSITIONS = [
-  { top: '80%', left: '50%' },   // 0 - bottom center (ME/Player)
-  { top: '57%', left: '9%' },    // 1 - lower left
-  { top: '57%', left: '91%' },   // 2 - lower right
-  { top: '38%', left: '10%' },   // 3 - mid left
-  { top: '38%', left: '90%' },   // 4 - mid right
-  { top: '25%', left: '18%' },   // 5 - upper left
-  { top: '25%', left: '82%' },   // 6 - upper right
-  { top: '17%', left: '35%' },   // 7 - top left
-  { top: '17%', left: '65%' },   // 8 - top right
+  { top: '90%', left: '50%' },   // 0 - bottom center (ME/Player) - 테이블 끝
+  { top: '70%', left: '9%' },    // 1 - lower left
+  { top: '70%', left: '91%' },   // 2 - lower right
+  { top: '52%', left: '10%' },   // 3 - mid left
+  { top: '52%', left: '90%' },   // 4 - mid right
+  { top: '35%', left: '18%' },   // 5 - upper left
+  { top: '35%', left: '82%' },   // 6 - upper right
+  { top: '21%', left: '35%' },   // 7 - top left (+4%)
+  { top: '21%', left: '65%' },   // 8 - top right (+4%)
 ];
 
 // 칩 베팅 위치 (플레이어와 중앙 POT 사이)
 export const CHIP_POSITIONS = [
-  { top: '63%', left: '50%' },   // 0 - bottom center
-  { top: '58%', left: '22%' },   // 1 - lower left
-  { top: '58%', left: '78%' },   // 2 - lower right
-  { top: '42%', left: '23%' },   // 3 - mid left
-  { top: '42%', left: '77%' },   // 4 - mid right
-  { top: '32%', left: '28%' },   // 5 - upper left
-  { top: '32%', left: '72%' },   // 6 - upper right
-  { top: '28%', left: '42%' },   // 7 - top left
-  { top: '28%', left: '58%' },   // 8 - top right
+  { top: '75%', left: '50%' },   // 0 - bottom center (조정됨)
+  { top: '62%', left: '22%' },   // 1 - lower left (+4%)
+  { top: '62%', left: '78%' },   // 2 - lower right (+4%)
+  { top: '48%', left: '23%' },   // 3 - mid left (+6%)
+  { top: '48%', left: '77%' },   // 4 - mid right (+6%)
+  { top: '38%', left: '28%' },   // 5 - upper left (+6%)
+  { top: '38%', left: '72%' },   // 6 - upper right (+6%)
+  { top: '28%', left: '42%' },   // 7 - top left (유지)
+  { top: '28%', left: '58%' },   // 8 - top right (유지)
 ];
 
 // POT 위치 (중앙, POT 글씨 위쪽)

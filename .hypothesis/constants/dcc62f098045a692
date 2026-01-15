@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/ws/handlers/lobby.py
+# hypothesis_version: 6.150.2
+
+[100, 400, 2000, 'ConnectionManager', 'New Room', 'announcements', 'bigBlind', 'blinds', 'buyIn', 'buyInMax', 'buyInMin', 'description', 'errorCode', 'errorMessage', 'isPrivate', 'is_private', 'lobby', 'maxSeats', 'max_seats', 'name', 'password', 'playerCount', 'player_joined', 'position', 'room', 'roomId', 'room_created', 'rooms', 'smallBlind', 'stack', 'stateVersion', 'status', 'success', 'tableId', 'turnTimeout', 'updateType']

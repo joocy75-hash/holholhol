@@ -150,3 +150,18 @@ class TableState(TypedDict):
     bigBlind: int
     players: list[PlayerInfo | None]
     seats: dict[str, PlayerInfo | None]
+
+
+# =============================================================================
+# Time Bank Types
+# =============================================================================
+
+
+class TimeBankResult(TypedDict):
+    """Result of using time bank."""
+    
+    success: bool
+    remaining: int  # 남은 타임 뱅크 횟수
+    added_seconds: int  # 추가된 시간 (초)
+    new_deadline: NotRequired[str | None]  # ISO 형식 새 마감 시간
+    error: NotRequired[str]

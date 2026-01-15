@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  admin-frontend:
+    build:
+      context: ../../admin-frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8001
+    depends_on:
+      - admin-backend
+    networks:
+      - admin-network
+
+  admin-backend:
+    build:
+      context: ../../admin-backend
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - DEBUG=true
+      - ADMIN_DATABASE_URL=postgresql+asyncpg://postgres:postgres@admin-db:5432/admin_db
+      - MAIN_DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/holdem_db
+      - REDIS_URL=redis://redis:6379/1
+      - MAIN_API_URL=http://backend:8000
+      - JWT_SECRET_KEY=admin-secret-key-change-in-production
+    depends_on:
+      - admin-db
+      - redis
+    networks:
+      - admin-network
+      - holdem-network
+
+  admin-db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=admin_db
+    volumes:
+      - admin-db-data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    networks:
+      - admin-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    networks:
+      - admin-network
+
+networks:
+  admin-network:
+    driver: bridge
+  holdem-network:
+    external: true
+    name: holdem_default
+
+volumes:
+  admin-db-data:

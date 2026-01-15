@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/middleware/rate_limit.py
+# hypothesis_version: 6.150.2
+
+[100, 120, 200, 429, 1000, 3600, '*', ',', '-', '/', '/api/v1/auth/login', '/api/v1/auth/refresh', '/api/v1/rooms', '/api/v1/wallet/rates', '/docs', '/health', '/metrics', '/openapi.json', '/redoc', '/ws', '0', 'RATE_LIMIT_EXCEEDED', 'Retry-After', 'X-Forwarded-For', 'X-RateLimit-Limit', 'X-RateLimit-Reset', 'code', 'details', 'error', 'limit', 'message', 'rate_limit_exceeded', 'retry_after', 'unknown', 'upgrade', 'user_id', 'websocket', 'window']

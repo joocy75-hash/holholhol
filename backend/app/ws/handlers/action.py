@@ -95,7 +95,7 @@ class ActionHandler(BaseHandler):
 
     @property
     def handled_events(self) -> tuple[EventType, ...]:
-        return (EventType.ACTION_REQUEST, EventType.START_GAME)
+        return (EventType.ACTION_REQUEST, EventType.START_GAME, EventType.TIME_BANK_REQUEST)
 
     async def handle(
         self,
@@ -108,6 +108,8 @@ class ActionHandler(BaseHandler):
             return await self._handle_start_game(conn, event)
         elif event.type == EventType.REBUY:
             return await self._handle_rebuy(conn, event)
+        elif event.type == EventType.TIME_BANK_REQUEST:
+            return await self._handle_time_bank(conn, event)
         return None
 
     async def _handle_action(
@@ -1240,4 +1242,134 @@ class ActionHandler(BaseHandler):
         # Clear timeout tasks dict (should already be empty after cancellation)
         self._timeout_tasks.clear()
 
-        logger.info(f"[CLEANUP] All ActionHandler resources cleaned up (locks={lock_count})")
+    # ========================================
+    # Time Bank Handler
+    # ========================================
+
+    async def _handle_time_bank(
+        self,
+        conn: WebSocketConnection,
+        event: MessageEnvelope,
+    ) -> MessageEnvelope:
+        """Handle TIME_BANK_REQUEST event.
+        
+        플레이어가 타임 뱅크를 사용하여 턴 시간을 연장합니다.
+        """
+        payload = event.payload
+        room_id = payload.get("tableId")
+        request_id = event.request_id
+
+        logger.info(
+            "time_bank_request",
+            user_id=conn.user_id,
+            table_id=room_id,
+            trace_id=event.trace_id,
+        )
+
+        # Lock per table
+        table_lock = self._get_table_lock(room_id)
+        async with table_lock:
+            # Get table
+            table = game_manager.get_table(room_id)
+            if not table:
+                return MessageEnvelope.create(
+                    event_type=EventType.TIME_BANK_USED,
+                    payload={
+                        "success": False,
+                        "tableId": room_id,
+                        "errorCode": "TABLE_NOT_FOUND",
+                        "errorMessage": "테이블을 찾을 수 없습니다",
+                    },
+                    request_id=request_id,
+                    trace_id=event.trace_id,
+                )
+
+            # Find player seat
+            player_seat = self._get_player_seat(table, conn.user_id)
+            if player_seat is None:
+                return MessageEnvelope.create(
+                    event_type=EventType.TIME_BANK_USED,
+                    payload={
+                        "success": False,
+                        "tableId": room_id,
+                        "errorCode": "NOT_A_PLAYER",
+                        "errorMessage": "테이블에 앉아있지 않습니다",
+                    },
+                    request_id=request_id,
+                    trace_id=event.trace_id,
+                )
+
+            # Use time bank
+            result = table.use_time_bank(player_seat)
+
+            if not result.get("success"):
+                error_code = result.get("error", "UNKNOWN_ERROR")
+                error_messages = {
+                    "NOT_YOUR_TURN": "당신의 차례가 아닙니다",
+                    "PLAYER_NOT_FOUND": "플레이어를 찾을 수 없습니다",
+                    "NO_TIME_BANK": "타임 뱅크를 모두 사용했습니다",
+                    "NO_ACTIVE_HAND": "진행 중인 핸드가 없습니다",
+                }
+                error_message = error_messages.get(error_code, "타임 뱅크 사용 실패")
+
+                logger.warning(
+                    "time_bank_failed",
+                    user_id=conn.user_id,
+                    table_id=room_id,
+                    error_code=error_code,
+                    trace_id=event.trace_id,
+                )
+
+                return MessageEnvelope.create(
+                    event_type=EventType.TIME_BANK_USED,
+                    payload={
+                        "success": False,
+                        "tableId": room_id,
+                        "errorCode": error_code,
+                        "errorMessage": error_message,
+                    },
+                    request_id=request_id,
+                    trace_id=event.trace_id,
+                )
+
+            # Success - broadcast to all players in the room
+            time_bank_payload = {
+                "success": True,
+                "tableId": room_id,
+                "seat": player_seat,
+                "remaining": result.get("remaining", 0),
+                "addedSeconds": result.get("added_seconds", 0),
+                "newDeadline": result.get("new_deadline"),
+            }
+
+            logger.info(
+                "time_bank_used",
+                user_id=conn.user_id,
+                table_id=room_id,
+                seat=player_seat,
+                remaining=result.get("remaining", 0),
+                added_seconds=result.get("added_seconds", 0),
+                trace_id=event.trace_id,
+            )
+
+            # Broadcast TIME_BANK_USED to all players in the room
+            await self._broadcast_time_bank_used(room_id, time_bank_payload)
+
+            return MessageEnvelope.create(
+                event_type=EventType.TIME_BANK_USED,
+                payload=time_bank_payload,
+                request_id=request_id,
+                trace_id=event.trace_id,
+            )
+
+    async def _broadcast_time_bank_used(
+        self,
+        room_id: str,
+        payload: dict[str, Any],
+    ) -> None:
+        """Broadcast TIME_BANK_USED event to all players in the room."""
+        message = MessageEnvelope.create(
+            event_type=EventType.TIME_BANK_USED,
+            payload=payload,
+        )
+        await self.manager.broadcast_to_room(room_id, message)

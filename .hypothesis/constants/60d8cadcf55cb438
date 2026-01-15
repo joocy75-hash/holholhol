@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/services/wallet.py
+# hypothesis_version: 6.150.2
+
+[300, 'krw_transfer.lua', 'lua_scripts', 'wallet:balance:', 'wallet:lock:']

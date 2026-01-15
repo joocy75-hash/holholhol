@@ -6,8 +6,6 @@ import {
   slideUp,
   fadeIn,
   springTransition,
-  buttonHover,
-  buttonTap,
 } from '@/lib/animations';
 
 interface TableConfig {
@@ -56,7 +54,7 @@ export function BuyInModal({
   return (
     <AnimatePresence>
       <motion.div 
-        className="fixed inset-0 z-50 flex items-end justify-center"
+        className="fixed inset-0 z-[100] flex items-end justify-center"
         initial="initial"
         animate="animate"
         exit="exit"
@@ -74,6 +72,7 @@ export function BuyInModal({
           className="relative w-full max-w-[500px]"
           variants={slideUp}
           transition={springTransition}
+          onClick={(e) => e.stopPropagation()}
           style={{
             backgroundImage: "url('/assets/ui/buyin/bg-panel.png')",
             backgroundSize: '100% 100%',
@@ -104,37 +103,45 @@ export function BuyInModal({
                 }}
               >
                 {/* MIN 버튼 - 144x70 @2x → 72x35 @1x */}
-                <motion.button
-                  onClick={handleMin}
-                  className="absolute left-0 top-0 bottom-0 w-[72px] flex items-center justify-center text-white font-bold text-xs"
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('[BuyInModal] MIN clicked');
+                    handleMin();
+                  }}
+                  className="absolute left-0 top-0 bottom-0 w-[72px] flex items-center justify-center text-white font-bold text-xs active:scale-95 transition-transform z-10"
                   style={{
                     backgroundImage: "url('/assets/ui/buyin/btn-min.png')",
                     backgroundSize: '100% 100%',
                   }}
-                  whileHover={buttonHover}
-                  whileTap={buttonTap}
                 >
                   MIN
-                </motion.button>
+                </button>
 
                 {/* 금액 표시 */}
-                <span className="absolute left-1/2 -translate-x-1/2 text-[#FFD700] text-xl font-bold">
+                <span className="absolute left-1/2 -translate-x-1/2 text-[#FFD700] text-xl font-bold pointer-events-none">
                   {buyIn.toLocaleString()}
                 </span>
 
                 {/* MAX 버튼 - 144x70 @2x → 72x35 @1x */}
-                <motion.button
-                  onClick={handleMax}
-                  className="absolute right-0 top-0 bottom-0 w-[72px] flex items-center justify-center text-white font-bold text-xs"
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('[BuyInModal] MAX clicked');
+                    handleMax();
+                  }}
+                  className="absolute right-0 top-0 bottom-0 w-[72px] flex items-center justify-center text-white font-bold text-xs active:scale-95 transition-transform z-10"
                   style={{
                     backgroundImage: "url('/assets/ui/buyin/btn-max.png')",
                     backgroundSize: '100% 100%',
                   }}
-                  whileHover={buttonHover}
-                  whileTap={buttonTap}
                 >
                   MAX
-                </motion.button>
+                </button>
               </div>
 
               {/* 최소/최대 표시 */}
@@ -212,35 +219,45 @@ export function BuyInModal({
           </div>
 
           {/* 버튼 영역 */}
-          <div className="flex">
-            <motion.button
-              onClick={onCancel}
+          <div className="flex relative z-10">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('[BuyInModal] Cancel clicked');
+                onCancel();
+              }}
               disabled={isLoading}
-              className="flex-[258] h-[73px] flex items-center justify-center text-gray-700 font-bold text-base"
+              className="flex-[258] h-[73px] flex items-center justify-center text-gray-700 font-bold text-base active:scale-95 transition-transform"
               style={{
                 backgroundImage: "url('/assets/ui/buyin/btn-cancel.png')",
                 backgroundSize: '100% 100%',
               }}
-              whileHover={buttonHover}
-              whileTap={buttonTap}
               data-testid="buyin-cancel"
             >
               닫기
-            </motion.button>
-            <motion.button
-              onClick={() => onConfirm(buyIn)}
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('[BuyInModal] Confirm clicked, buyIn:', buyIn);
+                if (!isLoading && isValidBuyIn && !insufficientBalance) {
+                  onConfirm(buyIn);
+                }
+              }}
               disabled={isLoading || !isValidBuyIn || insufficientBalance}
-              className="flex-[431] h-[73px] flex items-center justify-center text-white font-bold text-base disabled:opacity-50"
+              className="flex-[431] h-[73px] flex items-center justify-center text-white font-bold text-base disabled:opacity-50 active:scale-95 transition-transform"
               style={{
                 backgroundImage: "url('/assets/ui/buyin/btn-confirm.png')",
                 backgroundSize: '100% 100%',
               }}
-              whileHover={!isLoading && isValidBuyIn && !insufficientBalance ? buttonHover : undefined}
-              whileTap={!isLoading && isValidBuyIn && !insufficientBalance ? buttonTap : undefined}
               data-testid="buyin-confirm"
             >
               {isLoading ? '참여 중...' : '확인'}
-            </motion.button>
+            </button>
           </div>
         </div>
         </motion.div>

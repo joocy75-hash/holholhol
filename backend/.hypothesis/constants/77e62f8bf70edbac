@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/schemas/requests.py
+# hypothesis_version: 6.150.2
+
+[100, 400, 500, 2000, '/', 'Big blind amount', 'Buy-in amount', 'Display name', 'Refresh token', 'Room description', 'Room name', 'Small blind amount', 'User email address', 'User password', '[A-Za-z]', '\\d', '^[a-zA-Z0-9가-힣_]+$', 'admin', 'administrator', 'avatarUrl', 'bigBlind', 'big_blind', 'blindLevel', 'blind_level', 'bot', 'buyIn', 'buyInMax', 'buyInMin', 'buy_in_max', 'buy_in_min', 'currentPassword', 'dealer', 'help', 'high', 'host', 'isPrivate', 'low', 'manager', 'maxSeats', 'medium', 'mod', 'moderator', 'newPassword', 'new_password', 'nickname', 'official', 'operator', 'owner', 'password', 'refreshToken', 'root', 'server', 'smallBlind', 'small_blind', 'staff', 'support', 'system']

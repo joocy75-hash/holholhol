@@ -16,8 +16,6 @@ import {
   EventHandler,
   TypedEventHandlers,
   PayloadFor,
-  ConnectionStatePayload,
-  ErrorPayload,
 } from '@/types/websocket';
 
 type SendFailureHandler = (event: EventType | string, data: unknown, reason: string) => void;
@@ -89,7 +87,7 @@ export class WebSocketClient {
     this.connectPromise = new Promise((resolve, reject) => {
       try {
         this.ws = new WebSocket(this.url);
-      } catch (err) {
+      } catch {
         this.connectionState = ConnectionState.DISCONNECTED;
         this.connectPromise = null;
         reject(new Error('Failed to create WebSocket'));

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { authApi } from '@/lib/api';
+import { extractErrorMessage } from '@/types/errors';
 
 interface User {
   id: string;
@@ -41,9 +42,9 @@ export const useAuthStore = create<AuthState>((set) => ({
         isAuthenticated: true,
         isLoading: false,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({
-        error: error.response?.data?.error?.message || '로그인에 실패했습니다.',
+        error: extractErrorMessage(error, '로그인에 실패했습니다.'),
         isLoading: false,
       });
       throw error;
@@ -64,9 +65,9 @@ export const useAuthStore = create<AuthState>((set) => ({
         isAuthenticated: true,
         isLoading: false,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       set({
-        error: error.response?.data?.error?.message || '회원가입에 실패했습니다.',
+        error: extractErrorMessage(error, '회원가입에 실패했습니다.'),
         isLoading: false,
       });
       throw error;
@@ -76,8 +77,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: async () => {
     try {
       await authApi.logout();
-    } catch (e) {
-      // ignore
+    } catch {
+      // ignore logout errors
     }
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
@@ -99,7 +100,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         isAuthenticated: true,
         isLoading: false,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       // The axios interceptor handles token refresh automatically
       // Only clear tokens if the interceptor couldn't recover (already logged out)
       // Check if we still have a token - if interceptor cleared it, we're done
@@ -113,7 +114,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       } else {
         // For network errors or other issues, keep auth state
         set({ isLoading: false });
-        console.error('fetchUser error:', error);
+        console.error('fetchUser error:', extractErrorMessage(error));
       }
     }
   },

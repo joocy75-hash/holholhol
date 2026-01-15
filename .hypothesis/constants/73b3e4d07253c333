@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/schemas/common.py
+# hypothesis_version: 6.150.2
+
+[100, 'Items per page', 'Page number', 'T', 'createdAt', 'hasNext', 'hasPrev', 'pageSize', 'totalItems', 'totalPages', 'traceId', 'updatedAt']

@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/utils/crypto_validator.py
+# hypothesis_version: 6.150.2
+
+[256, 'Address is empty', 'T', 'ascii', 'r', 'sol', 'trx', 'usdt', 'xrp']

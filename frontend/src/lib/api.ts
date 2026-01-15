@@ -22,10 +22,10 @@ api.interceptors.request.use((config) => {
 let isRefreshing = false;
 let failedQueue: Array<{
   resolve: (token: string) => void;
-  reject: (error: any) => void;
+  reject: (error: unknown) => void;
 }> = [];
 
-const processQueue = (error: any, token: string | null = null) => {
+const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue.forEach((prom) => {
     if (error) {
       prom.reject(error);
@@ -139,7 +139,24 @@ export const tablesApi = {
 
   // Get rooms where current user is seated
   mySeats: () => api.get<{ rooms: string[] }>('/api/v1/rooms/my-seats'),
+
+  // Quick join to an available room
+  quickJoin: (blindLevel?: string) =>
+    api.post<QuickJoinResponse>('/api/v1/rooms/quick-join', 
+      blindLevel ? { blindLevel } : {}
+    ),
 };
+
+// Quick Join Response Type
+export interface QuickJoinResponse {
+  success: boolean;
+  roomId: string;
+  tableId: string;
+  seat: number;
+  buyIn: number;
+  roomName: string;
+  blinds: string;
+}
 
 // Wallet API
 export const walletApi = {

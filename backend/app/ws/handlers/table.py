@@ -326,6 +326,8 @@ class TableHandler(BaseHandler):
         buy_in = payload.get("buyIn", 1000)
         bot_name = payload.get("name")
 
+        logger.info(f"[ADD_BOT] Received ADD_BOT_REQUEST: tableId={table_id}, buyIn={buy_in}")
+
         try:
             self.db.expire_all()
 
@@ -453,6 +455,8 @@ class TableHandler(BaseHandler):
         table_id = payload.get("tableId")
         bot_count = payload.get("botCount", 4)
         buy_in = payload.get("buyIn")
+
+        logger.info(f"[BOT-LOOP] Received START_BOT_LOOP_REQUEST: tableId={table_id}, botCount={bot_count}, buyIn={buy_in}")
 
         try:
             self.db.expire_all()
