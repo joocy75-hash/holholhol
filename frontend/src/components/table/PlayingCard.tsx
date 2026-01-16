@@ -1,5 +1,7 @@
 'use client';
 
+import { useState, useRef, useCallback } from 'react';
+
 export interface Card {
   rank: string;
   suit: string;
@@ -152,6 +154,125 @@ export function FlippableCard({
               backgroundPosition: `${xPercent}% ${yPercent}%`,
             }}
           />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 스와이프하여 카드 오픈 컴포넌트
+interface SwipeToRevealProps {
+  children: React.ReactNode;
+  onReveal: () => void;
+  isRevealed: boolean;
+  disabled?: boolean;
+}
+
+export function SwipeToReveal({
+  children,
+  onReveal,
+  isRevealed,
+  disabled = false,
+}: SwipeToRevealProps) {
+  const [dragX, setDragX] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const startXRef = useRef(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const THRESHOLD = 100; // 스와이프 완료 기준 거리 (px)
+  const MAX_DRAG = 120; // 최대 드래그 거리
+
+  const handleStart = useCallback((clientX: number) => {
+    if (disabled || isRevealed) return;
+    setIsDragging(true);
+    startXRef.current = clientX;
+  }, [disabled, isRevealed]);
+
+  const handleMove = useCallback((clientX: number) => {
+    if (!isDragging || disabled || isRevealed) return;
+    const diff = clientX - startXRef.current;
+    // 오른쪽으로만 드래그 가능
+    const clampedDiff = Math.max(0, Math.min(diff, MAX_DRAG));
+    setDragX(clampedDiff);
+  }, [isDragging, disabled, isRevealed]);
+
+  const handleEnd = useCallback(() => {
+    if (!isDragging) return;
+    setIsDragging(false);
+
+    if (dragX >= THRESHOLD && !isRevealed && !disabled) {
+      onReveal();
+    }
+    setDragX(0);
+  }, [isDragging, dragX, isRevealed, disabled, onReveal]);
+
+  // 마우스 이벤트
+  const onMouseDown = (e: React.MouseEvent) => handleStart(e.clientX);
+  const onMouseMove = (e: React.MouseEvent) => handleMove(e.clientX);
+  const onMouseUp = () => handleEnd();
+  const onMouseLeave = () => handleEnd();
+
+  // 터치 이벤트
+  const onTouchStart = (e: React.TouchEvent) => handleStart(e.touches[0].clientX);
+  const onTouchMove = (e: React.TouchEvent) => handleMove(e.touches[0].clientX);
+  const onTouchEnd = () => handleEnd();
+
+  // 진행률 (0 ~ 1)
+  const progress = dragX / THRESHOLD;
+
+  if (isRevealed || disabled) {
+    return <>{children}</>;
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative select-none touch-none"
+      onMouseDown={onMouseDown}
+      onMouseMove={onMouseMove}
+      onMouseUp={onMouseUp}
+      onMouseLeave={onMouseLeave}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
+      {children}
+
+      {/* 스와이프 오버레이 */}
+      <div
+        className="absolute inset-0 flex items-center justify-center pointer-events-none z-20"
+        style={{ opacity: 1 - progress * 0.8 }}
+      >
+        <div className="relative w-full max-w-[180px] h-10 bg-black/60 rounded-full overflow-hidden border border-white/20">
+          {/* 슬라이더 트랙 */}
+          <div
+            className="absolute inset-0 bg-gradient-to-r from-green-500/50 to-green-400/50"
+            style={{
+              width: `${Math.min(progress * 100, 100)}%`,
+              transition: isDragging ? 'none' : 'width 0.2s ease-out'
+            }}
+          />
+
+          {/* 슬라이더 핸들 */}
+          <div
+            className="absolute top-1/2 -translate-y-1/2 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center"
+            style={{
+              left: `${4 + (progress * 70)}%`,
+              transition: isDragging ? 'none' : 'left 0.2s ease-out'
+            }}
+          >
+            <span className="text-black text-lg">→</span>
+          </div>
+
+          {/* 텍스트 */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span
+              className="text-white text-xs font-medium tracking-wider ml-8"
+              style={{ opacity: 1 - progress }}
+            >
+              SLIDE TO OPEN
+            </span>
+          </div>
         </div>
       </div>
     </div>

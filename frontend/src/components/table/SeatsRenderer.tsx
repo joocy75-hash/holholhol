@@ -1,8 +1,9 @@
 'use client';
 
-import { PlayerSeat, SEAT_POSITIONS, type Player } from './PlayerSeat';
+import { PlayerSeat, type Player } from './PlayerSeat';
 import type { Card } from './PlayingCard';
 import type { SeatInfo } from '@/hooks/table/useGameState';
+import { TABLE, MAX_SEATS } from '@/constants/tableCoordinates';
 
 interface SeatsRendererProps {
   seats: SeatInfo[];
@@ -54,9 +55,9 @@ export function SeatsRenderer({
   
   return (
     <>
-      {SEAT_POSITIONS.map((pos, visualIndex) => {
+      {TABLE.SEATS.map((pos, visualIndex) => {
         const actualPosition = myPosition !== null
-          ? (visualIndex + myPosition) % SEAT_POSITIONS.length
+          ? (visualIndex + myPosition) % MAX_SEATS
           : visualIndex;
         const seat = seats.find(s => s.position === actualPosition);
         const isWinner = winnerPositions.includes(actualPosition);
@@ -82,8 +83,18 @@ export function SeatsRenderer({
           winHandRank: handRank,
         } : undefined;
 
+        // DEBUG: 폴드 상태 추적
+        if (seat?.player && seat.status === 'folded') {
+          console.log(`🔴 [FOLD_DEBUG] SeatsRenderer: seat ${actualPosition} status='folded', player.folded=${player?.folded}`);
+        }
+
         // 빈 좌석 클릭 가능 조건: 플레이어가 없고, 관전자(아직 앉지 않은 사용자)일 때
         const canClickEmptySeat = !seat?.player && isSpectator;
+
+        // DEBUG: 빈 좌석 클릭 조건 확인
+        if (!seat?.player) {
+          console.log(`🪑 [Seat ${actualPosition}] canClick=${canClickEmptySeat}, isSpectator=${isSpectator}, hasPlayer=${!!seat?.player}`);
+        }
 
         return (
           <PlayerSeat

@@ -24,7 +24,7 @@ export function DevAdminPanel({
   const [isOpen, setIsOpen] = useState(true); // 기본 펼침
 
   return (
-    <div className="fixed bottom-4 right-4 z-50">
+    <div className="fixed bottom-4 right-4 z-[150]">
       {/* 패널 (기본 펼침) */}
       {isOpen ? (
         <div className="w-64 bg-gray-900 border border-gray-700 rounded-lg shadow-xl p-4">

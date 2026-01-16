@@ -30,7 +30,6 @@ from app.utils.redis_client import close_redis, init_redis, redis_client
 from app.utils.json_utils import ORJSONResponse
 from app.utils.secrets_validator import validate_startup_secrets
 from app.ws.gateway import router as ws_router, get_manager, shutdown_manager
-from app.cache import init_cache_manager, shutdown_cache_manager, get_cache_manager
 from app.logging_config import configure_logging, get_logger
 
 settings = get_settings()
@@ -92,22 +91,6 @@ async def lifespan(_app: FastAPI):
         await get_manager()
         logger.info("WebSocket gateway initialized")
 
-        # Initialize cache manager (Phase 4)
-        # Note: Use redis_instance from init_redis(), not the import-time redis_client
-        logger.info("Initializing cache manager...")
-        await init_cache_manager(redis_instance, async_session_factory)
-        logger.info("Cache manager initialized")
-
-        # Perform cache warmup
-        logger.info("Warming up cache...")
-        try:
-            cache_mgr = get_cache_manager()
-            async with async_session_factory() as session:
-                warmup_stats = await cache_mgr.warmup(session)
-                logger.info(f"Cache warmup complete: {warmup_stats}")
-        except Exception as e:
-            logger.warning(f"Cache warmup failed (non-critical): {e}")
-
         logger.info("Application startup complete")
     except Exception as e:
         logger.error(f"Startup failed: {e}")
@@ -119,11 +102,6 @@ async def lifespan(_app: FastAPI):
     logger.info("Shutting down application...")
 
     try:
-        # Shutdown cache manager first (flushes dirty data to DB)
-        logger.info("Shutting down cache manager...")
-        await shutdown_cache_manager()
-        logger.info("Cache manager shutdown complete")
-
         # Shutdown WebSocket manager
         logger.info("Shutting down WebSocket gateway...")
         await shutdown_manager()

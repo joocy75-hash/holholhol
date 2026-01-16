@@ -34,8 +34,12 @@ export function CommunityCards({
   const allBestCards = Object.values(winnerBestCards).flat();
 
   return (
-    <div className="absolute top-[48%] left-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-[5px]" data-testid="community-cards">
-      {cards?.map((card, i) => {
+    <div
+      className="absolute top-[48%] left-1/2 -translate-x-1/2 -translate-y-1/2"
+      data-testid="community-cards"
+    >
+      <div className="flex gap-[5px]">
+        {cards?.map((card, i) => {
         // 공개된 카드만 표시 (revealedCount 기준)
         const isRevealed = i < revealedCount;
         // 새로 공개되는 카드인지 확인 (좌측부터 순서대로 애니메이션)
@@ -64,6 +68,7 @@ export function CommunityCards({
           className="w-[47px] h-[66px] rounded-md border-[1.8px] border-dashed border-white/20"
         />
       ))}
+      </div>
     </div>
   );
 }

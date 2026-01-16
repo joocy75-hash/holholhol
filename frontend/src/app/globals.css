@@ -601,6 +601,9 @@ body {
   align-items: center;
   gap: var(--space-xs);
   transform: translate(-50%, -50%);
+  /* 고정 높이로 중심점 고정 - 내용물 변화에도 아바타 위치 불변 */
+  height: 105px;  /* avatar(43) + gap(4) + info(~26) + gap(4) + fold(28) */
+  justify-content: flex-start;  /* 아바타를 상단에 고정 */
 }
 
 .player-avatar {
@@ -624,19 +627,19 @@ body {
 
 .player-info {
   background: rgba(0, 0, 0, 0.7);
-  padding: var(--space-xs) var(--space-sm);
+  padding: 0.2rem 0.4rem;
   border-radius: var(--radius-sm);
   text-align: center;
 }
 
 .player-name {
-  font-size: 0.75rem;
+  font-size: 0.6rem;
   font-weight: 600;
   color: var(--text-primary);
 }
 
 .player-chips {
-  font-size: 0.625rem;
+  font-size: 0.5rem;
   color: var(--accent);
 }
 
@@ -802,6 +805,81 @@ body {
   animation: bounceInCenter 0.4s ease-out forwards;
 }
 
+/* 액션 말풍선 - CSS 기반 */
+.speech-bubble {
+  position: relative;
+  padding: 6px 12px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  border-radius: 8px;
+  box-shadow:
+    0 2px 4px rgba(0,0,0,0.3),
+    0 4px 8px rgba(0,0,0,0.2),
+    inset 0 1px 0 rgba(255,255,255,0.2);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+/* 꼬리 공통 */
+.speech-bubble::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border: 7px solid transparent;
+}
+
+/* 꼬리 - 왼쪽 */
+.speech-bubble.bubble-left::before {
+  left: -13px;
+}
+
+/* 꼬리 - 오른쪽 */
+.speech-bubble.bubble-right::before {
+  right: -13px;
+}
+
+/* 액션별 색상 - 폴드 (빨간색) */
+.speech-bubble.bubble-fold {
+  background: linear-gradient(180deg, #8b3a42 0%, #722f37 100%);
+}
+.speech-bubble.bubble-fold.bubble-left::before { border-right-color: #722f37; }
+.speech-bubble.bubble-fold.bubble-right::before { border-left-color: #722f37; }
+
+/* 액션별 색상 - 체크 (초록색) */
+.speech-bubble.bubble-check {
+  background: linear-gradient(180deg, #1a6b3a 0%, #14532d 100%);
+}
+.speech-bubble.bubble-check.bubble-left::before { border-right-color: #14532d; }
+.speech-bubble.bubble-check.bubble-right::before { border-left-color: #14532d; }
+
+/* 액션별 색상 - 콜 (파란색) */
+.speech-bubble.bubble-call {
+  background: linear-gradient(180deg, #264a73 0%, #1e3a5f 100%);
+}
+.speech-bubble.bubble-call.bubble-left::before { border-right-color: #1e3a5f; }
+.speech-bubble.bubble-call.bubble-right::before { border-left-color: #1e3a5f; }
+
+/* 액션별 색상 - 베팅/레이즈 (보라색) */
+.speech-bubble.bubble-bet,
+.speech-bubble.bubble-raise {
+  background: linear-gradient(180deg, #5c24b0 0%, #4c1d95 100%);
+}
+.speech-bubble.bubble-bet.bubble-left::before,
+.speech-bubble.bubble-raise.bubble-left::before { border-right-color: #4c1d95; }
+.speech-bubble.bubble-bet.bubble-right::before,
+.speech-bubble.bubble-raise.bubble-right::before { border-left-color: #4c1d95; }
+
+/* 액션별 색상 - 올인 (주황색) */
+.speech-bubble.bubble-allin {
+  background: linear-gradient(180deg, #f56c18 0%, #ea580c 100%);
+}
+.speech-bubble.bubble-allin.bubble-left::before { border-right-color: #ea580c; }
+.speech-bubble.bubble-allin.bubble-right::before { border-left-color: #ea580c; }
+
 .animate-scale-in {
   animation: scaleIn 0.2s ease-out;
 }
@@ -931,10 +1009,7 @@ body {
     height: 48px;
   }
 
-  .player-avatar {
-    width: 50px;
-    height: 50px;
-  }
+  /* player-avatar 크기는 고정 (게임 컨테이너가 transform: scale로 스케일링되므로) */
 }
 
 /* 데스크탑 (1024px 이상) */
@@ -944,10 +1019,7 @@ body {
     height: 56px;
   }
 
-  .player-avatar {
-    width: 58px;
-    height: 58px;
-  }
+  /* player-avatar 크기는 고정 (게임 컨테이너가 transform: scale로 스케일링되므로) */
 }
 
 /* --------------------------------------------
@@ -1782,9 +1854,10 @@ body {
    현재 턴 플레이어 스폿라이트 효과
    ============================================ */
 
-/* 폴드된 플레이어 (항상 적용) */
-.player-seat.player-folded {
-  filter: brightness(0.4) grayscale(1) !important;
+/* 폴드된 플레이어 - 아바타와 정보에만 필터 적용 (FOLD 배지 색상 유지) */
+.player-seat.player-folded .player-avatar,
+.player-seat.player-folded .player-info {
+  filter: brightness(0.4) grayscale(1);
   opacity: 0.6;
   transition: filter 0.3s ease-out, opacity 0.3s ease-out;
 }
@@ -1848,35 +1921,50 @@ body {
    메인 플레이어 핸드 카드 스타일
    ============================================ */
 
-/* 쇼다운 시: 나란히 펼침 */
-.hand-cards-spread {
-  display: flex;
-  gap: 6px;
-}
-
-/* 게임 진행 중: 겹쳐서 표시 (뒷카드가 위로, 오른쪽 모서리 숫자 보이게) */
-.hand-cards-stacked {
+/* 핸드 카드 컨테이너 공통 */
+.hand-cards-base {
   position: relative;
-  width: 75px;
-  height: 80px;
+  width: 194px;  /* 94px * 2 + 6px gap */
+  height: 132px;
 }
 
-.hand-cards-stacked .hand-card-0 {
+/* 카드 공통 스타일 - 애니메이션용 */
+.hand-cards-base .hand-card-0,
+.hand-cards-base .hand-card-1 {
   position: absolute;
-  left: 0;
   top: 0;
+  transition: left 0.4s ease, transform 0.4s ease;
+}
+
+/* 게임 진행 중: 겹쳐서 표시 (비스듬하게) */
+.hand-cards-stacked .hand-card-0 {
+  left: 35px;  /* 중앙 정렬을 위해 조정 */
   transform: rotate(-5deg);
   z-index: 1;
-  transition: transform 0.3s ease;
 }
 
 .hand-cards-stacked .hand-card-1 {
-  position: absolute;
-  left: 18px;
-  top: 0;
+  left: 65px;  /* 겹치게 배치 */
   transform: rotate(5deg);
   z-index: 2;
-  transition: transform 0.3s ease;
+}
+
+/* 쇼다운 시: 나란히 펼침 (애니메이션으로 전환) */
+.hand-cards-spread .hand-card-0 {
+  left: 0;
+  transform: rotate(0deg);
+  z-index: 1;
+}
+
+.hand-cards-spread .hand-card-1 {
+  left: 100px;  /* 94px + 6px gap */
+  transform: rotate(0deg);
+  z-index: 2;
+}
+
+/* 폴드된 카드 - 애니메이션만 제거 (brightness는 PlayerSeat.tsx inline style로 처리) */
+.hand-cards-folded .playing-card-sprite {
+  animation: none !important;
 }
 
 /* ============================================

@@ -76,6 +76,7 @@ class Player:
     total_bet_this_hand: int = 0
     is_bot: bool = False
     time_bank_remaining: int = 3  # 남은 타임 뱅크 횟수
+    is_cards_revealed: bool = False  # 카드 오픈 상태 (클라이언트에서 카드를 열었는지)
 
 
 @dataclass
@@ -408,6 +409,7 @@ class PokerTable:
             player.current_bet = 0
             player.hole_cards = None
             player.total_bet_this_hand = 0
+            player.is_cards_revealed = False
 
         # Reset time banks for all players (핸드 시작 시 타임 뱅크 초기화)
         self.reset_time_banks()

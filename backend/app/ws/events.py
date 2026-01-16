@@ -43,12 +43,14 @@ class EventType(str, Enum):
     PLAYER_SIT_OUT = "PLAYER_SIT_OUT"
     PLAYER_SIT_IN = "PLAYER_SIT_IN"
 
-    # Hand events (5)
+    # Hand events (7)
     START_GAME = "START_GAME"
     GAME_STARTING = "GAME_STARTING"
     HAND_START = "HAND_START"
     HAND_STARTED = "HAND_STARTED"
     COMMUNITY_CARDS = "COMMUNITY_CARDS"
+    REVEAL_CARDS = "REVEAL_CARDS"  # 클라이언트 → 서버: 카드 오픈 알림
+    CARDS_REVEALED = "CARDS_REVEALED"  # 서버 → 클라이언트: 카드 오픈 브로드캐스트
 
     # Action events (6)
     ACTION_REQUEST = "ACTION_REQUEST"
@@ -92,6 +94,7 @@ CLIENT_TO_SERVER_EVENTS = frozenset([
     EventType.SIT_IN_REQUEST,
     EventType.REBUY,  # 리바이 요청
     EventType.TIME_BANK_REQUEST,  # 타임 뱅크 요청
+    EventType.REVEAL_CARDS,  # 카드 오픈 요청
 ])
 
 SERVER_TO_CLIENT_EVENTS = frozenset([
@@ -125,4 +128,5 @@ SERVER_TO_CLIENT_EVENTS = frozenset([
     EventType.PLAYER_SIT_OUT,
     EventType.PLAYER_SIT_IN,
     EventType.TIME_BANK_USED,  # 타임 뱅크 사용 결과
+    EventType.CARDS_REVEALED,  # 카드 오픈 브로드캐스트
 ])

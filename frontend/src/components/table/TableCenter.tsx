@@ -3,6 +3,7 @@
 import { PlayingCard, type Card } from './PlayingCard';
 import { isCardInBestFive } from './CommunityCards';
 import type { HandResult } from '@/lib/handEvaluator';
+import { TABLE } from '@/constants/tableCoordinates';
 
 interface TableCenterProps {
   pot: number;
@@ -39,25 +40,37 @@ export function TableCenter({
 
   return (
     <>
-      {/* 커뮤니티 카드 5장 슬롯 - POT 아래쪽 */}
-      <div 
-        className="absolute left-1/2 -translate-x-1/2 flex gap-1.5 z-10"
-        style={{ top: '50%' }}
+      {/* 커뮤니티 카드 5장 슬롯 - 고정 픽셀 좌표 (10% 확대) */}
+      <div
+        className="absolute flex gap-2 z-10"
+        style={{
+          top: TABLE.COMMUNITY.y,
+          left: TABLE.COMMUNITY.x,
+          transform: 'translate(-50%, -50%)',
+        }}
         data-testid="community-cards"
       >
         {cardSlots.map((slot, idx) => (
           <div
             key={idx}
-            className={`w-[40px] h-[56px] transition-all duration-300 ${
-              slot.card && slot.isRevealed 
-                ? 'opacity-100 scale-100' 
-                : slot.card 
-                  ? 'opacity-0 scale-75' 
-                  : ''
-            } ${slot.isBestCard ? 'ring-2 ring-yellow-400 rounded shadow-lg shadow-yellow-400/50' : ''}`}
+            className={`w-[44px] h-[62px] ${
+              slot.isBestCard ? 'ring-2 ring-yellow-400 rounded shadow-lg shadow-yellow-400/50' : ''
+            }`}
           >
             {slot.card ? (
-              <PlayingCard card={slot.card} />
+              /* 카드가 있으면 플립 애니메이션으로 공개 */
+              <div className="card-flip-container">
+                <div className={`card-flip-inner ${slot.isRevealed ? 'flipped' : ''}`}>
+                  {/* 뒷면 */}
+                  <div className="card-flip-front">
+                    <PlayingCard faceDown />
+                  </div>
+                  {/* 앞면 */}
+                  <div className="card-flip-back">
+                    <PlayingCard card={slot.card} />
+                  </div>
+                </div>
+              </div>
             ) : (
               /* 빈 카드 슬롯 */
               <div className="w-full h-full rounded-md border-2 border-dashed border-white/20 bg-black/20" />
@@ -66,14 +79,18 @@ export function TableCenter({
         ))}
       </div>
 
-      {/* 팟 표시 - 커뮤니티 카드 위쪽 */}
-      <div 
-        className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center z-10"
-        style={{ top: '40%' }}
+      {/* 팟 금액 표시 - 배경 없이 숫자만 */}
+      <div
+        className="absolute flex flex-col items-center z-10"
+        style={{
+          top: TABLE.POT_DISPLAY.y,
+          left: TABLE.POT_DISPLAY.x,
+          transform: 'translate(-50%, -50%)',
+        }}
       >
         {pot > 0 && (
-          <div className="bg-black/60 px-4 py-1 rounded-full text-yellow-400 font-bold">
-            POT: {animatedPot.toLocaleString()}
+          <div className="text-yellow-400 font-bold text-lg drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+            {animatedPot.toLocaleString()}
           </div>
         )}
 
@@ -81,7 +98,7 @@ export function TableCenter({
         {sidePots.length > 0 && (
           <div className="flex gap-2 mt-1">
             {sidePots.map((sp, idx) => (
-              <div key={idx} className="bg-black/40 px-2 py-0.5 rounded text-yellow-300 text-xs">
+              <div key={idx} className="text-yellow-300 text-xs drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
                 Side {idx + 1}: {sp.amount.toLocaleString()}
               </div>
             ))}
@@ -89,13 +106,17 @@ export function TableCenter({
         )}
       </div>
 
-      {/* 족보 표시 - 카드 아래쪽 */}
+      {/* 족보 표시 - 고정 픽셀 좌표 */}
       {myHandAnalysis.hand && !isSpectator && (
-        <div 
-          className="absolute left-1/2 -translate-x-1/2 z-10"
-          style={{ top: '62%' }}
+        <div
+          className="absolute z-10"
+          style={{
+            top: TABLE.HAND_RANK.y,
+            left: TABLE.HAND_RANK.x,
+            transform: 'translate(-50%, -50%)',
+          }}
         >
-          <div className="bg-gradient-to-r from-yellow-600/80 to-amber-600/80 px-3 py-1 rounded-full text-white text-sm font-bold shadow-lg">
+          <div className="bg-gradient-to-r from-yellow-600/80 to-amber-600/80 px-2 py-0.5 rounded-full text-white text-[10px] font-bold shadow-lg">
             {myHandAnalysis.hand.name}
           </div>
         </div>

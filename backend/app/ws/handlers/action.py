@@ -95,7 +95,7 @@ class ActionHandler(BaseHandler):
 
     @property
     def handled_events(self) -> tuple[EventType, ...]:
-        return (EventType.ACTION_REQUEST, EventType.START_GAME, EventType.TIME_BANK_REQUEST)
+        return (EventType.ACTION_REQUEST, EventType.START_GAME, EventType.TIME_BANK_REQUEST, EventType.REVEAL_CARDS)
 
     async def handle(
         self,
@@ -110,6 +110,8 @@ class ActionHandler(BaseHandler):
             return await self._handle_rebuy(conn, event)
         elif event.type == EventType.TIME_BANK_REQUEST:
             return await self._handle_time_bank(conn, event)
+        elif event.type == EventType.REVEAL_CARDS:
+            return await self._handle_reveal_cards(conn, event)
         return None
 
     async def _handle_action(
@@ -1373,3 +1375,58 @@ class ActionHandler(BaseHandler):
             payload=payload,
         )
         await self.manager.broadcast_to_room(room_id, message)
+
+    async def _handle_reveal_cards(
+        self,
+        conn: WebSocketConnection,
+        event: MessageEnvelope,
+    ) -> MessageEnvelope | None:
+        """Handle REVEAL_CARDS event - 플레이어가 카드를 오픈했음을 서버에 알림."""
+        room_id = event.payload.get("tableId")
+        if not room_id:
+            return None
+
+        game_table = game_manager.get_table(room_id)
+        if not game_table:
+            return None
+
+        # 해당 유저의 플레이어 찾기
+        player = None
+        player_seat = None
+        for seat, p in game_table.players.items():
+            if p.user_id == conn.user_id:
+                player = p
+                player_seat = seat
+                break
+
+        if not player:
+            return None
+
+        # 이미 카드가 오픈된 상태면 무시
+        if player.is_cards_revealed:
+            return None
+
+        # 카드 오픈 상태 설정
+        player.is_cards_revealed = True
+
+        logger.info(
+            "cards_revealed",
+            user_id=conn.user_id,
+            table_id=room_id,
+            seat=player_seat,
+            trace_id=event.trace_id,
+        )
+
+        # 같은 테이블의 다른 플레이어들에게 브로드캐스트
+        broadcast_payload = {
+            "tableId": room_id,
+            "position": player_seat,
+            "userId": conn.user_id,
+        }
+        message = MessageEnvelope.create(
+            event_type=EventType.CARDS_REVEALED,
+            payload=broadcast_payload,
+        )
+        await self.manager.broadcast_to_room(room_id, message)
+
+        return None  # 요청자에게는 별도 응답 없음 (브로드캐스트로 처리)

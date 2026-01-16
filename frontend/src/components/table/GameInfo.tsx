@@ -79,10 +79,10 @@ export function ShowdownIntroOverlay({ isVisible }: ShowdownIntroOverlayProps) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 animate-fade-in px-4">
       <div className="text-center max-w-full">
-        <h1 className="text-[clamp(2.5rem,12vw,6rem)] font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-red-500 to-yellow-400 animate-showdown-text drop-shadow-[0_0_30px_rgba(255,200,0,0.8)]">
+        <h1 className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-red-500 to-yellow-400 drop-shadow-[0_0_15px_rgba(255,200,0,0.6)]">
           SHOWDOWN!
         </h1>
-        <div className="mt-4 text-white/80 text-lg md:text-xl animate-pulse">
+        <div className="mt-2 text-white/70 text-sm">
           카드를 공개합니다
         </div>
       </div>

@@ -118,6 +118,7 @@ export function useTableActions({
 
   const handleFold = useCallback(() => {
     if (isActionPending) return;
+    console.log('🔴 [FOLD_DEBUG] handleFold called - user clicked fold button at', Date.now());
     setIsActionPending(true);
     setAllowedActions([]);
     setShowRaiseSlider(false);

@@ -114,7 +114,7 @@ export default function PotCollection({
   if (!isAnimating && phase === 'idle') return null;
 
   return (
-    <div className="fixed inset-0 pointer-events-none z-50">
+    <div className="absolute inset-0 pointer-events-none z-50">
       <AnimatePresence mode="wait">
         {/* Phase 1: 흩어진 칩들이 중앙으로 모임 */}
         {phase === 'gathering' && (

@@ -90,7 +90,7 @@ class TableHandler(BaseHandler):
     ) -> MessageEnvelope:
         """Handle SUBSCRIBE_TABLE event."""
         table_id = event.payload.get("tableId")  # Could be roomId
-        mode = event.payload.get("mode", "spectator")
+        # mode는 아래에서 자동 결정 (유저가 테이블에 앉아있으면 player)
 
         # Get or load table from DB and sync with GameManager
         table = await self._get_table_by_id_or_room(table_id, load_room=True)
@@ -109,6 +109,17 @@ class TableHandler(BaseHandler):
 
         # Ensure table exists in GameManager
         await self._ensure_game_table(table)
+
+        # mode 자동 결정: 유저가 테이블에 앉아있으면 player, 아니면 spectator
+        room_id = str(table.room_id)
+        game_table = game_manager.get_table(room_id)
+        mode = "spectator"
+        if game_table:
+            for player in game_table.players.values():
+                if player and player.user_id == conn.user_id:
+                    mode = "player"
+                    break
+        logger.info(f"[SUBSCRIBE_TABLE] user_id={conn.user_id}, auto mode={mode}")
 
         # Build snapshot using GameManager state
         snapshot = await self._build_table_snapshot(table, conn.user_id, mode)
@@ -711,12 +722,14 @@ class TableHandler(BaseHandler):
 
         if game_table:
             # Use GameManager state
+            logger.info(f"[TABLE_SNAPSHOT] game_table exists, phase={game_table.phase}, pot={game_table.pot}")
             for i in range(max_seats):
                 player = game_table.players.get(i)
                 if player:
                     if player.user_id == user_id:
                         my_position = i
                         my_hole_cards = player.hole_cards
+                        logger.info(f"[TABLE_SNAPSHOT] Found my player at seat {i}, hole_cards={my_hole_cards}")
                     seats.append({
                         "position": i,
                         "player": {
@@ -730,6 +743,7 @@ class TableHandler(BaseHandler):
                         "totalBet": player.total_bet_this_hand,  # 핸드 전체 누적 베팅
                         "isDealer": i == game_table.dealer_seat,
                         "isCurrent": i == game_table.current_player_seat,
+                        "isCardsRevealed": player.is_cards_revealed,  # 카드 오픈 상태
                     })
                 else:
                     seats.append({
@@ -753,6 +767,21 @@ class TableHandler(BaseHandler):
                     "currentBet": game_table.current_bet,
                 }
 
+            # 현재 턴인 플레이어에게 allowedActions 제공 (새로고침 시 복원용)
+            allowed_actions = None
+            if mode == "player" and my_position == game_table.current_player_seat:
+                actions_data = game_table.get_available_actions(user_id)
+                if actions_data.get("actions"):
+                    allowed_actions = []
+                    for action in actions_data["actions"]:
+                        action_obj = {"type": action}
+                        if action == "call":
+                            action_obj["amount"] = actions_data.get("call_amount", 0)
+                        elif action in ("raise", "bet"):
+                            action_obj["minAmount"] = actions_data.get("min_raise", 0)
+                            action_obj["maxAmount"] = actions_data.get("max_raise", 0)
+                        allowed_actions.append(action_obj)
+
             return {
                 "tableId": room_id,
                 "roomId": room_id,
@@ -769,8 +798,10 @@ class TableHandler(BaseHandler):
                 "dealerPosition": game_table.dealer_seat,
                 "myPosition": my_position,
                 "myHoleCards": my_hole_cards if mode == "player" else None,
+                "allowedActions": allowed_actions,  # 새로고침 시 복원용
                 "stateVersion": table.state_version or 1,
                 "updatedAt": table.updated_at.isoformat() if table.updated_at else None,
+                "isStateRestore": True,  # 상태 복원 플래그 (새로고침/재접속 구분용)
             }
 
         # Fallback: build from DB seats
@@ -816,6 +847,7 @@ class TableHandler(BaseHandler):
             "myPosition": my_position,
             "stateVersion": table.state_version or 1,
             "updatedAt": table.updated_at.isoformat() if table.updated_at else None,
+            "isStateRestore": True,  # 상태 복원 플래그
         }
 
     async def _try_auto_start_game(self, room_id: str, game_table) -> None:

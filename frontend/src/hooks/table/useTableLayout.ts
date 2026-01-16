@@ -86,7 +86,7 @@ export function useTableLayout({
     const updateTableCenter = () => {
       if (tableRef.current) {
         const rect = tableRef.current.getBoundingClientRect();
-        setTableCenter({ x: rect.width / 2, y: rect.height * 0.45 });
+        setTableCenter({ x: rect.width / 2, y: rect.height * 0.32 }); // POT 위치 (32%)
       }
     };
     updateTableCenter();
@@ -109,7 +109,7 @@ export function useTableLayout({
         const leftPercent = parseFloat(seatPos.left) / 100;
         positions[visualIndex] = {
           x: rect.width * leftPercent,
-          y: rect.height * topPercent,
+          y: rect.height * topPercent - 30, // 프로필 위로 조정
         };
       }
       

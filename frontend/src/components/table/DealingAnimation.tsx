@@ -2,62 +2,47 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { PlayingCard } from './PlayingCard';
-import { SEAT_POSITIONS } from './PlayerSeat';
+import { TABLE, MAX_SEATS } from '@/constants/tableCoordinates';
 
 interface DealingAnimationProps {
   isDealing: boolean;
   dealingSequence: { position: number; cardIndex: number }[];
   onDealingComplete: () => void;
-  tableCenter: { x: number; y: number };
-  playerPositions: Record<number, { x: number; y: number }>;
   myPosition: number | null; // 내 좌석 번호 (actualPosition -> visualIndex 변환용)
 }
 
 /**
  * actualPosition(실제 좌석 번호)을 visualIndex(화면상 위치)로 변환
  * visualIndex 0은 항상 화면 하단(ME)
- * 
- * 예: myPosition=3인 경우
- * - actualPosition 3 -> visualIndex 0 (ME)
- * - actualPosition 4 -> visualIndex 1
- * - actualPosition 0 -> visualIndex 6
  */
 function actualToVisualIndex(actualPosition: number, myPosition: number | null): number {
   if (myPosition === null) {
     return actualPosition; // 관전자는 변환 없이 그대로 사용
   }
-  // myPosition을 기준으로 visualIndex 계산
-  // myPosition은 visualIndex 0에 해당
-  const visualIndex = (actualPosition - myPosition + SEAT_POSITIONS.length) % SEAT_POSITIONS.length;
-  return visualIndex;
+  return (actualPosition - myPosition + MAX_SEATS) % MAX_SEATS;
 }
 
 export function DealingAnimation({
   isDealing,
   dealingSequence,
   onDealingComplete,
-  tableCenter,
-  playerPositions,
   myPosition,
 }: DealingAnimationProps) {
   const [visibleCards, setVisibleCards] = useState<{ position: number; cardIndex: number; visualIndex: number; key: string }[]>([]);
   const dealingIdRef = useRef(0);
-  const containerRef = useRef<HTMLDivElement>(null);
-  
-  // playerPositions와 tableCenter를 ref로 저장하여 useEffect 의존성에서 제외
-  const playerPositionsRef = useRef(playerPositions);
-  const tableCenterRef = useRef(tableCenter);
   const myPositionRef = useRef(myPosition);
-  
-  // ref 업데이트
+  const dealingSequenceRef = useRef(dealingSequence);
+  const onDealingCompleteRef = useRef(onDealingComplete);
+
+  // ref 업데이트 (의존성 배열 문제 방지)
   useEffect(() => {
-    playerPositionsRef.current = playerPositions;
-    tableCenterRef.current = tableCenter;
     myPositionRef.current = myPosition;
-  }, [playerPositions, tableCenter, myPosition]);
+    dealingSequenceRef.current = dealingSequence;
+    onDealingCompleteRef.current = onDealingComplete;
+  });
 
   useEffect(() => {
-    if (!isDealing || dealingSequence.length === 0) {
+    if (!isDealing || dealingSequenceRef.current.length === 0) {
       setVisibleCards([]);
       dealingIdRef.current = 0;
       return;
@@ -68,34 +53,12 @@ export function DealingAnimation({
     setVisibleCards([]);
 
     console.log('🎴 DealingAnimation 시작:', {
-      sequenceLength: dealingSequence.length,
+      sequenceLength: dealingSequenceRef.current.length,
       dealingId: newDealingId,
       myPosition: myPositionRef.current,
     });
 
     let index = 0;
-
-    const getTargetPosition = (visualIndex: number): { x: number; y: number } => {
-      const positions = playerPositionsRef.current;
-      const center = tableCenterRef.current;
-      
-      if (positions[visualIndex]) {
-        return positions[visualIndex];
-      }
-      
-      const seatPos = SEAT_POSITIONS[visualIndex];
-      if (seatPos && containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        const topPercent = parseFloat(seatPos.top) / 100;
-        const leftPercent = parseFloat(seatPos.left) / 100;
-        return {
-          x: rect.width * leftPercent,
-          y: rect.height * topPercent,
-        };
-      }
-      
-      return center;
-    };
 
     const dealNextCard = () => {
       if (dealingIdRef.current !== newDealingId) {
@@ -103,27 +66,24 @@ export function DealingAnimation({
         return;
       }
 
-      if (index >= dealingSequence.length) {
+      if (index >= dealingSequenceRef.current.length) {
         console.log('🎴 딜링 완료, onDealingComplete 호출 대기...');
-        // 애니메이션이 완전히 끝날 때까지 조금 더 대기 (forwards 설정 유지 시간)
         setTimeout(() => {
           if (dealingIdRef.current === newDealingId) {
             console.log('🎴 onDealingComplete 실행');
-            onDealingComplete();
+            onDealingCompleteRef.current();
           }
         }, 500);
         return;
       }
 
-      const deal = dealingSequence[index];
-      // actualPosition을 visualIndex로 변환
+      const deal = dealingSequenceRef.current[index];
       const visualIndex = actualToVisualIndex(deal.position, myPositionRef.current);
-      const target = getTargetPosition(visualIndex);
-      
-      console.log(`🎴 카드 딜링 [${index}]:`, { 
-        actualPosition: deal.position, 
+
+      console.log(`🎴 카드 딜링 [${index}]:`, {
+        actualPosition: deal.position,
         visualIndex,
-        target,
+        target: TABLE.SEATS[visualIndex],
         myPosition: myPositionRef.current,
       });
 
@@ -149,51 +109,29 @@ export function DealingAnimation({
     return () => {
       clearTimeout(startTimer);
     };
-  }, [isDealing, dealingSequence, onDealingComplete]);
+  }, [isDealing]); // isDealing만 의존성으로 유지
 
   if (!isDealing) return null;
 
-  // 렌더링 시 현재 값 사용
-  const currentTableCenter = tableCenterRef.current;
-  const currentPlayerPositions = playerPositionsRef.current;
   const currentMyPosition = myPositionRef.current;
 
-  const getTargetPositionForRender = (visualIndex: number): { x: number; y: number } => {
-    if (currentPlayerPositions[visualIndex]) {
-      return currentPlayerPositions[visualIndex];
-    }
-    
-    const seatPos = SEAT_POSITIONS[visualIndex];
-    if (seatPos && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      const topPercent = parseFloat(seatPos.top) / 100;
-      const leftPercent = parseFloat(seatPos.left) / 100;
-      return {
-        x: rect.width * leftPercent,
-        y: rect.height * topPercent,
-      };
-    }
-    
-    return currentTableCenter;
-  };
-
   return (
-    <div ref={containerRef} className="absolute inset-0 pointer-events-none z-50">
+    <div className="absolute inset-0 pointer-events-none z-50">
       {visibleCards.map((deal) => {
-        // 저장된 visualIndex 사용 (deal 시점의 myPosition 기준으로 계산됨)
-        // 렌더링 시에도 일관성을 위해 현재 myPosition으로 재계산
         const visualIndex = actualToVisualIndex(deal.position, currentMyPosition);
-        const target = getTargetPositionForRender(visualIndex);
-        const deltaX = target.x - currentTableCenter.x;
-        const deltaY = target.y - currentTableCenter.y;
+        const target = TABLE.SEATS[visualIndex];
+        // 프로필 위 카드 영역으로 조정 (y 좌표를 위로 이동)
+        const cardTargetY = target.y - 60;
+        const deltaX = target.x - TABLE.DEALING_CENTER.x;
+        const deltaY = cardTargetY - TABLE.DEALING_CENTER.y;
 
         return (
           <div
             key={deal.key}
             className="dealing-card animating"
             style={{
-              left: currentTableCenter.x,
-              top: currentTableCenter.y,
+              left: TABLE.DEALING_CENTER.x,
+              top: TABLE.DEALING_CENTER.y,
               width: '36px',
               height: '50px',
               '--deal-x': `${deltaX}px`,

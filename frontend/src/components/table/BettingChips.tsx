@@ -13,14 +13,16 @@ import {
 
 interface BettingChipsProps {
   amount: number;
-  position: { top: string; left: string };
+  position: { x: number; y: number };  // 고정 픽셀 좌표
   isAnimating?: boolean;
-  animateTo?: { top: string; left: string };
+  animateTo?: { x: number; y: number };  // 고정 픽셀 좌표
   onAnimationEnd?: () => void;
   /** 새 베팅 애니메이션 활성화 */
   showBetAnimation?: boolean;
   /** 베팅 시작 위치 (픽셀) */
   betStartPosition?: { x: number; y: number };
+  /** 금액 라벨 숨기기 (중앙 POT용) */
+  hideLabel?: boolean;
 }
 
 // 칩 색상 결정 (금액에 따라)
@@ -60,6 +62,7 @@ export function BettingChips({
   onAnimationEnd,
   showBetAnimation = false,
   betStartPosition,
+  hideLabel = false,
 }: BettingChipsProps) {
   const [showFloatingNumber, setShowFloatingNumber] = useState(false);
   const [animationComplete, setAnimationComplete] = useState(false);
@@ -92,19 +95,16 @@ export function BettingChips({
 
   // 베팅 애니메이션 모드
   if (showBetAnimation && betStartPosition && !animationComplete) {
-    // position을 픽셀로 변환 (대략적인 계산)
-    const endX = parseFloat(position.left) / 100 * window.innerWidth;
-    const endY = parseFloat(position.top) / 100 * window.innerHeight;
-    
+    // 고정 픽셀 좌표 직접 사용
     const path = calculateCurvedPath(
       betStartPosition,
-      { x: endX, y: endY },
+      { x: position.x, y: position.y },
       { curvature: 0.25, direction: 'up' }
     );
     const keyframes = pathToKeyframes(path);
 
     return (
-      <div className="fixed inset-0 pointer-events-none z-50">
+      <div className="absolute inset-0 pointer-events-none z-50">
         <AnimatePresence>
           {/* 애니메이션 칩들 */}
           {Array.from({ length: chipCount }).map((_, index) => (
@@ -148,8 +148,8 @@ export function BettingChips({
             <motion.div
               className="absolute text-xl font-bold text-yellow-400 drop-shadow-lg"
               style={{
-                left: endX,
-                top: endY,
+                left: position.x,
+                top: position.y,
                 transform: 'translate(-50%, -50%)',
               }}
               variants={floatingNumber}
@@ -165,19 +165,53 @@ export function BettingChips({
     );
   }
 
-  // 기존 팟 이동 애니메이션 모드
+  // 팟 이동 애니메이션 모드 (곡선 경로)
   if (isAnimating && animateTo) {
+    const path = calculateCurvedPath(
+      position,
+      animateTo,
+      { curvature: 0.3, direction: 'up' }
+    );
+    const keyframes = pathToKeyframes(path);
+
     return (
-      <motion.div
-        className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-30"
-        initial={{ top: position.top, left: position.left, opacity: 1 }}
-        animate={{ top: animateTo.top, left: animateTo.left, opacity: 0 }}
-        transition={{ duration: 0.5, ease: 'easeOut' }}
-        onAnimationComplete={handleAnimationComplete}
-      >
-        <ChipStack chipCount={chipCount} chipColor={chipColor} />
-        <AmountLabel amount={amount} />
-      </motion.div>
+      <div className="absolute inset-0 pointer-events-none z-50">
+        <AnimatePresence>
+          {Array.from({ length: chipCount }).map((_, index) => (
+            <motion.div
+              key={`collect-chip-${index}`}
+              className="absolute -translate-x-1/2 -translate-y-1/2"
+              style={{
+                left: position.x,
+                top: position.y,
+              }}
+              initial={{ opacity: 1, scale: 1 }}
+              animate={{
+                x: keyframes.x.map(x => x - position.x),
+                y: keyframes.y.map(y => y - position.y),
+                opacity: 1,
+                scale: [1, 1, 0.9, 0.8],
+              }}
+              transition={{
+                duration: 0.5,
+                delay: index * 0.03,
+                ease: [0.4, 0, 0.2, 1],
+              }}
+              onAnimationComplete={() => {
+                if (index === chipCount - 1) handleAnimationComplete();
+              }}
+            >
+              <div
+                className="w-8 h-3 rounded-full shadow-md"
+                style={{
+                  background: `linear-gradient(135deg, ${chipColor.bg} 0%, ${chipColor.border} 100%)`,
+                  border: `2px solid ${chipColor.border}`,
+                }}
+              />
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
     );
   }
 
@@ -185,13 +219,13 @@ export function BettingChips({
   return (
     <motion.div
       className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-30"
-      style={{ top: position.top, left: position.left }}
+      style={{ top: position.y, left: position.x }}
       initial={{ scale: 0, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       transition={springTransition}
     >
       <ChipStack chipCount={chipCount} chipColor={chipColor} />
-      <AmountLabel amount={amount} />
+      {!hideLabel && <AmountLabel amount={amount} />}
     </motion.div>
   );
 }

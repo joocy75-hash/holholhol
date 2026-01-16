@@ -191,6 +191,11 @@ export function useTableWebSocket({
     // 딜링 시작 플래그를 먼저 설정 (TABLE_SNAPSHOT에서 카드를 pendingHoleCardsRef에 저장하도록)
     gameState.isDealingInProgressRef.current = true;
 
+    // pendingHoleCardsRef를 먼저 저장 (resetForNewHand 전에)
+    // TABLE_SNAPSHOT이 HAND_STARTED보다 먼저 도착했을 수 있음
+    const savedPendingCards = gameState.pendingHoleCardsRef.current;
+    gameState.pendingHoleCardsRef.current = null;
+
     setCountdown(null);
     gameState.resetForNewHand();
     actions.setAllowedActions([]);
@@ -232,10 +237,10 @@ export function useTableWebSocket({
       openSound.play().catch(() => {});
     };
 
-    if (gameState.pendingHoleCardsRef.current && gameState.pendingHoleCardsRef.current.length > 0) {
-      console.log('🎴 [processHandStarted] Using pendingHoleCards:', gameState.pendingHoleCardsRef.current);
-      gameState.setMyHoleCards(gameState.pendingHoleCardsRef.current);
-      gameState.pendingHoleCardsRef.current = null;
+    // 저장된 pendingHoleCards 우선 사용 (race condition 방지)
+    if (savedPendingCards && savedPendingCards.length > 0) {
+      console.log('🎴 [processHandStarted] Using savedPendingCards:', savedPendingCards);
+      gameState.setMyHoleCards(savedPendingCards);
       playOpenCardSound();
     } else if (data.myHoleCards && data.myHoleCards.length > 0) {
       const cards = data.myHoleCards.map((card) => {
@@ -330,6 +335,8 @@ export function useTableWebSocket({
 
   // WebSocket 연결 및 이벤트 핸들러 설정
   useEffect(() => {
+    // 사용자 정보 로드 (BuyInModal 등에서 필요)
+    fetchUser();
     soundManager.init();
 
     const token = localStorage.getItem('access_token');
@@ -352,7 +359,27 @@ export function useTableWebSocket({
     // TABLE_SNAPSHOT 핸들러
     const unsubTableSnapshot = wsClient.on('TABLE_SNAPSHOT', (rawData) => {
       const data = rawData as Record<string, unknown>;
-      console.log('TABLE_SNAPSHOT received:', data);
+      const isStateRestore = data.isStateRestore === true;
+
+      console.log('TABLE_SNAPSHOT received:', { isStateRestore, ...data });
+
+      // 상태 복원 시 애니메이션 관련 상태 즉시 설정
+      if (isStateRestore && !gameState.isDealingInProgressRef.current) {
+        console.log('🔄 [STATE_RESTORE] Setting dealingComplete=true');
+        gameState.setDealingComplete(true);
+        gameState.setIsDealing(false);
+      }
+
+      // DEBUG: 버튼 표시 조건 확인
+      const handData = data.hand as Record<string, unknown> | undefined;
+      console.log('🎯 [BUTTON_DEBUG] conditions:', {
+        currentTurn: handData?.currentTurn,
+        myPosition: data.myPosition,
+        isStateRestore,
+        isDealingInProgress: gameState.isDealingInProgressRef.current,
+        handExists: !!handData,
+        phase: handData?.phase,
+      });
 
       if (data.config) {
         gameState.setTableConfig(data.config as UseGameStateReturn['tableConfig']);
@@ -365,11 +392,28 @@ export function useTableWebSocket({
         if (isDealingBlocking) {
           console.log('🎴 Dealing blocking - skipping seats update');
         } else if (isShowdownBlocking) {
-          (data.seats as Array<{ position: number; player: unknown; stack?: number }>)
+          // 쇼다운 중: stack은 pending으로 저장, status는 즉시 업데이트
+          const seatsArray = data.seats as Array<{
+            position: number;
+            player: { userId: string; nickname: string } | null;
+            stack?: number;
+            status?: string;
+          }>;
+          seatsArray
             .filter(s => s.player !== null && s.stack !== undefined)
             .forEach(s => {
               gameState.pendingStackUpdatesRef.current[s.position] = s.stack!;
             });
+          // status 즉시 업데이트 (폴드 어둡게 효과 등 UI 반영 필요)
+          gameState.setSeats((prevSeats) => {
+            return prevSeats.map((seat) => {
+              const seatUpdate = seatsArray.find((s) => s.position === seat.position);
+              if (seatUpdate && seat.player && seatUpdate.status) {
+                return { ...seat, status: seatUpdate.status as SeatInfo['status'] };
+              }
+              return seat;
+            });
+          });
         } else {
           const formattedSeats = (data.seats as Array<{
             position: number;
@@ -392,13 +436,30 @@ export function useTableWebSocket({
         }
       }
 
+      // myPosition 설정 - data 또는 data.state에서 찾기
+      const stateDataForPosition = (data.state || data) as Record<string, unknown>;
       if ('myPosition' in data) {
         gameState.setMyPosition(data.myPosition as number | null);
+      } else if ('myPosition' in stateDataForPosition) {
+        gameState.setMyPosition(stateDataForPosition.myPosition as number | null);
       }
 
-      // myHoleCards 추출 - data.myHoleCards 또는 data.state.myHoleCards에서 찾기
+      // myHoleCards 추출 - 여러 위치에서 찾기
       const stateData = (data.hand || data.state || data) as Record<string, unknown>;
       let extractedCards: Card[] | null = null;
+
+      // DEBUG: TABLE_SNAPSHOT 구조 확인
+      console.log('🔍 [TABLE_SNAPSHOT] Full structure:', {
+        hasHand: !!data.hand,
+        hasState: !!data.state,
+        dataKeys: Object.keys(data),
+        stateDataKeys: stateData ? Object.keys(stateData) : [],
+        myPosition: data.myPosition ?? stateData?.myPosition,
+        hasMyHoleCards: !!data.myHoleCards || !!(stateData as Record<string, unknown>)?.myHoleCards,
+        playersCount: ((stateData as Record<string, unknown>)?.players as unknown[])?.length,
+      });
+
+      // 1. data.myHoleCards 또는 stateData.myHoleCards 확인
       const rawHoleCards = data.myHoleCards || stateData.myHoleCards;
       if (rawHoleCards && Array.isArray(rawHoleCards) && rawHoleCards.length > 0) {
         extractedCards = (rawHoleCards as (string | Card)[]).map((card) => {
@@ -407,27 +468,95 @@ export function useTableWebSocket({
           }
           return card;
         });
-        console.log('🎴 [TABLE_SNAPSHOT] Extracted myHoleCards:', extractedCards);
-      } else {
-        console.log('🎴 [TABLE_SNAPSHOT] No myHoleCards in snapshot. data.myHoleCards:', data.myHoleCards, 'stateData.myHoleCards:', stateData.myHoleCards);
+        console.log('🎴 [TABLE_SNAPSHOT] Extracted myHoleCards from top level:', extractedCards);
+      }
+
+      // 2. stateData.players[myPosition].holeCards 확인 (백엔드 get_state_for_player 포맷)
+      if (!extractedCards || extractedCards.length === 0) {
+        const myPos = (data.myPosition ?? stateData.myPosition) as number | null;
+        const players = stateData.players as Array<{ seat: number; holeCards?: string[] | null }> | undefined;
+
+        console.log('🔍 [TABLE_SNAPSHOT] Looking for holeCards in players array:', {
+          myPos,
+          playersLength: players?.length,
+          playerSeats: players?.map(p => p?.seat),
+        });
+
+        if (myPos !== null && players && Array.isArray(players)) {
+          const myPlayerData = players.find(p => p && p.seat === myPos);
+          console.log('🔍 [TABLE_SNAPSHOT] Found myPlayerData:', {
+            found: !!myPlayerData,
+            seat: myPlayerData?.seat,
+            holeCards: myPlayerData?.holeCards,
+          });
+
+          if (myPlayerData?.holeCards && Array.isArray(myPlayerData.holeCards) && myPlayerData.holeCards.length > 0) {
+            extractedCards = myPlayerData.holeCards.map((card: string) => ({
+              rank: card.slice(0, -1),
+              suit: card.slice(-1),
+            }));
+            console.log('🎴 [TABLE_SNAPSHOT] Extracted holeCards from players array:', extractedCards);
+          }
+        }
+      }
+
+      if (!extractedCards || extractedCards.length === 0) {
+        console.log('🎴 [TABLE_SNAPSHOT] No myHoleCards found. data.myHoleCards:', data.myHoleCards, 'stateData.myHoleCards:', stateData.myHoleCards);
       }
 
       if (extractedCards && extractedCards.length > 0) {
+        // 항상 pendingHoleCardsRef에도 저장 (HAND_STARTED에서 resetForNewHand로 인한 손실 방지)
+        gameState.pendingHoleCardsRef.current = extractedCards;
+
         if (gameState.isShowdownInProgressRef.current) {
+          // 쇼다운 중에는 저장만 (화면 갱신 방지)
           console.log('🎴 [TABLE_SNAPSHOT] Storing in pendingHoleCardsRef (showdown in progress)');
-          gameState.pendingHoleCardsRef.current = extractedCards;
-        } else if (gameState.isDealingInProgressRef.current) {
-          // 딜링 중에는 pendingHoleCardsRef에 저장 (HAND_STARTED에서 처리)
-          console.log('🎴 [TABLE_SNAPSHOT] Storing in pendingHoleCardsRef (dealing in progress)');
-          gameState.pendingHoleCardsRef.current = extractedCards;
         } else {
-          console.log('🎴 [TABLE_SNAPSHOT] Setting myHoleCards directly');
+          // 딜링 중이든 아니든, myHoleCards를 직접 설정 (카드가 보여야 함)
+          // 딜링 애니메이션은 dealingSequence로 동작하므로 myHoleCards 설정과 무관
+          console.log('🎴 [TABLE_SNAPSHOT] Setting myHoleCards directly + storing in pendingHoleCardsRef, isDealingInProgress:', gameState.isDealingInProgressRef.current);
           gameState.setMyHoleCards(extractedCards);
+
+          // 새로고침 후 복구: 딜링 애니메이션 중이 아니면 dealingComplete도 설정
+          // (딜링 중이면 DealingAnimation에서 완료 시 설정됨)
+          if (!gameState.isDealingInProgressRef.current) {
+            console.log('🎴 [TABLE_SNAPSHOT] Setting dealingComplete=true (not dealing)');
+            gameState.setDealingComplete(true);
+          }
+
+          // 새로고침 후 복구: 카드 오픈 상태 복원 (isCardsRevealed)
+          const myPos = data.myPosition as number | null;
+          if (myPos !== null && data.seats && isStateRestore) {
+            const mySeat = (data.seats as Array<{position: number; isCardsRevealed?: boolean}>)
+              .find(s => s.position === myPos);
+            if (mySeat?.isCardsRevealed) {
+              console.log('🎴 [TABLE_SNAPSHOT] Restoring myCardsRevealed=true');
+              gameState.setMyCardsRevealed(true);
+            }
+          }
+        }
+      }
+
+      // 새로고침 후 복구: 커뮤니티 카드 공개 상태 복원
+      // (애니메이션 없이 즉시 표시)
+      if (stateData.communityCards && Array.isArray(stateData.communityCards)) {
+        const communityCount = stateData.communityCards.length;
+        if (communityCount > 0 && !gameState.isDealingInProgressRef.current && !gameState.isShowdownInProgressRef.current) {
+          console.log('🃏 [TABLE_SNAPSHOT] Restoring communityCards count:', communityCount);
+          gameState.setRevealedCommunityCount(communityCount);
+          gameState.communityCardsRef.current = parseCards(stateData.communityCards as string[]);
         }
       }
 
       // 게임 상태 업데이트
       const isShowdownBlocking = gameState.isShowdownInProgressRef.current;
+
+      console.log('🎯 [CURRENT_TURN] checking condition:', {
+        'stateData.pot': stateData.pot,
+        'stateData.phase': stateData.phase,
+        'stateData.currentTurn': stateData.currentTurn,
+        conditionMet: stateData.pot !== undefined || !!stateData.phase,
+      });
 
       if (stateData.pot !== undefined || stateData.phase) {
         gameState.setGameState((prev) => ({
@@ -452,8 +581,13 @@ export function useTableWebSocket({
         }));
 
         if (stateData.currentTurn !== undefined) {
+          console.log('🎯 [CURRENT_TURN] Setting currentTurnPosition to:', stateData.currentTurn);
           gameState.setCurrentTurnPosition(stateData.currentTurn as number);
+        } else {
+          console.log('🎯 [CURRENT_TURN] stateData.currentTurn is undefined, NOT setting');
         }
+      } else {
+        console.log('🎯 [CURRENT_TURN] Condition NOT met, skipping currentTurn update');
       }
 
       // 딜러/블라인드 위치
@@ -473,6 +607,22 @@ export function useTableWebSocket({
           amount: sp.amount,
           eligiblePlayers: sp.eligiblePlayers || sp.eligible_positions || [],
         })));
+      }
+
+      // 새로고침 후 복구: 팟 칩 시각적 표시 복원
+      // (게임 진행 중이고 딜링/쇼다운 애니메이션이 아닐 때)
+      if (!gameState.isDealingInProgressRef.current && !gameState.isShowdownInProgressRef.current) {
+        const potAmount = (stateData.pot as number) ?? 0;
+        if (potAmount > 0) {
+          console.log('💰 [TABLE_SNAPSHOT] Restoring potChips:', potAmount);
+          gameState.setPotChips(potAmount);
+        }
+      }
+
+      // 새로고침 후 복구: allowedActions 복원 (현재 턴인 경우)
+      if (data.allowedActions && Array.isArray(data.allowedActions) && data.allowedActions.length > 0) {
+        console.log('🎮 [TABLE_SNAPSHOT] Restoring allowedActions:', data.allowedActions);
+        actions.setAllowedActions(data.allowedActions as AllowedAction[]);
       }
     });
 
@@ -569,11 +719,31 @@ export function useTableWebSocket({
           status?: SeatInfo['status'];
         }>;
 
+        // DEBUG: 플레이어 상태 업데이트 추적
+        const foldedPlayers = playersArray.filter((p) => p.status === 'folded');
+        if (foldedPlayers.length > 0) {
+          console.log(`🔴 [FOLD_DEBUG] TABLE_STATE_UPDATE: folded players=`, foldedPlayers.map(p => p.position), `isShowdownBlocking=${isShowdownBlocking}`);
+        }
+
         if (isShowdownBlocking) {
+          // 쇼다운 중 stack은 pending으로 저장
           playersArray.forEach((p) => {
             if (p.stack !== undefined) {
               gameState.pendingStackUpdatesRef.current[p.position] = p.stack;
             }
+          });
+          // status는 즉시 업데이트 (폴드 어둡게 효과 등 UI 반영 필요)
+          gameState.setSeats((prevSeats) => {
+            return prevSeats.map((seat) => {
+              const playerUpdate = playersArray.find((p) => p.position === seat.position);
+              if (playerUpdate && seat.player && playerUpdate.status !== undefined) {
+                if (playerUpdate.status === 'folded') {
+                  console.log(`🔴 [FOLD_DEBUG] Updating seat ${seat.position} status to 'folded' (showdown blocking)`);
+                }
+                return { ...seat, status: playerUpdate.status };
+              }
+              return seat;
+            });
           });
         } else {
           gameState.setSeats((prevSeats) => {
@@ -582,6 +752,9 @@ export function useTableWebSocket({
                 (p) => p.position === seat.position
               );
               if (playerUpdate && seat.player) {
+                if (playerUpdate.status === 'folded' && seat.status !== 'folded') {
+                  console.log(`🔴 [FOLD_DEBUG] Updating seat ${seat.position} status to 'folded' (normal)`);
+                }
                 return {
                   ...seat,
                   stack: playerUpdate.stack ?? seat.stack,
@@ -780,7 +953,9 @@ export function useTableWebSocket({
               return { ...prev, communityCards: newCards };
             });
 
-            const CARD_REVEAL_DELAY = 300;
+            // 카드 뒷면이 먼저 보이도록 초기 딜레이 추가
+            const CARD_BACK_SHOW_DELAY = 400; // 뒷면 표시 시간
+            const CARD_REVEAL_DELAY = 300; // 카드간 플립 간격
             for (let i = 0; i < cardsToReveal; i++) {
               setTimeout(() => {
                 gameState.setRevealedCommunityCount(currentCount + i + 1);
@@ -791,7 +966,7 @@ export function useTableWebSocket({
                 if (i === cardsToReveal - 1) {
                   setTimeout(() => gameState.setIsRevealingCommunity(false), 300);
                 }
-              }, CARD_REVEAL_DELAY * i);
+              }, CARD_BACK_SHOW_DELAY + CARD_REVEAL_DELAY * i);
             }
           }, cardRevealDelay);
         } else {
