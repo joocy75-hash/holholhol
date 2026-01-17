@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/services/bot_detector.py
+# hypothesis_version: 6.150.2
+
+[1000, 3600, ':', 'Redis | None', 'action_analysis', 'action_ratios', 'avg_daily_hours', 'avg_response_time_ms', 'days_analyzed', 'error', 'excessive_daily_play', 'excessive_folding', 'excessive_raising', 'fold', 'high', 'insufficient_data', 'is_likely_bot', 'is_suspicious', 'low', 'max_daily_hours', 'max_time_ms', 'medium', 'min_time_ms', 'narrow_time_range', 'never_folds', 'no_actions', 'raise', 'reason', 'reasons', 'redis_not_available', 'response_analysis', 'robotic_schedule', 'sample_size', 'session_analysis', 'severity', 'since', 'std_dev_ms', 'superhuman_reaction', 'superhuman_session', 'suspicion_score', 'total', 'total_actions', 'user_id']

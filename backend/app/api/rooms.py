@@ -713,3 +713,158 @@ async def dev_remove_bots(
         success=True,
         message=f"봇 {removed}개가 제거되었습니다",
     )
+
+
+# ============================================
+# Waitlist API (Phase 4.1)
+# ============================================
+
+@router.post(
+    "/{room_id}/waitlist",
+    responses={
+        200: {"description": "Added to waitlist"},
+        400: {"model": ErrorResponse, "description": "Invalid buy-in or already seated"},
+        401: {"model": ErrorResponse, "description": "Not authenticated"},
+        404: {"model": ErrorResponse, "description": "Room not found"},
+    },
+)
+async def join_waitlist(
+    room_id: str,
+    request_body: JoinRoomRequest,
+    current_user: CurrentUser,
+    db: DbSession,
+    trace_id: TraceId,
+):
+    """대기열에 등록.
+
+    방이 만석일 때 대기열에 등록합니다.
+    자리가 나면 자동으로 착석됩니다.
+    """
+    room_service = RoomService(db)
+
+    try:
+        result = await room_service.add_to_waitlist(
+            room_id=room_id,
+            user_id=current_user.id,
+            buy_in=request_body.buy_in,
+        )
+
+        return {
+            "success": True,
+            "room_id": result["room_id"],
+            "position": result["position"],
+            "joined_at": result["joined_at"],
+            "already_waiting": result.get("already_waiting", False),
+            "message": f"대기열 {result['position']}번째에 등록되었습니다",
+        }
+
+    except RoomError as e:
+        status_code = status.HTTP_400_BAD_REQUEST
+        if "NOT_FOUND" in e.code:
+            status_code = status.HTTP_404_NOT_FOUND
+        elif "ALREADY" in e.code:
+            status_code = status.HTTP_409_CONFLICT
+
+        raise HTTPException(
+            status_code=status_code,
+            detail={
+                "error": {
+                    "code": e.code,
+                    "message": e.message,
+                    "details": e.details,
+                },
+                "traceId": trace_id,
+            },
+        )
+
+
+@router.delete(
+    "/{room_id}/waitlist",
+    response_model=SuccessResponse,
+    responses={
+        401: {"model": ErrorResponse, "description": "Not authenticated"},
+        404: {"model": ErrorResponse, "description": "Not in waitlist"},
+    },
+)
+async def cancel_waitlist(
+    room_id: str,
+    current_user: CurrentUser,
+    db: DbSession,
+    trace_id: TraceId,
+):
+    """대기열에서 취소.
+
+    대기열 등록을 취소합니다.
+    """
+    room_service = RoomService(db)
+    removed = await room_service.cancel_waitlist(
+        room_id=room_id,
+        user_id=current_user.id,
+    )
+
+    if not removed:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": {
+                    "code": "NOT_IN_WAITLIST",
+                    "message": "대기열에 등록되어 있지 않습니다",
+                    "details": {},
+                },
+                "traceId": trace_id,
+            },
+        )
+
+    return SuccessResponse(
+        success=True,
+        message="대기열 등록이 취소되었습니다",
+    )
+
+
+@router.get(
+    "/{room_id}/waitlist",
+    responses={
+        200: {"description": "Waitlist retrieved"},
+        404: {"model": ErrorResponse, "description": "Room not found"},
+    },
+)
+async def get_waitlist(
+    room_id: str,
+    db: DbSession,
+    trace_id: TraceId,
+    current_user: OptionalUser = None,
+):
+    """대기열 조회.
+
+    방의 대기열 목록을 조회합니다.
+    """
+    room_service = RoomService(db)
+
+    # 방 존재 확인
+    room = await room_service.get_room(room_id)
+    if not room:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": {
+                    "code": "ROOM_NOT_FOUND",
+                    "message": "Room not found",
+                    "details": {},
+                },
+                "traceId": trace_id,
+            },
+        )
+
+    waitlist = await room_service.get_waitlist(room_id)
+
+    # 현재 사용자의 대기열 위치 확인
+    my_position = None
+    if current_user:
+        my_position = await room_service.get_waitlist_position(room_id, current_user.id)
+
+    return {
+        "room_id": room_id,
+        "waitlist": waitlist,
+        "count": len(waitlist),
+        "my_position": my_position,
+    }

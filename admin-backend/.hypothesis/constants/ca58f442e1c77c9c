@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/services/anti_collusion.py
+# hypothesis_version: 6.150.2
+
+['created_at', 'details', 'detection_type', 'device_id', 'flagged_count', 'frequent_same_table', 'high', 'id', 'ip_address', 'medium', 'min_occurrences', 'other_user_id', 'room_id', 'same_device', 'same_device_groups', 'same_ip', 'same_ip_collusion', 'same_ip_groups', 'same_table_count', 'severity', 'since', 'user_count', 'user_id', 'user_ids']

@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/services/announcement_service.py
+# hypothesis_version: 6.150.2
+
+[1000, 'ANNOUNCEMENT', 'Redis 연결이 필요합니다', 'admin-backend', 'announcement_type', 'broadcast_count', 'broadcasted_at', 'channel', 'content', 'created_at', 'created_by', 'end_time', 'error', 'exclude_connection', 'id', 'is_active', 'items', 'lobby', 'message', 'page', 'page_size', 'payload', 'priority', 'scheduled_at', 'source_instance', 'start_time', 'success', 'target', 'targetRoomId', 'target_room_id', 'title', 'total', 'total_pages', 'traceId', 'ts', 'type', 'updated_at', '공지사항을 찾을 수 없습니다']

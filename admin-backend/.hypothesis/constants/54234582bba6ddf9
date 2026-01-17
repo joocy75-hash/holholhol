@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/api/dashboard.py
+# hypothesis_version: 6.150.2
+
+[100, 168, 365, '%Y-%m', '%Y-%m-%d', '/ccu', '/ccu/history', '/dau', '/dau/history', '/game/statistics', '/mau', '/mau/history', '/players/activity', '/revenue/daily', '/revenue/monthly', '/revenue/summary', '/revenue/top-players', '/revenue/weekly', '/rooms', '/rooms/distribution', '/server/health', '/stake-levels', '/summary', '/users/summary', 'active_rooms', 'activity', 'ccu', 'date', 'dau', 'mau', 'month', 'players', 'server_health', 'stake_levels', 'timestamp', 'total_players', '조회 개월 수', '조회 기간 (일)', '조회 날짜 (YYYY-MM-DD)', '조회 시간 범위', '조회 월 (YYYY-MM)', '조회 인원 수', '조회 일수', '조회 주 수']

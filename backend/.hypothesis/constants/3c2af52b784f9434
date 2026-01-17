@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/ws/manager.py
+# hypothesis_version: 6.150.2
+
+[b'{}', 1.0, 300, 4000, 4001, 86400, '%Y-%m', '%Y-%m-%d', '%Y-%m-%d:%H', '%Y-%m-%d:%H:%M', 'Connection timeout', 'channel', 'connected_at', 'data', 'disconnected_at', 'exclude_connection', 'instance', 'last_seen_versions', 'message', 'online_users', 'pmessage', 'session_id', 'source_instance', 'subscribed_channels', 'type', 'ws:pubsub:', 'ws:pubsub:*']

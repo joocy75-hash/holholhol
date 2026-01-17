@@ -300,15 +300,20 @@ class TestFlagSuspiciousActivity:
 
     @pytest.mark.asyncio
     async def test_flag_suspicious_activity_calls_auto_ban(self, consumer):
-        """의심 활동 플래깅 시 AutoBanService 호출."""
+        """의심 활동 플래깅 시 AutoBanService.process_detection 호출 (Phase 2.4)."""
         mock_auto_ban = MagicMock()
-        mock_auto_ban.create_flag = AsyncMock(return_value="flag-123")
+        # Phase 2.4: process_detection 사용
+        mock_auto_ban.process_detection = AsyncMock(return_value={
+            "flag_id": "flag-123",
+            "was_banned": True,
+            "ban_id": "ban-123",
+        })
         mock_auto_ban.notify_admins = AsyncMock(return_value=True)
-        
+
         import app.services.auto_ban as auto_ban_module
         original_class = auto_ban_module.AutoBanService
         auto_ban_module.AutoBanService = MagicMock(return_value=mock_auto_ban)
-        
+
         try:
             await consumer._flag_suspicious_activity(
                 detection_type="bot_detection",
@@ -316,23 +321,32 @@ class TestFlagSuspiciousActivity:
                 details={"reasons": ["superhuman_reaction"]},
                 severity="high",
             )
-            
-            mock_auto_ban.create_flag.assert_called_once()
-            mock_auto_ban.notify_admins.assert_called_once()
+
+            # Phase 2.4: process_detection 호출 확인
+            mock_auto_ban.process_detection.assert_called_once()
+            call_args = mock_auto_ban.process_detection.call_args
+            assert call_args.kwargs["user_id"] == "user-123"
+            assert call_args.kwargs["detection_type"] == "bot_detection"
+            assert call_args.kwargs["severity"] == "high"
         finally:
             auto_ban_module.AutoBanService = original_class
 
     @pytest.mark.asyncio
-    async def test_flag_suspicious_activity_no_notify_for_medium(self, consumer):
-        """심각도가 medium이면 관리자 알림 안 함."""
+    async def test_flag_suspicious_activity_notify_for_medium(self, consumer):
+        """밴 미적용 + medium 심각도이면 관리자 알림 보냄 (Phase 2.4)."""
         mock_auto_ban = MagicMock()
-        mock_auto_ban.create_flag = AsyncMock(return_value="flag-123")
+        # Phase 2.4: process_detection 사용 (밴 미적용 케이스)
+        mock_auto_ban.process_detection = AsyncMock(return_value={
+            "flag_id": "flag-123",
+            "was_banned": False,
+            "ban_id": None,
+        })
         mock_auto_ban.notify_admins = AsyncMock(return_value=True)
-        
+
         import app.services.auto_ban as auto_ban_module
         original_class = auto_ban_module.AutoBanService
         auto_ban_module.AutoBanService = MagicMock(return_value=mock_auto_ban)
-        
+
         try:
             await consumer._flag_suspicious_activity(
                 detection_type="anomaly_detection",
@@ -340,8 +354,38 @@ class TestFlagSuspiciousActivity:
                 details={"reasons": ["excessive_win_rate"]},
                 severity="medium",
             )
-            
-            mock_auto_ban.create_flag.assert_called_once()
+
+            mock_auto_ban.process_detection.assert_called_once()
+            # Phase 2.4: 밴 미적용 + medium이면 notify_admins 호출
+            mock_auto_ban.notify_admins.assert_called_once()
+        finally:
+            auto_ban_module.AutoBanService = original_class
+
+    @pytest.mark.asyncio
+    async def test_flag_suspicious_activity_no_notify_for_low(self, consumer):
+        """심각도가 low이면 관리자 알림 안 함."""
+        mock_auto_ban = MagicMock()
+        mock_auto_ban.process_detection = AsyncMock(return_value={
+            "flag_id": "flag-123",
+            "was_banned": False,
+            "ban_id": None,
+        })
+        mock_auto_ban.notify_admins = AsyncMock(return_value=True)
+
+        import app.services.auto_ban as auto_ban_module
+        original_class = auto_ban_module.AutoBanService
+        auto_ban_module.AutoBanService = MagicMock(return_value=mock_auto_ban)
+
+        try:
+            await consumer._flag_suspicious_activity(
+                detection_type="anomaly_detection",
+                user_ids=["user-123"],
+                details={"reasons": ["minor_anomaly"]},
+                severity="low",
+            )
+
+            mock_auto_ban.process_detection.assert_called_once()
+            # low 심각도는 알림 안 보냄
             mock_auto_ban.notify_admins.assert_not_called()
         finally:
             auto_ban_module.AutoBanService = original_class
@@ -396,5 +440,3 @@ class TestMessageHandling:
     async def test_handle_message_unknown_channel(self, consumer):
         """알 수 없는 채널 처리."""
         await consumer._handle_message("unknown:channel", json.dumps({}))
-
-

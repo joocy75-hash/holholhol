@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/models/main_db.py
+# hypothesis_version: 6.150.2
+
+[100, 255, 'CASCADE', 'Hand', 'HandEvent', 'HandEvent.seq_no', 'HandParticipant', 'events', 'fold', 'hand', 'hand_events', 'hand_participants', 'hands', 'hands.id', 'participants', 'tables', 'users']

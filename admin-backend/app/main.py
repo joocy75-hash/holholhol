@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.api import auth, dashboard, statistics, users, rooms, hands, bans, crypto, audit, ton_deposit, admin_ton_deposit, fraud
+from app.api import auth, dashboard, statistics, users, rooms, hands, bans, crypto, audit, ton_deposit, admin_ton_deposit, fraud, system, announcements, suspicious
 from app.middleware.csrf import CSRFMiddleware
 
 settings = get_settings()
@@ -103,6 +103,9 @@ app.include_router(audit.router, prefix="/api/audit", tags=["Audit"])
 app.include_router(ton_deposit.router, prefix="/api/ton", tags=["TON Deposit"])
 app.include_router(admin_ton_deposit.router, prefix="/api", tags=["Admin TON Deposit"])
 app.include_router(fraud.router, prefix="/api/fraud", tags=["Fraud Monitoring"])
+app.include_router(system.router, prefix="/api/system", tags=["System"])
+app.include_router(announcements.router, prefix="/api/announcements", tags=["Announcements"])
+app.include_router(suspicious.router, prefix="/api/suspicious", tags=["Suspicious Users"])
 
 
 if __name__ == "__main__":

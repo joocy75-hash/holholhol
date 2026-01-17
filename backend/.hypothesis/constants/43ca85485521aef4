@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/middleware/maintenance.py
+# hypothesis_version: 6.150.2
+
+[503, '/docs', '/health', '/health/live', '/health/ready', '/metrics', '/openapi.json', '/redoc', '300', 'Retry-After', 'SERVICE_UNAVAILABLE', 'code', 'enabled', 'error', 'message', 'upgrade', 'websocket']

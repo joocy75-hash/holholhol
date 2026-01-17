@@ -13,7 +13,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { statisticsApi, DailyRevenue, RevenueSummary } from '@/lib/dashboard-api';
+import { dashboardApi, DailyRevenue, RevenueSummary } from '@/lib/dashboard-api';
 
 type DateRange = '7d' | '14d' | '30d' | '90d';
 
@@ -45,10 +45,10 @@ export function RevenueChart() {
         const months = Math.ceil(days / 30);
         
         const [daily, weekly, monthly, sum] = await Promise.all([
-          statisticsApi.getDailyRevenue(days),
-          statisticsApi.getWeeklyRevenue(weeks),
-          statisticsApi.getMonthlyRevenue(months),
-          statisticsApi.getRevenueSummary(),
+          dashboardApi.getDailyRevenue(days),
+          dashboardApi.getWeeklyRevenue(weeks),
+          dashboardApi.getMonthlyRevenue(months),
+          dashboardApi.getRevenueSummary(),
         ]);
         setDailyData(daily);
         setWeeklyData(weekly);

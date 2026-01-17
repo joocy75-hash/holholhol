@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/services/maintenance_service.py
+# hypothesis_version: 6.150.2
+
+['서버 점검 중입니다.', '점검 모드 비활성화']

@@ -1,6 +1,12 @@
 """
 Auto Ban Service - 자동 제재 서비스
-봇 의심 시 자동으로 플래깅하고 관리자에게 알림을 보냅니다.
+
+Phase 2.4에서 업그레이드:
+- BanService 연동으로 실제 제재 적용
+- 누적 탐지 횟수 기반 자동 밴
+- 심각도별 자동 제재 정책 적용
+
+탐지 결과 → 플래그 생성 → 누적 횟수 확인 → 임계값 초과 시 자동 밴
 """
 import logging
 from datetime import datetime, timedelta, timezone
@@ -13,6 +19,7 @@ from app.services.bot_detector import BotDetector
 from app.services.anomaly_detector import AnomalyDetector
 from app.services.audit_service import AuditService
 from app.services.telegram_notifier import TelegramNotifier
+from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +33,14 @@ SEVERITY_ACTIONS = {
 
 
 class AutoBanService:
-    """자동 제재 서비스"""
-    
+    """자동 제재 서비스
+
+    Phase 2.4에서 업그레이드:
+    - BanService 연동으로 실제 제재 적용
+    - 누적 탐지 횟수 기반 자동 밴
+    - 심각도별 자동 제재 정책 적용
+    """
+
     def __init__(
         self,
         main_db: AsyncSession,
@@ -41,6 +54,17 @@ class AutoBanService:
         self.anomaly_detector = AnomalyDetector(main_db, admin_db)
         self._audit_service = audit_service
         self._telegram_notifier = telegram_notifier
+        self._settings = get_settings()
+
+        # BanService는 필요할 때 lazy import (순환 참조 방지)
+        self._ban_service = None
+
+    def _get_ban_service(self):
+        """BanService 인스턴스를 lazy하게 가져옴"""
+        if self._ban_service is None:
+            from app.services.ban_service import BanService
+            self._ban_service = BanService(self.admin_db, self.main_db)
+        return self._ban_service
     
     async def evaluate_user(self, user_id: str) -> dict:
         """
@@ -351,16 +375,16 @@ class AutoBanService:
     ) -> list[str]:
         """
         스캔 대상 활성 플레이어 목록 조회
-        
+
         Args:
             min_hands: 최소 핸드 수
             time_window_hours: 시간 범위 (시간)
-        
+
         Returns:
             사용자 ID 목록
         """
         since = datetime.now(timezone.utc) - timedelta(hours=time_window_hours)
-        
+
         try:
             query = text("""
                 SELECT hp.user_id, COUNT(*) as hand_count
@@ -375,10 +399,331 @@ class AutoBanService:
                 "min_hands": min_hands
             })
             rows = result.fetchall()
-            
+
             return [row.user_id for row in rows]
         except Exception:
             return []
+
+    # ========== Phase 2.4: 자동 밴 시스템 연동 ==========
+
+    async def process_detection(
+        self,
+        user_id: str,
+        detection_type: str,
+        severity: str,
+        reasons: list[str],
+        details: dict,
+    ) -> dict:
+        """
+        탐지 결과 처리 - 플래그 생성 및 자동 밴 판단
+
+        Phase 2.4의 메인 엔트리 포인트입니다.
+
+        Args:
+            user_id: 사용자 ID
+            detection_type: 탐지 유형 (chip_dumping, bot_detection, anomaly_detection)
+            severity: 심각도 (low, medium, high)
+            reasons: 탐지 사유 목록
+            details: 상세 정보
+
+        Returns:
+            처리 결과 (flag_id, was_banned, ban_id 등)
+        """
+        result = {
+            "user_id": user_id,
+            "detection_type": detection_type,
+            "severity": severity,
+            "flag_id": None,
+            "was_banned": False,
+            "ban_id": None,
+            "ban_reason": None,
+        }
+
+        # 1. 플래그 생성
+        flag_id = await self.create_flag(
+            user_id=user_id,
+            detection_type=detection_type,
+            reasons=reasons,
+            severity=severity,
+            details=details,
+        )
+        result["flag_id"] = flag_id
+
+        if not flag_id:
+            logger.error(f"Failed to create flag for user {user_id}")
+            return result
+
+        # 2. 자동 밴 활성화 여부 확인
+        if not self._settings.auto_ban_enabled:
+            logger.debug("Auto ban is disabled, skipping ban check")
+            return result
+
+        # 3. 심각도 high이고 즉시 밴 설정이 활성화된 경우 즉시 밴
+        if severity == "high" and self._settings.auto_ban_high_severity_immediate:
+            ban_result = await self._apply_auto_ban(
+                user_id=user_id,
+                detection_type=detection_type,
+                severity=severity,
+                reasons=reasons,
+                flag_id=flag_id,
+            )
+            if ban_result:
+                result["was_banned"] = True
+                result["ban_id"] = ban_result.get("id")
+                result["ban_reason"] = f"high severity {detection_type}"
+            return result
+
+        # 4. 누적 탐지 횟수 확인 및 임계값 기반 자동 밴
+        detection_count = await self._get_user_detection_count(user_id, detection_type)
+        threshold = self._get_threshold_for_type(detection_type)
+
+        logger.info(
+            f"User {user_id} detection count for {detection_type}: "
+            f"{detection_count}/{threshold}"
+        )
+
+        if detection_count >= threshold:
+            ban_result = await self._apply_auto_ban(
+                user_id=user_id,
+                detection_type=detection_type,
+                severity=severity,
+                reasons=reasons,
+                flag_id=flag_id,
+            )
+            if ban_result:
+                result["was_banned"] = True
+                result["ban_id"] = ban_result.get("id")
+                result["ban_reason"] = f"threshold exceeded ({detection_count}/{threshold})"
+
+        return result
+
+    def _get_threshold_for_type(self, detection_type: str) -> int:
+        """탐지 유형별 임계값 반환"""
+        thresholds = {
+            "chip_dumping": self._settings.auto_ban_threshold_chip_dumping,
+            "bot_detection": self._settings.auto_ban_threshold_bot,
+            "anomaly_detection": self._settings.auto_ban_threshold_anomaly,
+            "auto_detection": self._settings.auto_ban_threshold_anomaly,  # 종합 탐지
+        }
+        return thresholds.get(detection_type, 5)
+
+    async def _get_user_detection_count(
+        self,
+        user_id: str,
+        detection_type: str,
+        time_window_days: int = 30,
+    ) -> int:
+        """
+        사용자의 특정 탐지 유형 누적 횟수 조회
+
+        Args:
+            user_id: 사용자 ID
+            detection_type: 탐지 유형
+            time_window_days: 조회 기간 (일)
+
+        Returns:
+            탐지 횟수
+        """
+        since = datetime.now(timezone.utc) - timedelta(days=time_window_days)
+
+        try:
+            query = text("""
+                SELECT COUNT(*) as count
+                FROM suspicious_activities
+                WHERE :user_id = ANY(user_ids)
+                  AND detection_type = :detection_type
+                  AND created_at >= :since
+                  AND status != 'dismissed'
+            """)
+            result = await self.admin_db.execute(query, {
+                "user_id": user_id,
+                "detection_type": detection_type,
+                "since": since,
+            })
+            row = result.fetchone()
+            return row.count if row else 0
+        except Exception as e:
+            logger.error(f"Failed to get detection count: {e}")
+            return 0
+
+    async def _apply_auto_ban(
+        self,
+        user_id: str,
+        detection_type: str,
+        severity: str,
+        reasons: list[str],
+        flag_id: str,
+    ) -> Optional[dict]:
+        """
+        자동 밴 적용
+
+        Args:
+            user_id: 사용자 ID
+            detection_type: 탐지 유형
+            severity: 심각도
+            reasons: 탐지 사유
+            flag_id: 관련 플래그 ID
+
+        Returns:
+            생성된 밴 정보 또는 None
+        """
+        try:
+            ban_service = self._get_ban_service()
+
+            # 밴 사유 구성
+            reason = (
+                f"[자동 제재] {detection_type.replace('_', ' ').title()}\n"
+                f"사유: {', '.join(reasons)}\n"
+                f"심각도: {severity}\n"
+                f"관련 플래그: {flag_id}"
+            )
+
+            # 임시 밴 적용
+            ban_result = await ban_service.create_ban(
+                user_id=user_id,
+                ban_type="temporary",
+                reason=reason,
+                created_by="auto_ban_system",
+                duration_hours=self._settings.auto_ban_temp_duration_hours,
+            )
+
+            logger.warning(
+                f"Auto ban applied: user={user_id}, ban_id={ban_result.get('id')}, "
+                f"type={detection_type}, severity={severity}"
+            )
+
+            # 감사 로그 기록
+            await self._log_auto_ban_action(
+                user_id=user_id,
+                ban_id=ban_result.get("id"),
+                detection_type=detection_type,
+                severity=severity,
+                reasons=reasons,
+                flag_id=flag_id,
+            )
+
+            # 관리자 알림 (밴 적용 알림)
+            await self._notify_auto_ban_applied(
+                user_id=user_id,
+                ban_result=ban_result,
+                detection_type=detection_type,
+                severity=severity,
+                reasons=reasons,
+            )
+
+            return ban_result
+
+        except Exception as e:
+            logger.error(f"Failed to apply auto ban for user {user_id}: {e}")
+            return None
+
+    async def _log_auto_ban_action(
+        self,
+        user_id: str,
+        ban_id: str,
+        detection_type: str,
+        severity: str,
+        reasons: list[str],
+        flag_id: str,
+    ) -> None:
+        """자동 밴 실행을 감사 로그에 기록"""
+        if not self._audit_service:
+            return
+
+        try:
+            await self._audit_service.log_action(
+                admin_user_id="system",
+                admin_username="auto_ban_system",
+                action="auto_ban_applied",
+                target_type="user",
+                target_id=user_id,
+                details={
+                    "ban_id": ban_id,
+                    "detection_type": detection_type,
+                    "severity": severity,
+                    "reasons": reasons,
+                    "flag_id": flag_id,
+                    "duration_hours": self._settings.auto_ban_temp_duration_hours,
+                },
+                ip_address=None,
+            )
+        except Exception as e:
+            logger.error(f"Failed to log auto ban action: {e}")
+
+    async def _notify_auto_ban_applied(
+        self,
+        user_id: str,
+        ban_result: dict,
+        detection_type: str,
+        severity: str,
+        reasons: list[str],
+    ) -> None:
+        """자동 밴 적용 알림 전송"""
+        if not self._telegram_notifier or not self._telegram_notifier.is_configured:
+            return
+
+        try:
+            expires_at = ban_result.get("expires_at", "N/A")
+            ban_id = ban_result.get("id", "N/A")
+
+            message = (
+                f"🚫 <b>[자동 밴 적용]</b>\n\n"
+                f"👤 User: <code>{user_id}</code>\n"
+                f"🆔 Ban ID: <code>{ban_id[:8]}...</code>\n"
+                f"📊 탐지 유형: <b>{detection_type.replace('_', ' ').title()}</b>\n"
+                f"⚠️ 심각도: <b>{severity.upper()}</b>\n"
+                f"📋 사유: {', '.join(reasons)}\n"
+                f"⏰ 만료: {expires_at}\n\n"
+                f"관리자 대시보드에서 확인 및 해제할 수 있습니다."
+            )
+
+            if self._telegram_notifier.admin_chat_id:
+                await self._telegram_notifier._send_message(
+                    int(self._telegram_notifier.admin_chat_id),
+                    message,
+                )
+        except Exception as e:
+            logger.error(f"Failed to send auto ban notification: {e}")
+
+    async def check_and_lift_expired_bans(self) -> int:
+        """
+        만료된 임시 밴 자동 해제 (스케줄러용)
+
+        Returns:
+            해제된 밴 수
+        """
+        try:
+            now = datetime.now(timezone.utc)
+
+            # 만료된 밴 조회
+            query = text("""
+                SELECT id, user_id, username
+                FROM bans
+                WHERE ban_type = 'temporary'
+                  AND expires_at IS NOT NULL
+                  AND expires_at <= :now
+                  AND lifted_at IS NULL
+            """)
+            result = await self.admin_db.execute(query, {"now": now})
+            expired_bans = result.fetchall()
+
+            lifted_count = 0
+            ban_service = self._get_ban_service()
+
+            for ban in expired_bans:
+                try:
+                    success = await ban_service.lift_ban(ban.id, "auto_ban_system")
+                    if success:
+                        lifted_count += 1
+                        logger.info(f"Automatically lifted expired ban: {ban.id} for user {ban.user_id}")
+                except Exception as e:
+                    logger.error(f"Failed to lift expired ban {ban.id}: {e}")
+
+            return lifted_count
+
+        except Exception as e:
+            logger.error(f"Failed to check expired bans: {e}")
+            return 0
 
 
 # SEVERITY_ACTIONS 상수는 파일 상단에 정의됨

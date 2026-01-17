@@ -19,22 +19,32 @@ class TestEventType:
     def test_client_to_server_events(self):
         """Test CLIENT_TO_SERVER_EVENTS contains correct events."""
         assert EventType.PING in CLIENT_TO_SERVER_EVENTS
+        assert EventType.PONG in CLIENT_TO_SERVER_EVENTS  # 클라이언트가 서버 PING에 응답
         assert EventType.SUBSCRIBE_LOBBY in CLIENT_TO_SERVER_EVENTS
         assert EventType.ACTION_REQUEST in CLIENT_TO_SERVER_EVENTS
 
         # Server-only events should not be in this set
-        assert EventType.PONG not in CLIENT_TO_SERVER_EVENTS
         assert EventType.LOBBY_SNAPSHOT not in CLIENT_TO_SERVER_EVENTS
 
     def test_server_to_client_events(self):
         """Test SERVER_TO_CLIENT_EVENTS contains correct events."""
+        assert EventType.PING in SERVER_TO_CLIENT_EVENTS  # 서버가 클라이언트에게 하트비트 전송
         assert EventType.PONG in SERVER_TO_CLIENT_EVENTS
         assert EventType.CONNECTION_STATE in SERVER_TO_CLIENT_EVENTS
         assert EventType.TABLE_SNAPSHOT in SERVER_TO_CLIENT_EVENTS
 
         # Client-only events should not be in this set
-        assert EventType.PING not in SERVER_TO_CLIENT_EVENTS
         assert EventType.SUBSCRIBE_LOBBY not in SERVER_TO_CLIENT_EVENTS
+
+    def test_ping_pong_is_bidirectional(self):
+        """Test PING/PONG are bidirectional for heartbeat mechanism."""
+        # PING: 양방향 (클라이언트 → 서버, 서버 → 클라이언트)
+        assert EventType.PING in CLIENT_TO_SERVER_EVENTS
+        assert EventType.PING in SERVER_TO_CLIENT_EVENTS
+
+        # PONG: 양방향 (서버 → 클라이언트, 클라이언트 → 서버)
+        assert EventType.PONG in CLIENT_TO_SERVER_EVENTS
+        assert EventType.PONG in SERVER_TO_CLIENT_EVENTS
 
     def test_chat_message_is_bidirectional(self):
         """Test CHAT_MESSAGE is in both sets."""

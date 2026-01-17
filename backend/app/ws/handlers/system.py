@@ -14,15 +14,15 @@ logger = logging.getLogger(__name__)
 class SystemHandler(BaseHandler):
     """Handles PING/PONG system events.
 
-    Per spec section 2.3:
-    - Client sends PING every 7 seconds (with jitter)
-    - Server responds with PONG
-    - Server closes connection if no PING for 60 seconds
+    양방향 하트비트 지원:
+    - 클라이언트 → 서버: PING 전송, 서버가 PONG 응답
+    - 서버 → 클라이언트: PING 전송 (30초 주기), 클라이언트가 PONG 응답
+    - 2회 연속 미응답 시 연결 종료
     """
 
     @property
     def handled_events(self) -> tuple[EventType, ...]:
-        return (EventType.PING, EventType.RECOVERY_REQUEST)
+        return (EventType.PING, EventType.PONG, EventType.RECOVERY_REQUEST)
 
     async def handle(
         self,
@@ -31,6 +31,8 @@ class SystemHandler(BaseHandler):
     ) -> MessageEnvelope | None:
         if event.type == EventType.PING:
             return await self._handle_ping(conn, event)
+        elif event.type == EventType.PONG:
+            return await self._handle_pong(conn, event)
         elif event.type == EventType.RECOVERY_REQUEST:
             return await self._handle_recovery_request(conn, event)
 
@@ -41,7 +43,7 @@ class SystemHandler(BaseHandler):
         conn: WebSocketConnection,
         event: MessageEnvelope,
     ) -> MessageEnvelope:
-        """Handle PING - update timestamp and respond with PONG."""
+        """Handle PING from client - update timestamp and respond with PONG."""
         conn.update_ping()
 
         return MessageEnvelope.create(
@@ -50,6 +52,26 @@ class SystemHandler(BaseHandler):
             request_id=event.request_id,
             trace_id=event.trace_id,
         )
+
+    async def _handle_pong(
+        self,
+        conn: WebSocketConnection,
+        event: MessageEnvelope,
+    ) -> MessageEnvelope | None:
+        """Handle PONG from client - update heartbeat state.
+
+        클라이언트가 서버 PING에 응답한 PONG 처리.
+        missed_pongs 카운터를 리셋하여 연결 유지.
+        """
+        conn.last_pong_at = datetime.utcnow()
+        conn.missed_pongs = 0
+
+        logger.debug(
+            f"PONG received from user={conn.user_id}, conn={conn.connection_id}"
+        )
+
+        # PONG에 대한 응답은 필요 없음
+        return None
 
     async def _handle_recovery_request(
         self,

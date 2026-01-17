@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/utils/redis_client.py
+# hypothesis_version: 6.150.2
+
+[-1001, 300, 1000, 3600, 86400, 604800, '1', ':', 'total', 'utf-8']

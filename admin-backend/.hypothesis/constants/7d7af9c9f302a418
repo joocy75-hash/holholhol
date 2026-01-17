@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/utils/permissions.py
+# hypothesis_version: 6.150.2
+
+['activate_maintenance', 'adjust_balance', 'approve_withdrawal', 'ban_users', 'create_admin', 'create_announcement', 'export_hands', 'force_close_room', 'modify_admin', 'resolve_suspicious', 'schedule_maintenance', 'send_room_message', 'view_admins', 'view_announcements', 'view_audit_logs', 'view_dashboard', 'view_deposits', 'view_hands', 'view_maintenance', 'view_metrics', 'view_rooms', 'view_suspicious', 'view_user_details', 'view_users', 'view_wallet', 'view_withdrawals']

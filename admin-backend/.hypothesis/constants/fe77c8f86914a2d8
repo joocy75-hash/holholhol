@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/api/fraud.py
+# hypothesis_version: 6.150.2
+
+[100, 1000, ' AND ', '/statistics', '/suspicious', '/users', '/users/summary', '/users/{user_id}', '1=1', 'Filter by severity', 'Filter by status', 'New status', 'Review notes', 'anomaly_detection', 'bot_detection', 'chip_dumping', 'confirmed', 'confirmed_count', 'desc', 'detection_breakdown', 'detection_count', 'detection_type', 'dismissed', 'email', 'high', 'id', 'is_banned', 'items', 'last_detected', 'limit', 'low', 'max_severity', 'medium', 'new_status', 'notes', 'offset', 'old_status', 'page', 'page_size', 'pending', 'pending_count', 'raw', 'reviewed_by', 'reviewing', 'severity', 'severity = :severity', 'since_24h', 'since_7d', 'status', 'status = :status', 'suspicion_score', 'suspicious_activity', 'total', 'total_pages', 'updated_at', 'user_id', 'username', '검토 상태 필터', '심각도 필터', '정렬 순서 (asc, desc)', '최소 의심 점수']

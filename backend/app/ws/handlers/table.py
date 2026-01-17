@@ -17,6 +17,7 @@ from app.game import game_manager, Player
 from app.models.room import Room
 from app.models.table import Table
 from app.services.room import RoomService, RoomError
+from app.services.player_session_tracker import get_session_tracker
 from app.ws.connection import WebSocketConnection
 from app.ws.events import EventType
 from app.ws.handlers.base import BaseHandler
@@ -57,6 +58,8 @@ class TableHandler(BaseHandler):
             EventType.START_BOT_LOOP_REQUEST,
             EventType.SIT_OUT_REQUEST,
             EventType.SIT_IN_REQUEST,
+            EventType.WAITLIST_JOIN_REQUEST,
+            EventType.WAITLIST_CANCEL_REQUEST,
         )
 
     async def handle(
@@ -81,6 +84,10 @@ class TableHandler(BaseHandler):
                 return await self._handle_sit_out(conn, event)
             case EventType.SIT_IN_REQUEST:
                 return await self._handle_sit_in(conn, event)
+            case EventType.WAITLIST_JOIN_REQUEST:
+                return await self._handle_waitlist_join(conn, event)
+            case EventType.WAITLIST_CANCEL_REQUEST:
+                return await self._handle_waitlist_cancel(conn, event)
         return None
 
     async def _handle_subscribe(
@@ -102,11 +109,6 @@ class TableHandler(BaseHandler):
                 trace_id=event.trace_id,
             )
 
-        # Use room_id as the channel (consistent with other handlers)
-        room_id = str(table.room_id)
-        channel = f"table:{room_id}"
-        await self.manager.subscribe(conn.connection_id, channel)
-
         # Ensure table exists in GameManager
         await self._ensure_game_table(table)
 
@@ -119,6 +121,13 @@ class TableHandler(BaseHandler):
                 if player and player.user_id == conn.user_id:
                     mode = "player"
                     break
+
+        # Phase 4.2: 그룹별 채널 구독
+        if mode == "player":
+            await self.manager.subscribe_as_player(conn.connection_id, room_id)
+        else:
+            await self.manager.subscribe_as_spectator(conn.connection_id, room_id)
+
         logger.info(f"[SUBSCRIBE_TABLE] user_id={conn.user_id}, auto mode={mode}")
 
         # Build snapshot using GameManager state
@@ -143,11 +152,11 @@ class TableHandler(BaseHandler):
         table = await self._get_table_by_id_or_room(table_id)
         if table:
             room_id = str(table.room_id)
-            channel = f"table:{room_id}"
         else:
-            channel = f"table:{table_id}"
+            room_id = table_id
 
-        await self.manager.unsubscribe(conn.connection_id, channel)
+        # Phase 4.2: 모든 테이블 관련 채널에서 구독 해제
+        await self.manager.unsubscribe_from_table(conn.connection_id, room_id)
         return None
 
     async def _handle_seat(
@@ -216,6 +225,15 @@ class TableHandler(BaseHandler):
                     "stack": result_stack,
                 },
             )
+
+            # Phase 2.3: 플레이어 세션 시작 (부정 행위 탐지용)
+            session_tracker = get_session_tracker()
+            if session_tracker:
+                session_tracker.start_session(conn.user_id, room_id)
+                logger.info(f"[SESSION] Started session for {conn.user_id} in {room_id}")
+
+            # Phase 4.2: 관전자에서 플레이어로 업그레이드
+            await self.manager.upgrade_to_player(conn.connection_id, room_id)
 
             # 자동 시작 제거 - 유저가 START_GAME 버튼을 눌러야 시작
 
@@ -292,9 +310,18 @@ class TableHandler(BaseHandler):
                 game_table.remove_player(player_position)
                 logger.info(f"[LEAVE] Player {conn.user_id} removed from position {player_position} in GameManager (stack: {current_stack})")
 
-            # Unsubscribe from channel
-            channel = f"table:{room_id}"
-            await self.manager.unsubscribe(conn.connection_id, channel)
+            # Phase 2.3: 플레이어 세션 종료 및 통계 이벤트 발행 (부정 행위 탐지용)
+            session_tracker = get_session_tracker()
+            if session_tracker:
+                session = await session_tracker.end_session(conn.user_id, room_id)
+                if session:
+                    logger.info(
+                        f"[SESSION] Ended session for {conn.user_id} in {room_id}: "
+                        f"hands={session.hands_played}, bet={session.total_bet}, won={session.total_won}"
+                    )
+
+            # Phase 4.2: 플레이어에서 관전자로 다운그레이드 (테이블 구독은 유지)
+            await self.manager.downgrade_to_spectator(conn.connection_id, room_id)
 
             # Broadcast update
             await self._broadcast_table_update(
@@ -302,6 +329,9 @@ class TableHandler(BaseHandler):
                 "player_left",
                 {"userId": conn.user_id, "position": player_position},
             )
+
+            # Phase 4.1: 자리가 비면 대기열 처리
+            await self._process_waitlist_on_leave(room_id)
 
             return MessageEnvelope.create(
                 event_type=EventType.LEAVE_RESULT,
@@ -744,6 +774,7 @@ class TableHandler(BaseHandler):
                         "isDealer": i == game_table.dealer_seat,
                         "isCurrent": i == game_table.current_player_seat,
                         "isCardsRevealed": player.is_cards_revealed,  # 카드 오픈 상태
+                        "timeBankRemaining": player.time_bank_remaining,  # 타임 뱅크 남은 횟수
                     })
                 else:
                     seats.append({
@@ -755,9 +786,21 @@ class TableHandler(BaseHandler):
                         "totalBet": 0,
                     })
 
-            # Build hand info
+            # Build hand info with action history for mid-game sync
             hand = None
+            action_history = []
             if game_table.phase.value != "waiting":
+                # 액션 히스토리 - 중간 입장자도 지금까지의 베팅 흐름을 볼 수 있음
+                action_history = [
+                    {
+                        "seat": a["seat"],
+                        "action": a["action"],
+                        "amount": a.get("amount", 0),
+                        "phase": a["phase"],
+                    }
+                    for a in game_table._hand_actions
+                ]
+
                 hand = {
                     "handNumber": game_table.hand_number,
                     "phase": game_table.phase.value,
@@ -765,6 +808,7 @@ class TableHandler(BaseHandler):
                     "communityCards": game_table.community_cards,
                     "currentTurn": game_table.current_player_seat,
                     "currentBet": game_table.current_bet,
+                    "actionHistory": action_history,  # 중간 입장 동기화용
                 }
 
             # 현재 턴인 플레이어에게 allowedActions 제공 (새로고침 시 복원용)
@@ -781,6 +825,27 @@ class TableHandler(BaseHandler):
                             action_obj["minAmount"] = actions_data.get("min_raise", 0)
                             action_obj["maxAmount"] = actions_data.get("max_raise", 0)
                         allowed_actions.append(action_obj)
+
+            # 턴 정보 - 중간 입장 시 남은 시간 계산용
+            turn_info = None
+            if game_table.current_player_seat is not None and game_table._turn_started_at:
+                from datetime import datetime, timezone, timedelta
+
+                base_timeout = config.get("turn_timeout", 30)
+                total_seconds = base_timeout + game_table._turn_extra_seconds
+                deadline = game_table._turn_started_at + timedelta(seconds=total_seconds)
+
+                # 남은 시간 계산
+                now = datetime.now(timezone.utc)
+                remaining_seconds = max(0, (deadline - now).total_seconds())
+
+                turn_info = {
+                    "currentSeat": game_table.current_player_seat,
+                    "startedAt": game_table._turn_started_at.isoformat(),
+                    "deadlineAt": deadline.isoformat(),
+                    "remainingSeconds": round(remaining_seconds, 1),
+                    "extraSeconds": game_table._turn_extra_seconds,
+                }
 
             return {
                 "tableId": room_id,
@@ -799,6 +864,7 @@ class TableHandler(BaseHandler):
                 "myPosition": my_position,
                 "myHoleCards": my_hole_cards if mode == "player" else None,
                 "allowedActions": allowed_actions,  # 새로고침 시 복원용
+                "turnInfo": turn_info,  # 중간 입장 시 턴 타이머 동기화용
                 "stateVersion": table.state_version or 1,
                 "updatedAt": table.updated_at.isoformat() if table.updated_at else None,
                 "isStateRestore": True,  # 상태 복원 플래그 (새로고침/재접속 구분용)
@@ -1271,6 +1337,183 @@ class TableHandler(BaseHandler):
                 request_id=event.request_id,
                 trace_id=event.trace_id,
             )
+
+    # =========================================================================
+    # Waitlist Handlers (Phase 4.1)
+    # =========================================================================
+
+    async def _handle_waitlist_join(
+        self,
+        conn: WebSocketConnection,
+        event: MessageEnvelope,
+    ) -> MessageEnvelope:
+        """Handle WAITLIST_JOIN_REQUEST event - 대기열 등록."""
+        payload = event.payload
+        table_id = payload.get("tableId")
+        buy_in = payload.get("buyIn", 1000)
+
+        try:
+            table = await self._get_table_by_id_or_room(table_id)
+            if not table:
+                raise RoomError("TABLE_NOT_FOUND", "Table not found")
+
+            room_id = str(table.room_id)
+
+            # 대기열에 추가
+            result = await self.room_service.add_to_waitlist(
+                room_id=room_id,
+                user_id=conn.user_id,
+                buy_in=buy_in,
+            )
+
+            logger.info(
+                f"[WAITLIST] User {conn.user_id} joined waitlist for {room_id} "
+                f"at position {result['position']}"
+            )
+
+            return MessageEnvelope.create(
+                event_type=EventType.WAITLIST_JOINED,
+                payload={
+                    "success": True,
+                    "tableId": room_id,
+                    "position": result["position"],
+                    "joinedAt": result["joined_at"],
+                    "alreadyWaiting": result.get("already_waiting", False),
+                },
+                request_id=event.request_id,
+                trace_id=event.trace_id,
+            )
+
+        except RoomError as e:
+            return MessageEnvelope.create(
+                event_type=EventType.WAITLIST_JOINED,
+                payload={
+                    "success": False,
+                    "errorCode": e.code,
+                    "errorMessage": e.message,
+                },
+                request_id=event.request_id,
+                trace_id=event.trace_id,
+            )
+
+    async def _handle_waitlist_cancel(
+        self,
+        conn: WebSocketConnection,
+        event: MessageEnvelope,
+    ) -> MessageEnvelope:
+        """Handle WAITLIST_CANCEL_REQUEST event - 대기열 취소."""
+        payload = event.payload
+        table_id = payload.get("tableId")
+
+        try:
+            table = await self._get_table_by_id_or_room(table_id)
+            if not table:
+                raise RoomError("TABLE_NOT_FOUND", "Table not found")
+
+            room_id = str(table.room_id)
+
+            # 대기열에서 제거
+            removed = await self.room_service.cancel_waitlist(
+                room_id=room_id,
+                user_id=conn.user_id,
+            )
+
+            if not removed:
+                return MessageEnvelope.create(
+                    event_type=EventType.WAITLIST_CANCELLED,
+                    payload={
+                        "success": False,
+                        "errorCode": "NOT_IN_WAITLIST",
+                        "errorMessage": "대기열에 등록되어 있지 않습니다",
+                    },
+                    request_id=event.request_id,
+                    trace_id=event.trace_id,
+                )
+
+            logger.info(f"[WAITLIST] User {conn.user_id} cancelled waitlist for {room_id}")
+
+            return MessageEnvelope.create(
+                event_type=EventType.WAITLIST_CANCELLED,
+                payload={
+                    "success": True,
+                    "tableId": room_id,
+                },
+                request_id=event.request_id,
+                trace_id=event.trace_id,
+            )
+
+        except RoomError as e:
+            return MessageEnvelope.create(
+                event_type=EventType.WAITLIST_CANCELLED,
+                payload={
+                    "success": False,
+                    "errorCode": e.code,
+                    "errorMessage": e.message,
+                },
+                request_id=event.request_id,
+                trace_id=event.trace_id,
+            )
+
+    async def _process_waitlist_on_leave(
+        self,
+        room_id: str,
+    ) -> None:
+        """자리가 비었을 때 대기열에서 첫 번째 사용자에게 알림.
+
+        플레이어가 퇴장하면 대기열 첫 번째 사용자에게 WAITLIST_SEAT_READY 이벤트를 보냅니다.
+        """
+        from app.utils.redis_client import get_redis_context, RedisService
+
+        try:
+            async with get_redis_context() as redis:
+                redis_service = RedisService(redis)
+
+                # 대기열 첫 번째 사용자 조회
+                first_waiter = await redis_service.get_first_in_waitlist(room_id)
+
+                if not first_waiter:
+                    return
+
+                user_id = first_waiter["user_id"]
+                buy_in = first_waiter["buy_in"]
+
+                logger.info(
+                    f"[WAITLIST] Seat available in {room_id}, "
+                    f"notifying waitlist user {user_id}"
+                )
+
+                # 대기열 첫 번째 사용자에게 자리 났음 알림
+                # 해당 사용자의 WebSocket 연결을 찾아 전송
+                notification = MessageEnvelope.create(
+                    event_type=EventType.WAITLIST_SEAT_READY,
+                    payload={
+                        "tableId": room_id,
+                        "buyIn": buy_in,
+                        "message": "자리가 났습니다! 착석 가능합니다.",
+                        "expiresInSeconds": 30,  # 30초 내 응답 필요
+                    },
+                )
+
+                # 사용자에게 직접 전송
+                await self.manager.send_to_user(user_id, notification.to_dict())
+
+                # 대기열의 다른 사용자들에게 위치 변경 알림
+                waitlist = await redis_service.get_waitlist(room_id)
+                for waiter in waitlist[1:]:  # 첫 번째 제외
+                    position_notification = MessageEnvelope.create(
+                        event_type=EventType.WAITLIST_POSITION_CHANGED,
+                        payload={
+                            "tableId": room_id,
+                            "position": waiter["position"] - 1,  # 위치 한 칸 상승
+                        },
+                    )
+                    await self.manager.send_to_user(
+                        waiter["user_id"],
+                        position_notification.to_dict()
+                    )
+
+        except Exception as e:
+            logger.exception(f"Error processing waitlist on leave: {e}")
 
     async def _broadcast_table_update(
         self,

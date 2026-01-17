@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/services/fraud_event_consumer.py
+# hypothesis_version: 6.150.2
+
+[0.9, 0.95, 1.0, 2.0, 3600, 'AsyncSession', 'Redis', 'action_analysis', 'action_type', 'anomaly_count', 'anomaly_detection', 'anomaly_type', 'betting_analysis', 'bot_detection', 'channel', 'chip_dumping', 'data', 'db_based', 'db_excessive_profit', 'db_win_rate_anomaly', 'detection_source', 'excessive_profit', 'excessive_win_rate', 'flag_id', 'fraud:hand_completed', 'fraud:player_action', 'fraud:player_stats', 'hand_id', 'hands_played', 'high', 'is_anomaly', 'is_likely_bot', 'is_suspicious', 'loser_id', 'medium', 'message', 'participants', 'profit', 'profit_analysis', 'reasons', 'response_analysis', 'response_time_ms', 'room_id', 'session_based', 'session_event', 'severity', 'suspicion_score', 'timestamp', 'total', 'total_bet', 'total_won', 'type', 'user_id', 'utf-8', 'was_banned', 'win_rate', 'win_rate_analysis', 'winner_id']

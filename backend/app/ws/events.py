@@ -6,13 +6,15 @@ from enum import Enum
 class EventType(str, Enum):
     """All WebSocket event types per spec section 4."""
 
-    # System events (6)
+    # System events (8)
     PING = "PING"
     PONG = "PONG"
     CONNECTION_STATE = "CONNECTION_STATE"
     ERROR = "ERROR"
     RECOVERY_REQUEST = "RECOVERY_REQUEST"
     RECOVERY_RESPONSE = "RECOVERY_RESPONSE"
+    ANNOUNCEMENT = "ANNOUNCEMENT"  # 실시간 공지사항 브로드캐스트
+    ROOM_FORCE_CLOSED = "ROOM_FORCE_CLOSED"  # 관리자에 의한 방 강제 종료
 
     # Lobby events (8)
     SUBSCRIBE_LOBBY = "SUBSCRIBE_LOBBY"
@@ -42,6 +44,14 @@ class EventType(str, Enum):
     SIT_IN_REQUEST = "SIT_IN_REQUEST"
     PLAYER_SIT_OUT = "PLAYER_SIT_OUT"
     PLAYER_SIT_IN = "PLAYER_SIT_IN"
+
+    # Waitlist events (6)
+    WAITLIST_JOIN_REQUEST = "WAITLIST_JOIN_REQUEST"  # 대기열 등록 요청
+    WAITLIST_CANCEL_REQUEST = "WAITLIST_CANCEL_REQUEST"  # 대기열 취소 요청
+    WAITLIST_JOINED = "WAITLIST_JOINED"  # 대기열 등록 완료
+    WAITLIST_CANCELLED = "WAITLIST_CANCELLED"  # 대기열 취소됨/타임아웃
+    WAITLIST_POSITION_CHANGED = "WAITLIST_POSITION_CHANGED"  # 대기열 위치 변경
+    WAITLIST_SEAT_READY = "WAITLIST_SEAT_READY"  # 자리 비었음 - 착석 가능
 
     # Hand events (7)
     START_GAME = "START_GAME"
@@ -74,8 +84,10 @@ class EventType(str, Enum):
 
 
 # Event direction mapping
+# Note: PING/PONG are bidirectional for heartbeat mechanism
 CLIENT_TO_SERVER_EVENTS = frozenset([
     EventType.PING,
+    EventType.PONG,  # 클라이언트가 서버 PING에 응답
     EventType.SUBSCRIBE_LOBBY,
     EventType.UNSUBSCRIBE_LOBBY,
     EventType.ROOM_CREATE_REQUEST,
@@ -95,9 +107,12 @@ CLIENT_TO_SERVER_EVENTS = frozenset([
     EventType.REBUY,  # 리바이 요청
     EventType.TIME_BANK_REQUEST,  # 타임 뱅크 요청
     EventType.REVEAL_CARDS,  # 카드 오픈 요청
+    EventType.WAITLIST_JOIN_REQUEST,  # 대기열 등록 요청
+    EventType.WAITLIST_CANCEL_REQUEST,  # 대기열 취소 요청
 ])
 
 SERVER_TO_CLIENT_EVENTS = frozenset([
+    EventType.PING,  # 서버가 클라이언트에게 하트비트 전송
     EventType.PONG,
     EventType.CONNECTION_STATE,
     EventType.ERROR,
@@ -129,4 +144,10 @@ SERVER_TO_CLIENT_EVENTS = frozenset([
     EventType.PLAYER_SIT_IN,
     EventType.TIME_BANK_USED,  # 타임 뱅크 사용 결과
     EventType.CARDS_REVEALED,  # 카드 오픈 브로드캐스트
+    EventType.ANNOUNCEMENT,  # 공지사항 브로드캐스트
+    EventType.ROOM_FORCE_CLOSED,  # 방 강제 종료 알림
+    EventType.WAITLIST_JOINED,  # 대기열 등록 완료
+    EventType.WAITLIST_CANCELLED,  # 대기열 취소됨/타임아웃
+    EventType.WAITLIST_POSITION_CHANGED,  # 대기열 위치 변경
+    EventType.WAITLIST_SEAT_READY,  # 자리 비었음 - 착석 가능
 ])

@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/services/metrics_service.py
+# hypothesis_version: 6.150.2
+
+[200, 500, '%H:00', '%Y-%m', '%Y-%m-%d', '%Y-%m-%d:%H', 'active_rooms', 'avg_players_per_room', 'cash', 'ccu', 'count', 'cpu', 'critical', 'date', 'dau', 'healthy', 'hour', 'latency', 'mau', 'memory', 'month', 'online_users', 'server:avg_latency', 'server:cpu_usage', 'server:memory_usage', 'server_health', 'sit_n_go', 'status', 'timestamp', 'total_players', 'tournament', 'type', 'unknown', 'warning', 'wau', 'ws_connections_count']

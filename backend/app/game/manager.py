@@ -3,24 +3,49 @@ GameManager - Memory-based poker table management.
 
 Manages all active poker tables in memory. This is a singleton that
 provides thread-safe access to game tables.
+
+Memory cleanup features:
+- 빈 테이블 자동 정리 (30분 후)
+- 완료된 핸드 데이터 정리 (최근 10핸드만 유지)
+- 메모리 사용량 모니터링 로그
 """
 
 from typing import Awaitable, Callable, Dict, List, Optional
 import asyncio
 import logging
+import sys
+from datetime import datetime, timedelta
 
-from app.game.poker_table import PokerTable
+from app.game.poker_table import PokerTable, GamePhase
 
 logger = logging.getLogger(__name__)
 
+# 메모리 정리 설정
+EMPTY_TABLE_CLEANUP_MINUTES = 30  # 빈 테이블 정리 기준 시간 (분)
+CLEANUP_CHECK_INTERVAL_SECONDS = 60  # 정리 체크 주기 (초)
+MAX_HAND_HISTORY_PER_TABLE = 10  # 테이블당 최대 핸드 히스토리 개수
+MEMORY_WARNING_THRESHOLD_MB = 500  # 메모리 경고 임계값 (MB)
+
 
 class GameManager:
-    """Manages all active poker tables in memory."""
+    """Manages all active poker tables in memory.
+
+    메모리 정리 기능:
+    - 빈 테이블 자동 정리 (30분 후)
+    - 완료된 핸드 데이터 정리
+    - 메모리 사용량 모니터링
+    """
 
     def __init__(self):
         self._tables: Dict[str, PokerTable] = {}
         self._lock = asyncio.Lock()
         self._cleanup_callbacks: List[Callable[[str], Awaitable[None]]] = []
+
+        # 메모리 정리 관련
+        self._table_last_activity: Dict[str, datetime] = {}  # 테이블별 마지막 활동 시간
+        self._table_hand_history: Dict[str, List[Dict]] = {}  # 테이블별 핸드 히스토리
+        self._cleanup_task: Optional[asyncio.Task] = None
+        self._cleanup_running = False
 
     def create_table_sync(
         self,
@@ -638,6 +663,214 @@ class GameManager:
             "remaining_seconds": remaining_seconds,
             "paused": table._timer_override["paused"],
             "deadline": table._timer_override["deadline"],
+        }
+
+    # =========================================================================
+    # 메모리 정리 기능
+    # =========================================================================
+
+    async def start_cleanup_task(self) -> None:
+        """백그라운드 정리 태스크 시작."""
+        if self._cleanup_running:
+            return
+
+        self._cleanup_running = True
+        self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+        logger.info("[CLEANUP] 메모리 정리 태스크 시작")
+
+    async def stop_cleanup_task(self) -> None:
+        """백그라운드 정리 태스크 중지."""
+        self._cleanup_running = False
+        if self._cleanup_task:
+            self._cleanup_task.cancel()
+            try:
+                await self._cleanup_task
+            except asyncio.CancelledError:
+                pass
+            self._cleanup_task = None
+        logger.info("[CLEANUP] 메모리 정리 태스크 중지")
+
+    async def _cleanup_loop(self) -> None:
+        """주기적으로 메모리 정리 수행."""
+        while self._cleanup_running:
+            try:
+                await asyncio.sleep(CLEANUP_CHECK_INTERVAL_SECONDS)
+
+                if not self._cleanup_running:
+                    break
+
+                # 1. 빈 테이블 정리
+                await self._cleanup_empty_tables()
+
+                # 2. 메모리 사용량 로깅
+                self._log_memory_usage()
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"[CLEANUP] 정리 루프 에러: {e}")
+
+    async def _cleanup_empty_tables(self) -> int:
+        """빈 테이블 정리 (30분 후).
+
+        Returns:
+            정리된 테이블 수
+        """
+        now = datetime.utcnow()
+        cleanup_threshold = now - timedelta(minutes=EMPTY_TABLE_CLEANUP_MINUTES)
+        tables_to_remove: List[str] = []
+
+        async with self._lock:
+            for room_id, table in self._tables.items():
+                # 플레이어 수 확인
+                active_players = sum(
+                    1 for p in table.players.values() if p is not None
+                )
+
+                if active_players == 0:
+                    # 마지막 활동 시간 확인
+                    last_activity = self._table_last_activity.get(room_id)
+                    if last_activity is None:
+                        # 처음 확인 시 현재 시간 기록
+                        self._table_last_activity[room_id] = now
+                    elif last_activity < cleanup_threshold:
+                        # 30분 이상 빈 테이블
+                        tables_to_remove.append(room_id)
+                else:
+                    # 플레이어가 있으면 활동 시간 갱신
+                    self._table_last_activity[room_id] = now
+
+        # 테이블 제거 (락 밖에서)
+        removed_count = 0
+        for room_id in tables_to_remove:
+            success = await self.remove_table(room_id)
+            if success:
+                removed_count += 1
+                # 관련 메타데이터 정리
+                self._table_last_activity.pop(room_id, None)
+                self._table_hand_history.pop(room_id, None)
+                logger.info(f"[CLEANUP] 빈 테이블 자동 정리: {room_id}")
+
+        if removed_count > 0:
+            logger.info(f"[CLEANUP] {removed_count}개 빈 테이블 정리 완료")
+
+        return removed_count
+
+    def update_table_activity(self, room_id: str) -> None:
+        """테이블 활동 시간 갱신 (착석, 액션 등에서 호출)."""
+        self._table_last_activity[room_id] = datetime.utcnow()
+
+    def save_hand_history(
+        self,
+        room_id: str,
+        hand_data: Dict,
+    ) -> None:
+        """핸드 히스토리 저장 (최근 N개만 유지).
+
+        Args:
+            room_id: 테이블 ID
+            hand_data: 핸드 데이터 (hand_number, actions, result 등)
+        """
+        if room_id not in self._table_hand_history:
+            self._table_hand_history[room_id] = []
+
+        history = self._table_hand_history[room_id]
+        history.append(hand_data)
+
+        # 최대 개수 초과 시 오래된 것 제거
+        if len(history) > MAX_HAND_HISTORY_PER_TABLE:
+            removed = len(history) - MAX_HAND_HISTORY_PER_TABLE
+            self._table_hand_history[room_id] = history[-MAX_HAND_HISTORY_PER_TABLE:]
+            logger.debug(
+                f"[CLEANUP] 테이블 {room_id} 핸드 히스토리 {removed}개 정리 "
+                f"(유지: {MAX_HAND_HISTORY_PER_TABLE}개)"
+            )
+
+    def get_hand_history(self, room_id: str) -> List[Dict]:
+        """테이블의 핸드 히스토리 조회."""
+        return self._table_hand_history.get(room_id, [])
+
+    def cleanup_hand_data(self, table: PokerTable) -> None:
+        """핸드 완료 후 테이블 내 임시 데이터 정리.
+
+        Args:
+            table: 정리할 테이블
+        """
+        # 핸드 액션 리스트 비우기
+        if hasattr(table, '_hand_actions'):
+            table._hand_actions = []
+
+        # 핸드 시작 스택 정리
+        if hasattr(table, '_hand_starting_stacks'):
+            table._hand_starting_stacks = {}
+
+        # 핸드 시작 시간 리셋
+        if hasattr(table, '_hand_start_time'):
+            table._hand_start_time = None
+
+        # 주입된 카드 정리
+        if hasattr(table, '_injected_cards'):
+            table._injected_cards = {"hole_cards": {}, "community_cards": []}
+
+        logger.debug(f"[CLEANUP] 테이블 {table.room_id} 핸드 데이터 정리 완료")
+
+    def _log_memory_usage(self) -> None:
+        """메모리 사용량 로깅."""
+        try:
+            # 프로세스 메모리 사용량 (MB)
+            import resource
+            usage = resource.getrusage(resource.RUSAGE_SELF)
+            memory_mb = usage.ru_maxrss / 1024 / 1024  # macOS: bytes, Linux: KB
+
+            # 테이블 통계
+            table_count = len(self._tables)
+            total_players = sum(
+                sum(1 for p in t.players.values() if p is not None)
+                for t in self._tables.values()
+            )
+
+            log_msg = (
+                f"[MEMORY] 테이블: {table_count}, "
+                f"플레이어: {total_players}, "
+                f"메모리: {memory_mb:.1f}MB"
+            )
+
+            if memory_mb > MEMORY_WARNING_THRESHOLD_MB:
+                logger.warning(f"{log_msg} (임계값 초과!)")
+            else:
+                logger.info(log_msg)
+
+        except ImportError:
+            # resource 모듈 없는 경우 (Windows 등)
+            table_count = len(self._tables)
+            logger.info(f"[MEMORY] 테이블: {table_count}")
+        except Exception as e:
+            logger.debug(f"[MEMORY] 메모리 사용량 조회 실패: {e}")
+
+    def get_memory_stats(self) -> Dict:
+        """메모리 통계 조회."""
+        table_count = len(self._tables)
+        total_players = sum(
+            sum(1 for p in t.players.values() if p is not None)
+            for t in self._tables.values()
+        )
+        total_hands = sum(
+            len(h) for h in self._table_hand_history.values()
+        )
+
+        try:
+            import resource
+            usage = resource.getrusage(resource.RUSAGE_SELF)
+            memory_mb = usage.ru_maxrss / 1024 / 1024
+        except (ImportError, Exception):
+            memory_mb = None
+
+        return {
+            "table_count": table_count,
+            "total_players": total_players,
+            "total_hand_history": total_hands,
+            "memory_mb": memory_mb,
+            "cleanup_running": self._cleanup_running,
         }
 
 

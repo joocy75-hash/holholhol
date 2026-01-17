@@ -21,6 +21,7 @@ from app.database import get_admin_db, get_main_db
 from app.utils.dependencies import require_operator
 from app.models.admin_user import AdminUser
 from app.services.audit_service import AuditService
+from app.services.suspicious_user_service import SuspiciousUserService
 
 
 router = APIRouter()
@@ -83,6 +84,61 @@ class UpdateStatusRequest(BaseModel):
     """Request body for updating suspicious activity status."""
     status: SuspiciousActivityStatus = Field(..., description="New status")
     notes: Optional[str] = Field(None, max_length=1000, description="Review notes")
+
+
+# Suspicious User Models (Phase 3.7)
+class DetectionBreakdown(BaseModel):
+    """탐지 유형별 카운트"""
+    chip_dumping: int = 0
+    bot_detection: int = 0
+    anomaly_detection: int = 0
+
+
+class SuspiciousUserResponse(BaseModel):
+    """의심 사용자 응답"""
+    user_id: str
+    username: str
+    email: Optional[str] = None
+    is_banned: bool = False
+    suspicion_score: float
+    detection_count: int
+    pending_count: int
+    confirmed_count: int
+    max_severity: str
+    detection_breakdown: DetectionBreakdown
+    last_detected: Optional[str] = None
+
+
+class PaginatedSuspiciousUsers(BaseModel):
+    """의심 사용자 목록 페이지네이션 응답"""
+    items: list[SuspiciousUserResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
+class SuspiciousUserDetailResponse(BaseModel):
+    """의심 사용자 상세 응답"""
+    user_id: str
+    username: Optional[str] = None
+    email: Optional[str] = None
+    balance: float = 0
+    is_banned: bool = False
+    ban_reason: Optional[str] = None
+    created_at: Optional[str] = None
+    last_login: Optional[str] = None
+    suspicion_score: float
+    statistics: dict
+    activities: list[dict]
+
+
+class SuspicionSummaryResponse(BaseModel):
+    """의심 사용자 요약 통계 응답"""
+    total_suspicious_users: int
+    users_with_pending: int
+    users_with_confirmed: int
+    by_severity: dict[str, int]
 
 
 # ============================================================================
@@ -417,3 +473,114 @@ async def get_suspicious_activity(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get suspicious activity: {str(e)}"
         )
+
+
+# ============================================================================
+# Suspicious Users API (Phase 3.7)
+# ============================================================================
+
+@router.get("/users", response_model=PaginatedSuspiciousUsers)
+async def list_suspicious_users(
+    detection_type: Optional[str] = Query(None, description="탐지 유형 필터 (chip_dumping, bot_detection, anomaly_detection)"),
+    severity: Optional[SeverityLevel] = Query(None, description="심각도 필터"),
+    status: Optional[SuspiciousActivityStatus] = Query(None, description="검토 상태 필터"),
+    min_score: Optional[float] = Query(None, ge=0, description="최소 의심 점수"),
+    sort_by: str = Query("suspicion_score", description="정렬 기준 (suspicion_score, detection_count, last_detected)"),
+    sort_order: str = Query("desc", description="정렬 순서 (asc, desc)"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: AdminUser = Depends(require_operator),
+    main_db: AsyncSession = Depends(get_main_db),
+    admin_db: AsyncSession = Depends(get_admin_db),
+):
+    """
+    의심 사용자 목록 조회 (사용자 중심 통합 뷰)
+
+    각 사용자별로 모든 탐지 기록을 집계하여 의심 점수를 계산합니다.
+
+    **Validates: Requirements 3.7.1, 3.7.2**
+    """
+    service = SuspiciousUserService(main_db, admin_db)
+    result = await service.get_suspicious_users(
+        page=page,
+        page_size=page_size,
+        detection_type=detection_type,
+        severity=severity.value if severity else None,
+        status=status.value if status else None,
+        min_score=min_score,
+        sort_by=sort_by,
+        sort_order=sort_order,
+    )
+
+    # DetectionBreakdown 모델로 변환
+    items = []
+    for item in result.get("items", []):
+        breakdown = item.get("detection_breakdown", {})
+        items.append(SuspiciousUserResponse(
+            user_id=item["user_id"],
+            username=item["username"],
+            email=item.get("email"),
+            is_banned=item.get("is_banned", False),
+            suspicion_score=item["suspicion_score"],
+            detection_count=item["detection_count"],
+            pending_count=item["pending_count"],
+            confirmed_count=item["confirmed_count"],
+            max_severity=item["max_severity"],
+            detection_breakdown=DetectionBreakdown(
+                chip_dumping=breakdown.get("chip_dumping", 0),
+                bot_detection=breakdown.get("bot_detection", 0),
+                anomaly_detection=breakdown.get("anomaly_detection", 0),
+            ),
+            last_detected=item.get("last_detected"),
+        ))
+
+    return PaginatedSuspiciousUsers(
+        items=items,
+        total=result["total"],
+        page=result["page"],
+        page_size=result["page_size"],
+        total_pages=result["total_pages"],
+    )
+
+
+@router.get("/users/summary", response_model=SuspicionSummaryResponse)
+async def get_suspicious_users_summary(
+    current_user: AdminUser = Depends(require_operator),
+    main_db: AsyncSession = Depends(get_main_db),
+    admin_db: AsyncSession = Depends(get_admin_db),
+):
+    """
+    의심 사용자 요약 통계 조회
+
+    **Validates: Requirements 3.7.2**
+    """
+    service = SuspiciousUserService(main_db, admin_db)
+    result = await service.get_suspicion_summary()
+
+    return SuspicionSummaryResponse(**result)
+
+
+@router.get("/users/{user_id}", response_model=SuspiciousUserDetailResponse)
+async def get_suspicious_user_detail(
+    user_id: str,
+    current_user: AdminUser = Depends(require_operator),
+    main_db: AsyncSession = Depends(get_main_db),
+    admin_db: AsyncSession = Depends(get_admin_db),
+):
+    """
+    의심 사용자 상세 정보 조회
+
+    사용자의 모든 탐지 기록과 통계를 통합하여 반환합니다.
+
+    **Validates: Requirements 3.7.2, 3.7.3**
+    """
+    service = SuspiciousUserService(main_db, admin_db)
+    result = await service.get_suspicious_user_detail(user_id)
+
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User {user_id} not found or has no suspicious activities"
+        )
+
+    return SuspiciousUserDetailResponse(**result)

@@ -170,6 +170,28 @@ class Settings(BaseSettings):
         description="API key for dev endpoints (X-Dev-Key header)",
     )
 
+    # S3 Cold Storage (Phase 10 - optional)
+    s3_bucket_name: Optional[str] = Field(
+        default=None,
+        description="S3 bucket name for cold storage (optional)",
+    )
+    s3_region: str = Field(
+        default="ap-northeast-2",
+        description="AWS region for S3",
+    )
+    s3_access_key_id: Optional[str] = Field(
+        default=None,
+        description="AWS access key ID (or use IAM role)",
+    )
+    s3_secret_access_key: Optional[str] = Field(
+        default=None,
+        description="AWS secret access key (or use IAM role)",
+    )
+    s3_endpoint_url: Optional[str] = Field(
+        default=None,
+        description="Custom S3 endpoint (for LocalStack, MinIO)",
+    )
+
     @field_validator("jwt_secret_key")
     @classmethod
     def validate_jwt_secret_key(cls, v: str) -> str:

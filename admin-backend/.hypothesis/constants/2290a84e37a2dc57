@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/services/auto_ban.py
+# hypothesis_version: 6.150.2
+
+['N/A', 'action_taken', 'anomaly_detection', 'auto_ban_applied', 'auto_ban_system', 'auto_detection', 'ban_id', 'ban_reason', 'bot_detection', 'bot_suspicion_score', 'chip_dumping', 'created_at', 'details', 'detection_type', 'duration_hours', 'expires_at', 'flag_id', 'flag_reasons', 'flagged_count', 'high', 'id', 'is_likely_bot', 'is_suspicious', 'likely_bot', 'low', 'medium', 'message', 'min_hands', 'monitor', 'now', 'possible_bot', 'reasons', 'results', 'severity', 'should_flag', 'since', 'statistical_anomaly', 'suspicion_score', 'suspicious_activity', 'system', 'temp_ban', 'temporary', 'title', 'total_evaluated', 'type', 'user', 'user_id', 'user_ids', 'warning', 'was_banned', 'ℹ️', '⚠️', '경고', '모니터링', '임시 제재', '🚨']

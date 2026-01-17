@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/services/user_service.py
+# hypothesis_version: 6.150.2
+
+[0.0, ' AND ', ' UNION ALL ', '1=1', 'ASC', 'DESC', 'activity_type', 'admin_credit', 'admin_debit', 'admin_user_id', 'admin_username', 'amount', 'balance', 'balance_after', 'balance_before', 'ban_expires_at', 'ban_reason', 'bet_amount', 'cards', 'created_at', 'credit', 'debit', 'desc', 'description', 'device_info', 'email', 'end_date', 'hand', 'hand_id', 'id', 'ip_address', 'is_banned', 'items', 'last_login', 'limit', 'login', 'new_balance', 'offset', 'page', 'page_size', 'position', 'pot_size', 'reason', 'room_id', 'search', 'start_date', 'success', 'total', 'total_pages', 'transaction', 'transaction_id', 'tx_type', 'type', 'type = :tx_type', 'user_agent', 'user_id', 'user_id = :user_id', 'username', 'won_amount', '지급 금액은 양수여야 합니다', '회수 금액은 양수여야 합니다']

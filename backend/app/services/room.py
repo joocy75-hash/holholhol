@@ -442,6 +442,110 @@ class RoomService:
         room.status = RoomStatus.CLOSED.value
         return True
 
+    async def force_close_room(
+        self,
+        room_id: str,
+        reason: str,
+    ) -> dict[str, Any]:
+        """관리자에 의한 방 강제 종료.
+
+        진행 중인 게임이 있어도 강제로 종료하고 모든 플레이어의 칩을 환불합니다.
+
+        Args:
+            room_id: Room ID
+            reason: 강제 종료 사유
+
+        Returns:
+            환불 결과 정보
+            {
+                "room_id": str,
+                "refunds": [{"user_id": str, "amount": int}, ...],
+                "total_refunded": int,
+                "players_affected": int,
+            }
+
+        Raises:
+            RoomError: If force close fails
+        """
+        from app.game.manager import game_manager
+
+        room = await self.get_room_with_tables(room_id)
+
+        if not room:
+            raise RoomError("ROOM_NOT_FOUND", "Room not found")
+
+        if room.status == RoomStatus.CLOSED.value:
+            raise RoomError("ROOM_ALREADY_CLOSED", "Room is already closed")
+
+        table = room.tables[0] if room.tables else None
+        if not table:
+            raise RoomError("TABLE_NOT_FOUND", "Table not found")
+
+        # GameManager에서 최신 스택 정보 가져오기
+        game_table = game_manager.get_table(room_id)
+        refunds = []
+        total_refunded = 0
+
+        # DB seats 정보
+        seats = dict(table.seats) if table.seats else {}
+
+        # GameManager 스택과 DB 동기화 후 환불
+        if game_table:
+            for seat, player in game_table.players.items():
+                if player:
+                    # GameManager의 최신 스택으로 업데이트
+                    seat_str = str(seat)
+                    if seat_str in seats:
+                        seats[seat_str]["stack"] = player.stack
+
+                    # 환불 처리
+                    user = await self.db.get(User, player.user_id)
+                    if user and player.stack > 0:
+                        user.balance += player.stack
+                        refunds.append({
+                            "user_id": player.user_id,
+                            "nickname": player.username,
+                            "amount": player.stack,
+                            "seat": seat,
+                        })
+                        total_refunded += player.stack
+
+            # GameManager에서 테이블 제거
+            game_manager.remove_table(room_id)
+        else:
+            # GameManager에 없으면 DB seats 기준으로 환불
+            for pos, seat_data in seats.items():
+                user_id = seat_data.get("user_id")
+                stack = seat_data.get("stack", 0)
+                if user_id and stack > 0:
+                    user = await self.db.get(User, user_id)
+                    if user:
+                        user.balance += stack
+                        refunds.append({
+                            "user_id": user_id,
+                            "nickname": seat_data.get("nickname", "Unknown"),
+                            "amount": stack,
+                            "seat": int(pos),
+                        })
+                        total_refunded += stack
+
+        # DB 업데이트
+        table.seats = {}
+        attributes.flag_modified(table, "seats")
+        table.status = "closed"
+
+        room.status = RoomStatus.CLOSED.value
+        room.current_players = 0
+
+        return {
+            "room_id": room_id,
+            "room_name": room.name,
+            "reason": reason,
+            "refunds": refunds,
+            "total_refunded": total_refunded,
+            "players_affected": len(refunds),
+        }
+
     async def get_user_rooms(self, user_id: str) -> list[str]:
         """Get all room IDs where the user is seated.
 
@@ -657,3 +761,200 @@ class RoomService:
             "stack": buy_in,
             "message": f"Quick joined room at position {seat}",
         }
+
+    # =========================================================================
+    # Waitlist Methods (Phase 4.1)
+    # =========================================================================
+
+    async def add_to_waitlist(
+        self,
+        room_id: str,
+        user_id: str,
+        buy_in: int,
+    ) -> dict[str, Any]:
+        """대기열에 사용자 추가.
+
+        Args:
+            room_id: 방 ID
+            user_id: 사용자 ID
+            buy_in: 바이인 금액
+
+        Returns:
+            대기열 정보 (position, joined_at 등)
+
+        Raises:
+            RoomError: 방을 찾을 수 없거나 유효하지 않은 경우
+        """
+        from app.utils.redis_client import get_redis_context
+
+        # 방 검증
+        room = await self.get_room_with_tables(room_id)
+
+        if not room:
+            raise RoomError("ROOM_NOT_FOUND", "Room not found")
+
+        if room.status == RoomStatus.CLOSED.value:
+            raise RoomError("ROOM_CLOSED", "Room is closed")
+
+        # 바이인 범위 검증
+        buy_in_min = room.config.get("buy_in_min", 400)
+        buy_in_max = room.config.get("buy_in_max", 2000)
+        if buy_in < buy_in_min or buy_in > buy_in_max:
+            raise RoomError(
+                "ROOM_INVALID_BUYIN",
+                f"Buy-in must be between {buy_in_min} and {buy_in_max}",
+                {"buy_in_min": buy_in_min, "buy_in_max": buy_in_max},
+            )
+
+        # 사용자 잔액 검증
+        user = await self.db.get(User, user_id)
+        if not user:
+            raise RoomError("USER_NOT_FOUND", "User not found")
+
+        if user.balance < buy_in:
+            raise RoomError(
+                "INSUFFICIENT_BALANCE",
+                f"Insufficient balance. Required: {buy_in}, Available: {user.balance}",
+                {"required": buy_in, "available": user.balance},
+            )
+
+        # 이미 착석 중인지 확인
+        table = room.tables[0] if room.tables else None
+        if table:
+            seats = table.seats or {}
+            for seat_data in seats.values():
+                if seat_data.get("user_id") == user_id:
+                    raise RoomError(
+                        "ALREADY_SEATED",
+                        "Already seated in this room",
+                    )
+
+        # Redis 대기열에 추가
+        async with get_redis_context() as redis:
+            from app.utils.redis_client import RedisService
+            redis_service = RedisService(redis)
+            result = await redis_service.add_to_waitlist(room_id, user_id, buy_in)
+
+        return {
+            "room_id": room_id,
+            "user_id": user_id,
+            "buy_in": buy_in,
+            "position": result["position"],
+            "joined_at": result["joined_at"],
+            "already_waiting": result.get("already_waiting", False),
+        }
+
+    async def cancel_waitlist(
+        self,
+        room_id: str,
+        user_id: str,
+    ) -> bool:
+        """대기열에서 사용자 제거.
+
+        Args:
+            room_id: 방 ID
+            user_id: 사용자 ID
+
+        Returns:
+            제거 성공 여부
+        """
+        from app.utils.redis_client import get_redis_context
+
+        async with get_redis_context() as redis:
+            from app.utils.redis_client import RedisService
+            redis_service = RedisService(redis)
+            return await redis_service.remove_from_waitlist(room_id, user_id)
+
+    async def get_waitlist(
+        self,
+        room_id: str,
+    ) -> list[dict[str, Any]]:
+        """대기열 목록 조회.
+
+        Args:
+            room_id: 방 ID
+
+        Returns:
+            대기 중인 사용자 목록
+        """
+        from app.utils.redis_client import get_redis_context
+
+        async with get_redis_context() as redis:
+            from app.utils.redis_client import RedisService
+            redis_service = RedisService(redis)
+            return await redis_service.get_waitlist(room_id)
+
+    async def get_waitlist_position(
+        self,
+        room_id: str,
+        user_id: str,
+    ) -> int | None:
+        """대기열에서 사용자의 위치 조회.
+
+        Args:
+            room_id: 방 ID
+            user_id: 사용자 ID
+
+        Returns:
+            위치 (1부터 시작) 또는 None
+        """
+        from app.utils.redis_client import get_redis_context
+
+        async with get_redis_context() as redis:
+            from app.utils.redis_client import RedisService
+            redis_service = RedisService(redis)
+            return await redis_service.get_waitlist_position(room_id, user_id)
+
+    async def process_waitlist(
+        self,
+        room_id: str,
+    ) -> dict[str, Any] | None:
+        """대기열에서 첫 번째 사용자를 착석시킴.
+
+        자리가 비었을 때 호출되어 대기열 첫 번째 사용자를 자동 착석시킵니다.
+
+        Args:
+            room_id: 방 ID
+
+        Returns:
+            착석 결과 또는 None (대기열 비어있음)
+        """
+        from app.utils.redis_client import get_redis_context
+
+        async with get_redis_context() as redis:
+            from app.utils.redis_client import RedisService
+            redis_service = RedisService(redis)
+
+            # 첫 번째 대기자 조회
+            first_waiter = await redis_service.get_first_in_waitlist(room_id)
+
+            if not first_waiter:
+                return None
+
+            user_id = first_waiter["user_id"]
+            buy_in = first_waiter["buy_in"]
+
+            try:
+                # 착석 시도
+                result = await self.join_room(room_id, user_id, buy_in)
+
+                # 성공하면 대기열에서 제거
+                await redis_service.remove_from_waitlist(room_id, user_id)
+
+                return {
+                    "user_id": user_id,
+                    "buy_in": buy_in,
+                    "seat_result": result,
+                    "success": True,
+                }
+
+            except RoomError as e:
+                # 착석 실패 (잔액 부족 등) - 대기열에서 제거하고 다음 사람 시도
+                if e.code in ("INSUFFICIENT_BALANCE", "USER_NOT_FOUND"):
+                    await redis_service.remove_from_waitlist(room_id, user_id)
+                    # 재귀적으로 다음 대기자 처리
+                    return await self.process_waitlist(room_id)
+                # 방이 아직 만석이면 None 반환
+                elif e.code in ("ROOM_FULL", "TABLE_FULL"):
+                    return None
+                raise

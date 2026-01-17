@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/services/crypto/ton_client.py
+# hypothesis_version: 6.150.2
+
+[30.0, 100, 200, '***', '-1:', '0', '0.000001', '0:', '@type', 'EQ', 'JettonTransfer', 'UQ', 'X-API-Key', 'actions', 'address', 'addresses', 'amount', 'b64', 'balance', 'balances', 'before_lt', 'comment', 'data', 'destination', 'event_id', 'events', 'get_wallet_address', 'hash', 'https://tonapi.io/v2', 'in_msg', 'jetton', 'jetton_id', 'limit', 'lt', 'mainnet', 'method', 'msg.dataText', 'msg_data', 'object', 'ok', 'owner_address', 'recipient', 'result', 'sender', 'source', 'stack', 'success', 'testnet', 'text', 'timestamp', 'transaction_id', 'tvm.Slice', 'type', 'utime', 'value']

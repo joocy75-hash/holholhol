@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/api/system.py
+# hypothesis_version: 6.150.2
+
+[500, '/health', '/maintenance', 'maintenance', 'ok', '점검 모드 활성화 여부', '점검 안내 메시지']

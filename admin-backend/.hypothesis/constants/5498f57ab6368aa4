@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/services/crypto/ton_deposit_monitor.py
+# hypothesis_version: 6.150.2
+
+['matched', 'memo_mismatch', 'ok', 'reason', 'request_expired']

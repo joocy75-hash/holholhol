@@ -111,6 +111,14 @@ class Settings(BaseSettings):
     bot_superhuman_session_hours: float = 20.0  # Max daily hours before flagged
     bot_schedule_std_dev: float = 1.0  # Std dev below this indicates robotic schedule
     bot_suspicion_threshold: int = 60  # Score above this = likely bot
+
+    # Auto Ban Thresholds (Phase 2.4)
+    auto_ban_threshold_chip_dumping: int = 3  # 칩 밀어주기 탐지 횟수 임계값
+    auto_ban_threshold_bot: int = 5  # 봇 탐지 횟수 임계값
+    auto_ban_threshold_anomaly: int = 4  # 이상 행동 탐지 횟수 임계값
+    auto_ban_temp_duration_hours: int = 24  # 임시 밴 기간 (시간)
+    auto_ban_enabled: bool = True  # 자동 밴 활성화 여부
+    auto_ban_high_severity_immediate: bool = True  # high 심각도 시 즉시 밴
     
     class Config:
         env_file = ".env"

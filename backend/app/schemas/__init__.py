@@ -23,6 +23,11 @@ from app.schemas.requests import (
 )
 from app.schemas.responses import (
     AuthResponse,
+    HandDetailResponse,
+    HandEventResponse,
+    HandHistoryListResponse,
+    HandParticipantResponse,
+    HandSummaryResponse,
     HealthCheckResponse,
     JoinRoomResponse,
     LoginResponse,
@@ -60,6 +65,11 @@ __all__ = [
     "UpdateRoomRequest",
     # Responses
     "AuthResponse",
+    "HandDetailResponse",
+    "HandEventResponse",
+    "HandHistoryListResponse",
+    "HandParticipantResponse",
+    "HandSummaryResponse",
     "HealthCheckResponse",
     "JoinRoomResponse",
     "LoginResponse",

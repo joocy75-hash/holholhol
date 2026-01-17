@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/api/rooms.py
+# hypothesis_version: 6.150.2
+
+[30.0, 100, 200, 400, 401, 404, 500, 1000, '/{room_id}', '/{room_id}/message', 'Filter by status', 'GET', 'Game server error', 'Game server timeout', 'POST', 'Unknown', 'VIEW_ROOMS 권한이 필요합니다', 'X-API-Key', 'admin_user_id', 'detail', 'players_affected', 'reason', 'refunds', 'room_id', 'room_name', 'status', 'success', 'total_refunded', '강제 종료 사유', '방을 찾을 수 없습니다']

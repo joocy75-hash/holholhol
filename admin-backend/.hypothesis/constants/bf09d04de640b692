@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/api/hands.py
+# hypothesis_version: 6.150.2
+
+[100, '*** ACTIONS ***', '*** PLAYERS ***', '/{hand_id}', '/{hand_id}/export', 'Unknown', 'VIEW_HANDS 권한이 필요합니다', 'all_in', 'amount', 'bet', 'bet_amount', 'big_blind', 'call', 'card', 'cards', 'check', 'community_cards', 'deal_flop', 'deal_hole_cards', 'deal_river', 'deal_turn', 'dealer_position', 'ended_at', 'event_type', 'events', 'final_action', 'finished', 'flop', 'fold', 'hand_end', 'hand_id', 'hand_number', 'hole_cards', 'initial_state', 'json', 'nickname', 'participants', 'payload', 'players', 'pot_total', 'pot_won', 'preflop', 'raise', 'result', 'river', 'seat', 'seq_no', 'showdown', 'small_blind', 'started_at', 'table_id', 'table_name', 'text', 'timestamp', 'total_bet', 'turn', 'user_id', 'winners', 'won_amount', '내보내기 형식', '유저 ID로 검색', '테이블 ID로 검색', '핸드 ID로 검색', '핸드를 찾을 수 없습니다']

@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/services/suspicious_user_service.py
+# hypothesis_version: 6.150.2
+
+[0.0, 1.0, 1.5, 2.5, ' AND ', '1=1', 'ASC', 'DESC', 'Unknown', 'activities', 'activity_id', 'anomaly_detection', 'auto_detection', 'balance', 'ban_reason', 'bot_detection', 'by_severity', 'by_type', 'chip_dumping', 'confirmed', 'confirmed_count', 'created_at', 'desc', 'details', 'detection_breakdown', 'detection_count', 'detection_type', 'dismissed', 'email', 'high', 'id', 'is_banned', 'items', 'last_detected', 'last_login', 'limit', 'low', 'max_severity', 'medium', 'min_score', 'notes', 'offset', 'page', 'page_size', 'pending', 'pending_count', 'raw', 'review_notes', 'reviewed_at', 'reviewed_by', 'reviewing', 'sa.status = :status', 'severity', 'statistics', 'status', 'suspicion_score', 'total', 'total_detections', 'total_pages', 'updated_at', 'user_id', 'user_ids', 'username', 'users', 'users_with_confirmed', 'users_with_pending']

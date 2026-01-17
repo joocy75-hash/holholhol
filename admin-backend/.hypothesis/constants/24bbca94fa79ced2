@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/services/detection_types.py
+# hypothesis_version: 6.150.2
+
+[0.0, 'chip_dumping_one_way', 'constant_bet_size', 'error', 'excessive_daily_play', 'excessive_folding', 'excessive_profit', 'excessive_raising', 'frequent_same_table', 'high', 'high_win_rate', 'insufficient_data', 'intentional_loss', 'low', 'low_win_rate', 'medium', 'narrow_time_range', 'never_folds', 'no_actions', 'one_way_chip_flow', 'repetitive_betting', 'robotic_schedule', 'same_device', 'same_ip', 'same_ip_collusion', 'soft_play', 'superhuman_reaction', 'superhuman_session']

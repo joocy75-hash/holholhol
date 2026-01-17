@@ -17,9 +17,10 @@ from sqlalchemy import text
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.api import auth, dev, rooms, users, wallet
+from app.api import auth, dev, hands, rooms, users, wallet
 from app.config import get_settings
 from app.middleware.rate_limit import RateLimitMiddleware
+from app.middleware.maintenance import MaintenanceMiddleware
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.sentry import init_sentry
 from app.services.auth import AuthError
@@ -31,6 +32,9 @@ from app.utils.json_utils import ORJSONResponse
 from app.utils.secrets_validator import validate_startup_secrets
 from app.ws.gateway import router as ws_router, get_manager, shutdown_manager
 from app.logging_config import configure_logging, get_logger
+from app.services.fraud_event_publisher import init_fraud_publisher
+from app.services.player_session_tracker import init_session_tracker
+from app.game.manager import game_manager
 
 settings = get_settings()
 
@@ -86,10 +90,25 @@ async def lifespan(_app: FastAPI):
         redis_instance = await init_redis()
         logger.info("Redis connection established")
 
+        # Initialize Fraud Event Publisher (Phase 2.3)
+        logger.info("Initializing FraudEventPublisher...")
+        fraud_publisher = init_fraud_publisher(redis_instance)
+        logger.info(f"FraudEventPublisher initialized (enabled={fraud_publisher.enabled})")
+
+        # Initialize Player Session Tracker (Phase 2.3)
+        logger.info("Initializing PlayerSessionTracker...")
+        init_session_tracker(fraud_publisher)
+        logger.info("PlayerSessionTracker initialized")
+
         # Initialize WebSocket connection manager
         logger.info("Initializing WebSocket gateway...")
         await get_manager()
         logger.info("WebSocket gateway initialized")
+
+        # Start GameManager cleanup task (Phase 4.5)
+        logger.info("Starting GameManager cleanup task...")
+        await game_manager.start_cleanup_task()
+        logger.info("GameManager cleanup task started")
 
         logger.info("Application startup complete")
     except Exception as e:
@@ -208,6 +227,9 @@ app.add_middleware(SecurityHeadersMiddleware, app_env=settings.app_env)
 
 # Rate limiting middleware (uses Redis when available)
 app.add_middleware(RateLimitMiddleware, redis_client=redis_client)
+
+# Maintenance mode middleware (checks Redis for maintenance status)
+app.add_middleware(MaintenanceMiddleware, redis_client=redis_client)
 
 
 # =============================================================================
@@ -489,6 +511,7 @@ API_V1_PREFIX = "/api/v1"
 
 # Include routers with API version prefix
 app.include_router(auth.router, prefix=API_V1_PREFIX)
+app.include_router(hands.router, prefix=API_V1_PREFIX)  # Phase 2.5: 핸드 히스토리 API
 app.include_router(rooms.router, prefix=API_V1_PREFIX)
 app.include_router(users.router, prefix=API_V1_PREFIX)
 app.include_router(wallet.router, prefix=API_V1_PREFIX)

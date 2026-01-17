@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/api/suspicious.py
+# hypothesis_version: 6.150.2
+
+[1.0, 1.5, 2.5, 100, 1000, '/detection-types', '/summary', '/users/{user_id}', 'anomaly_detection', 'auto_detection', 'bot_detection', 'chip_dumping', 'confirmed', 'desc', 'detection_types', 'dismissed', 'high', 'label', 'low', 'medium', 'multiplier', 'new_status', 'notes', 'pending', 'reviewing', 'severities', 'statuses', 'suspicion_score', 'suspicious_activity', 'update_review_status', 'value', 'weight', '검토 대기', '검토 중', '낮음', '높음', '봇 탐지', '부정 확인', '오탐 처리', '이상 행동', '정렬 순서 (asc, desc)', '종합 탐지', '중간', '최소 의심 점수', '칩 밀어주기', '페이지 번호', '페이지 크기']

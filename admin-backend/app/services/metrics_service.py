@@ -73,21 +73,115 @@ class MetricsService:
         """DAU 히스토리 조회 (일별)"""
         history = []
         now = datetime.now(timezone.utc)
-        
+
         try:
             for i in range(days):
                 date = now - timedelta(days=i)
                 date_key = date.strftime("%Y-%m-%d")
-                
+
                 dau = await self.redis.pfcount(f"dau:{date_key}")
                 history.append({
                     "date": date_key,
                     "dau": dau if dau else 0
                 })
-            
+
             return list(reversed(history))
         except Exception:
             return []
+
+    async def get_mau(self, month: Optional[str] = None) -> int:
+        """월간 활성 사용자 수 (MAU) 조회.
+
+        Args:
+            month: 조회할 월 (YYYY-MM 형식), None이면 현재 월
+
+        Returns:
+            MAU 수
+        """
+        if month is None:
+            month = datetime.now(timezone.utc).strftime("%Y-%m")
+
+        try:
+            mau = await self.redis.pfcount(f"mau:{month}")
+            return mau if mau else 0
+        except Exception:
+            return 0
+
+    async def get_mau_history(self, months: int = 12) -> list[dict]:
+        """MAU 히스토리 조회 (월별).
+
+        Args:
+            months: 조회할 개월 수
+
+        Returns:
+            월별 MAU 목록
+        """
+        history = []
+        now = datetime.now(timezone.utc)
+
+        try:
+            for i in range(months):
+                # 월 계산
+                year = now.year
+                month = now.month - i
+                while month <= 0:
+                    month += 12
+                    year -= 1
+
+                month_key = f"{year}-{month:02d}"
+                mau = await self.redis.pfcount(f"mau:{month_key}")
+                history.append({
+                    "month": month_key,
+                    "mau": mau if mau else 0
+                })
+
+            return list(reversed(history))
+        except Exception:
+            return []
+
+    async def get_user_statistics_summary(self) -> dict:
+        """사용자 통계 요약 (CCU, DAU, WAU, MAU).
+
+        Returns:
+            사용자 통계 요약
+        """
+        now = datetime.now(timezone.utc)
+        today = now.strftime("%Y-%m-%d")
+        month = now.strftime("%Y-%m")
+
+        # CCU
+        ccu = await self.get_ccu()
+
+        # DAU
+        dau = await self.get_dau()
+
+        # WAU (7일간 활성 사용자)
+        wau = 0
+        try:
+            # 지난 7일간의 DAU 키들을 PFMERGE로 합침
+            week_keys = []
+            for i in range(7):
+                date = now - timedelta(days=i)
+                week_keys.append(f"dau:{date.strftime('%Y-%m-%d')}")
+
+            # 임시 키에 합침
+            temp_key = f"wau_temp:{today}"
+            await self.redis.pfmerge(temp_key, *week_keys)
+            wau = await self.redis.pfcount(temp_key)
+            await self.redis.delete(temp_key)
+        except Exception:
+            pass
+
+        # MAU
+        mau = await self.get_mau(month)
+
+        return {
+            "ccu": ccu,
+            "dau": dau,
+            "wau": wau,
+            "mau": mau,
+            "timestamp": now.isoformat()
+        }
     
     async def get_active_rooms(self) -> dict:
         """활성 방 통계 조회"""

@@ -6,17 +6,50 @@ Features:
 - MessagePack + gzip compression
 - Tiered storage (hot/warm/cold)
 - Async archival
+- S3 cold storage integration
 """
 
 import gzip
 import logging
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Optional
 
 import msgpack
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
+
 logger = logging.getLogger(__name__)
+
+# S3 클라이언트 초기화 (optional)
+_s3_client = None
+
+
+def _get_s3_client():
+    """S3 클라이언트를 lazy initialization으로 가져옵니다."""
+    global _s3_client
+    if _s3_client is not None:
+        return _s3_client
+
+    settings = get_settings()
+    if not settings.s3_bucket_name:
+        return None
+
+    try:
+        import aioboto3
+        session = aioboto3.Session(
+            aws_access_key_id=settings.s3_access_key_id,
+            aws_secret_access_key=settings.s3_secret_access_key,
+            region_name=settings.s3_region,
+        )
+        _s3_client = session
+        return _s3_client
+    except ImportError:
+        logger.warning("aioboto3 not installed, S3 cold storage disabled")
+        return None
+    except Exception as e:
+        logger.error(f"Failed to initialize S3 client: {e}")
+        return None
 
 
 # Archive policy configuration
@@ -61,6 +94,7 @@ class HandArchiveService:
         """
         self._redis = redis_client
         self._compression_level = compression_level
+        self._settings = get_settings()
 
     def compress_hand(self, hand_data: dict) -> bytes:
         """Compress hand data using MessagePack + gzip.
@@ -135,9 +169,123 @@ class HandArchiveService:
             if compressed:
                 return self.decompress_hand(compressed)
 
-        # TODO: Try cold storage (S3) if not in warm storage
+        # Try cold storage (S3) if not in warm storage
+        s3_data = await self._retrieve_from_s3(hand_id)
+        if s3_data:
+            return s3_data
 
         return None
+
+    async def upload_to_cold_storage(self, hand_id: str, hand_data: dict) -> bool:
+        """Upload hand to S3 cold storage.
+
+        Args:
+            hand_id: Hand ID
+            hand_data: Hand data to upload
+
+        Returns:
+            True if uploaded successfully
+        """
+        session = _get_s3_client()
+        if not session or not self._settings.s3_bucket_name:
+            return False
+
+        try:
+            # 날짜 기반 파티셔닝 (YYYY/MM/DD/hand_id.msgpack.gz)
+            archived_at = hand_data.get("_archived_at", datetime.utcnow().isoformat())
+            if isinstance(archived_at, str):
+                dt = datetime.fromisoformat(archived_at.replace("Z", "+00:00"))
+            else:
+                dt = archived_at
+            key = f"hands/{dt.year}/{dt.month:02d}/{dt.day:02d}/{hand_id}.msgpack.gz"
+
+            compressed = self.compress_hand(hand_data)
+
+            async with session.client(
+                "s3",
+                endpoint_url=self._settings.s3_endpoint_url,
+            ) as s3:
+                await s3.put_object(
+                    Bucket=self._settings.s3_bucket_name,
+                    Key=key,
+                    Body=compressed,
+                    ContentType="application/x-msgpack",
+                    ContentEncoding="gzip",
+                )
+
+            logger.info(f"Uploaded hand {hand_id} to S3 ({len(compressed)} bytes)")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to upload hand {hand_id} to S3: {e}")
+            return False
+
+    async def _retrieve_from_s3(self, hand_id: str) -> Optional[dict]:
+        """Retrieve hand from S3 cold storage.
+
+        Args:
+            hand_id: Hand ID to retrieve
+
+        Returns:
+            Hand data or None if not found
+        """
+        session = _get_s3_client()
+        if not session or not self._settings.s3_bucket_name:
+            return None
+
+        try:
+            async with session.client(
+                "s3",
+                endpoint_url=self._settings.s3_endpoint_url,
+            ) as s3:
+                # S3 객체 검색 (날짜 파티션을 모르므로 prefix 검색)
+                paginator = s3.get_paginator("list_objects_v2")
+                async for page in paginator.paginate(
+                    Bucket=self._settings.s3_bucket_name,
+                    Prefix="hands/",
+                ):
+                    for obj in page.get("Contents", []):
+                        if hand_id in obj["Key"]:
+                            response = await s3.get_object(
+                                Bucket=self._settings.s3_bucket_name,
+                                Key=obj["Key"],
+                            )
+                            body = await response["Body"].read()
+                            return self.decompress_hand(body)
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Failed to retrieve hand {hand_id} from S3: {e}")
+            return None
+
+    async def migrate_to_cold_storage(self, hand_id: str) -> bool:
+        """Migrate hand from warm (Redis) to cold (S3) storage.
+
+        Args:
+            hand_id: Hand ID to migrate
+
+        Returns:
+            True if migrated successfully
+        """
+        # Get from Redis
+        if not self._redis:
+            return False
+
+        key = f"hand:archive:{hand_id}"
+        compressed = await self._redis.get(key)
+        if not compressed:
+            return False
+
+        # Decompress and upload to S3
+        hand_data = self.decompress_hand(compressed)
+        if await self.upload_to_cold_storage(hand_id, hand_data):
+            # Delete from Redis after successful upload
+            await self._redis.delete(key)
+            logger.info(f"Migrated hand {hand_id} from Redis to S3")
+            return True
+
+        return False
 
     async def archive_batch(self, hands: list[dict]) -> int:
         """Archive multiple hands in batch.

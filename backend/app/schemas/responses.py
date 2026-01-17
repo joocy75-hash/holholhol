@@ -180,6 +180,73 @@ class QuickJoinResponse(BaseModel):
 
 
 # =============================================================================
+# Hand History Responses (Phase 2.5)
+# =============================================================================
+
+
+class HandParticipantResponse(BaseSchema):
+    """핸드 참가자 정보."""
+
+    user_id: str = Field(..., alias="userId")
+    seat: int
+    hole_cards: list[str] | None = Field(None, alias="holeCards")
+    bet_amount: int = Field(..., alias="betAmount")
+    won_amount: int = Field(..., alias="wonAmount")
+    final_action: str = Field(..., alias="finalAction")
+    net_result: int | None = Field(None, alias="netResult", description="승패 금액 (won - bet)")
+
+
+class HandEventResponse(BaseSchema):
+    """핸드 이벤트 정보."""
+
+    seq_no: int = Field(..., alias="seqNo")
+    event_type: str = Field(..., alias="eventType")
+    payload: dict[str, Any]
+    created_at: datetime | None = Field(None, alias="createdAt")
+
+
+class HandSummaryResponse(BaseSchema):
+    """핸드 요약 정보 (히스토리 목록용)."""
+
+    hand_id: str = Field(..., alias="handId")
+    table_id: str = Field(..., alias="tableId")
+    hand_number: int = Field(..., alias="handNumber")
+    started_at: datetime | None = Field(None, alias="startedAt")
+    ended_at: datetime | None = Field(None, alias="endedAt")
+    pot_size: int = Field(..., alias="potSize")
+    community_cards: list[str] = Field(default_factory=list, alias="communityCards")
+    user_seat: int = Field(..., alias="userSeat")
+    user_hole_cards: list[str] | None = Field(None, alias="userHoleCards")
+    user_bet_amount: int = Field(..., alias="userBetAmount")
+    user_won_amount: int = Field(..., alias="userWonAmount")
+    user_final_action: str = Field(..., alias="userFinalAction")
+    net_result: int = Field(..., alias="netResult", description="유저의 승패 금액")
+
+
+class HandDetailResponse(BaseSchema):
+    """핸드 상세 정보 (리플레이용)."""
+
+    hand_id: str = Field(..., alias="handId")
+    table_id: str = Field(..., alias="tableId")
+    hand_number: int = Field(..., alias="handNumber")
+    started_at: datetime | None = Field(None, alias="startedAt")
+    ended_at: datetime | None = Field(None, alias="endedAt")
+    initial_state: dict[str, Any] | None = Field(None, alias="initialState")
+    result: dict[str, Any] | None = None
+    participants: list[HandParticipantResponse]
+    events: list[HandEventResponse] = Field(default_factory=list)
+
+
+class HandHistoryListResponse(BaseModel):
+    """핸드 히스토리 목록 응답."""
+
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+    hands: list[HandSummaryResponse]
+    pagination: PaginationMeta
+
+
+# =============================================================================
 # Health Check Response
 # =============================================================================
 

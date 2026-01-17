@@ -42,10 +42,11 @@ class TestSystemHandler:
         )
 
     def test_handled_events(self, handler: SystemHandler):
-        """Test handler handles PING event."""
+        """Test handler handles PING and PONG events (bidirectional heartbeat)."""
         assert EventType.PING in handler.handled_events
+        assert EventType.PONG in handler.handled_events  # 서버도 클라이언트 PONG 수신
         assert handler.can_handle(EventType.PING) is True
-        assert handler.can_handle(EventType.PONG) is False
+        assert handler.can_handle(EventType.PONG) is True
 
     @pytest.mark.asyncio
     async def test_ping_returns_pong(

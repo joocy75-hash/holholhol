@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/bot/deposit_bot.py
+# hypothesis_version: 6.150.2
+
+[10000, 10000000, ',', 'Deposit bot stopped', 'cancel', 'cancelled', 'confirmed', 'deposit', 'deposit_qr.png', 'expired', 'help', 'pending', 'rate', 'status', 'your-bot-token', '⏰', '⏳', '⏳ 입금 요청을 생성 중입니다...', '✅', '❌', '❓', '취소할 작업이 없습니다.', '📊 <b>최근 입금 내역</b>\n\n']

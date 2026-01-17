@@ -19,6 +19,11 @@ from app.ws.worker_health import WorkerHealthManager
 
 logger = logging.getLogger(__name__)
 
+# CCU/DAU 트래킹 상수
+CCU_SNAPSHOT_INTERVAL = 60  # 매 분마다 CCU 스냅샷 저장
+CCU_HISTORY_TTL = 86400 * 7  # 7일 보관
+DAU_TTL = 86400 * 31  # 31일 보관 (월간 집계용)
+
 # Constants per spec section 2.3
 HEARTBEAT_CHECK_INTERVAL = 5  # Check every 5 seconds
 SERVER_TIMEOUT = 60  # Close connection if no PING for 60 seconds
@@ -50,6 +55,7 @@ class ConnectionManager:
         # Background tasks
         self._pubsub_task: asyncio.Task | None = None
         self._heartbeat_task: asyncio.Task | None = None
+        self._ccu_snapshot_task: asyncio.Task | None = None  # Phase 5.1: CCU 스냅샷
         self._running = False
         self._instance_id = str(uuid4())[:8]
 
@@ -67,6 +73,7 @@ class ConnectionManager:
         self._running = True
         await self._start_pubsub_listener()
         await self._start_heartbeat_monitor()
+        await self._start_ccu_snapshot_task()  # Phase 5.1: CCU 스냅샷
 
         # Start worker health management (Phase 2.7)
         await self._worker_health.start(on_worker_dead=self._on_worker_dead)
@@ -97,6 +104,13 @@ class ConnectionManager:
             self._heartbeat_task.cancel()
             try:
                 await self._heartbeat_task
+            except asyncio.CancelledError:
+                pass
+
+        if self._ccu_snapshot_task:
+            self._ccu_snapshot_task.cancel()
+            try:
+                await self._ccu_snapshot_task
             except asyncio.CancelledError:
                 pass
 
@@ -163,6 +177,9 @@ class ConnectionManager:
                 "session_id": conn.session_id,
             }),
         )
+
+        # Phase 5.1: CCU/DAU 트래킹
+        await self._track_user_online(conn.user_id)
 
         logger.info(
             f"Connection {conn.connection_id} registered for user {conn.user_id} "
@@ -248,6 +265,8 @@ class ConnectionManager:
                 if not self._user_connections[user_id]:
                     del self._user_connections[user_id]
                     is_last_connection = True
+                    # Phase 5.1: 마지막 연결 해제 시 offline 트래킹
+                    await self._track_user_offline(user_id)
         except Exception as e:
             logger.error(
                 f"Failed to remove connection {connection_id} from user connections: {e}"
@@ -448,6 +467,171 @@ class ConnectionManager:
         return count
 
     # =========================================================================
+    # Group Broadcasting (Phase 4.2)
+    # =========================================================================
+
+    async def broadcast_to_players(
+        self,
+        room_id: str,
+        message: dict[str, Any],
+        exclude_connection: str | None = None,
+    ) -> int:
+        """Broadcast message only to players (not spectators).
+
+        Uses the table:{room_id}:players subchannel.
+        """
+        channel = f"table:{room_id}:players"
+        return await self.broadcast_to_channel(channel, message, exclude_connection)
+
+    async def broadcast_to_spectators(
+        self,
+        room_id: str,
+        message: dict[str, Any],
+        exclude_connection: str | None = None,
+    ) -> int:
+        """Broadcast message only to spectators (not players).
+
+        Uses the table:{room_id}:spectators subchannel.
+        """
+        channel = f"table:{room_id}:spectators"
+        return await self.broadcast_to_channel(channel, message, exclude_connection)
+
+    async def broadcast_to_table(
+        self,
+        room_id: str,
+        message: dict[str, Any],
+        exclude_connection: str | None = None,
+    ) -> int:
+        """Broadcast message to all table subscribers (players + spectators).
+
+        Uses the main table:{room_id} channel.
+        """
+        channel = f"table:{room_id}"
+        return await self.broadcast_to_channel(channel, message, exclude_connection)
+
+    async def subscribe_as_player(
+        self,
+        connection_id: str,
+        room_id: str,
+    ) -> bool:
+        """Subscribe connection to table as a player.
+
+        Subscribes to both main channel and players subchannel.
+        """
+        main_channel = f"table:{room_id}"
+        players_channel = f"table:{room_id}:players"
+
+        # Subscribe to main channel
+        result1 = await self.subscribe(connection_id, main_channel)
+
+        # Subscribe to players subchannel
+        result2 = await self.subscribe(connection_id, players_channel)
+
+        # Unsubscribe from spectators if previously subscribed
+        spectators_channel = f"table:{room_id}:spectators"
+        if spectators_channel in self._channel_members:
+            conn = self._connections.get(connection_id)
+            if conn and spectators_channel in conn.subscribed_channels:
+                await self.unsubscribe(connection_id, spectators_channel)
+
+        logger.debug(f"Connection {connection_id} subscribed as player to {room_id}")
+        return result1 and result2
+
+    async def subscribe_as_spectator(
+        self,
+        connection_id: str,
+        room_id: str,
+    ) -> bool:
+        """Subscribe connection to table as a spectator.
+
+        Subscribes to both main channel and spectators subchannel.
+        """
+        main_channel = f"table:{room_id}"
+        spectators_channel = f"table:{room_id}:spectators"
+
+        # Subscribe to main channel
+        result1 = await self.subscribe(connection_id, main_channel)
+
+        # Subscribe to spectators subchannel
+        result2 = await self.subscribe(connection_id, spectators_channel)
+
+        logger.debug(f"Connection {connection_id} subscribed as spectator to {room_id}")
+        return result1 and result2
+
+    async def upgrade_to_player(
+        self,
+        connection_id: str,
+        room_id: str,
+    ) -> bool:
+        """Upgrade a spectator to player status.
+
+        Moves from spectators subchannel to players subchannel.
+        """
+        spectators_channel = f"table:{room_id}:spectators"
+        players_channel = f"table:{room_id}:players"
+
+        # Unsubscribe from spectators
+        await self.unsubscribe(connection_id, spectators_channel)
+
+        # Subscribe to players
+        result = await self.subscribe(connection_id, players_channel)
+
+        logger.debug(f"Connection {connection_id} upgraded to player in {room_id}")
+        return result
+
+    async def downgrade_to_spectator(
+        self,
+        connection_id: str,
+        room_id: str,
+    ) -> bool:
+        """Downgrade a player to spectator status.
+
+        Moves from players subchannel to spectators subchannel.
+        """
+        players_channel = f"table:{room_id}:players"
+        spectators_channel = f"table:{room_id}:spectators"
+
+        # Unsubscribe from players
+        await self.unsubscribe(connection_id, players_channel)
+
+        # Subscribe to spectators
+        result = await self.subscribe(connection_id, spectators_channel)
+
+        logger.debug(f"Connection {connection_id} downgraded to spectator in {room_id}")
+        return result
+
+    async def unsubscribe_from_table(
+        self,
+        connection_id: str,
+        room_id: str,
+    ) -> bool:
+        """Unsubscribe connection from all table channels.
+
+        Removes from main channel and any subchannels.
+        """
+        main_channel = f"table:{room_id}"
+        players_channel = f"table:{room_id}:players"
+        spectators_channel = f"table:{room_id}:spectators"
+
+        # Unsubscribe from all
+        await self.unsubscribe(connection_id, main_channel)
+        await self.unsubscribe(connection_id, players_channel)
+        await self.unsubscribe(connection_id, spectators_channel)
+
+        logger.debug(f"Connection {connection_id} unsubscribed from table {room_id}")
+        return True
+
+    def get_player_count(self, room_id: str) -> int:
+        """Get count of players subscribed to a table."""
+        players_channel = f"table:{room_id}:players"
+        return len(self._channel_members.get(players_channel, set()))
+
+    def get_spectator_count(self, room_id: str) -> int:
+        """Get count of spectators subscribed to a table."""
+        spectators_channel = f"table:{room_id}:spectators"
+        return len(self._channel_members.get(spectators_channel, set()))
+
+    # =========================================================================
     # Redis Pub/Sub Listener
     # =========================================================================
 
@@ -569,3 +753,110 @@ class ConnectionManager:
         if state:
             return state.get("subscribed_channels", [])
         return []
+
+    # =========================================================================
+    # CCU/DAU Tracking (Phase 5.1)
+    # =========================================================================
+
+    async def _track_user_online(self, user_id: str) -> None:
+        """사용자 온라인 상태 추적.
+
+        - online_users SET에 user_id 추가 (CCU 계산용)
+        - DAU HyperLogLog에 user_id 추가 (DAU 계산용)
+        - MAU HyperLogLog에 user_id 추가 (MAU 계산용)
+        """
+        try:
+            now = datetime.utcnow()
+            today = now.strftime("%Y-%m-%d")
+            month = now.strftime("%Y-%m")
+
+            pipe = self.redis.pipeline()
+
+            # CCU: online_users SET에 추가
+            pipe.sadd("online_users", user_id)
+
+            # DAU: 일별 HyperLogLog에 추가
+            dau_key = f"dau:{today}"
+            pipe.pfadd(dau_key, user_id)
+            pipe.expire(dau_key, DAU_TTL)
+
+            # MAU: 월별 HyperLogLog에 추가
+            mau_key = f"mau:{month}"
+            pipe.pfadd(mau_key, user_id)
+            pipe.expire(mau_key, DAU_TTL)
+
+            await pipe.execute()
+
+            logger.debug(f"User {user_id} tracked as online (DAU: {today}, MAU: {month})")
+        except Exception as e:
+            logger.warning(f"Failed to track user online: {e}")
+
+    async def _track_user_offline(self, user_id: str) -> None:
+        """사용자 오프라인 상태 추적.
+
+        - online_users SET에서 user_id 제거 (CCU 계산용)
+        """
+        try:
+            await self.redis.srem("online_users", user_id)
+            logger.debug(f"User {user_id} tracked as offline")
+        except Exception as e:
+            logger.warning(f"Failed to track user offline: {e}")
+
+    async def _start_ccu_snapshot_task(self) -> None:
+        """CCU 스냅샷 태스크 시작 (매 분마다 현재 CCU를 기록)."""
+
+        async def snapshot_loop() -> None:
+            while self._running:
+                try:
+                    await asyncio.sleep(CCU_SNAPSHOT_INTERVAL)
+                    await self._save_ccu_snapshot()
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:
+                    logger.error(f"CCU snapshot error: {e}")
+
+        self._ccu_snapshot_task = asyncio.create_task(snapshot_loop())
+        logger.info("CCU snapshot task started")
+
+    async def _save_ccu_snapshot(self) -> None:
+        """현재 CCU를 시간별 키에 저장."""
+        try:
+            now = datetime.utcnow()
+            hour_key = now.strftime("%Y-%m-%d:%H")
+
+            # 현재 CCU 조회
+            ccu = await self.redis.scard("online_users")
+
+            # 시간별 CCU 저장 (더 높은 값 유지)
+            ccu_key = f"ccu_hourly:{hour_key}"
+            current = await self.redis.get(ccu_key)
+
+            if current is None or int(ccu) > int(current):
+                await self.redis.setex(ccu_key, CCU_HISTORY_TTL, str(ccu))
+
+            # 분별 세부 CCU도 저장 (선택적)
+            minute_key = now.strftime("%Y-%m-%d:%H:%M")
+            await self.redis.setex(
+                f"ccu_minute:{minute_key}",
+                86400,  # 1일 보관
+                str(ccu),
+            )
+
+            logger.debug(f"CCU snapshot saved: {ccu} users at {hour_key}")
+        except Exception as e:
+            logger.warning(f"Failed to save CCU snapshot: {e}")
+
+    async def get_current_ccu(self) -> int:
+        """현재 CCU 조회."""
+        try:
+            return await self.redis.scard("online_users")
+        except Exception:
+            return 0
+
+    async def get_online_users(self) -> list[str]:
+        """현재 온라인 사용자 목록 조회."""
+        try:
+            users = await self.redis.smembers("online_users")
+            return list(users)
+        except Exception:
+            return []

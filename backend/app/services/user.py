@@ -2,9 +2,10 @@
 
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.hand import HandParticipant
 from app.models.user import User, UserStatus
 from app.utils.security import hash_password, verify_password
 
@@ -155,14 +156,76 @@ class UserService:
         if not user:
             raise UserError("USER_NOT_FOUND", "User not found")
 
-        # TODO: Calculate detailed stats from hand history
+        # 승리 핸드 수 계산
+        hands_won_result = await self.db.execute(
+            select(func.count(HandParticipant.id))
+            .where(HandParticipant.user_id == user_id)
+            .where(HandParticipant.won_amount > 0)
+        )
+        hands_won = hands_won_result.scalar() or 0
+
+        # 가장 큰 팟 (승리한 핸드 중)
+        biggest_pot_result = await self.db.execute(
+            select(func.max(HandParticipant.won_amount))
+            .where(HandParticipant.user_id == user_id)
+        )
+        biggest_pot = biggest_pot_result.scalar() or 0
+
+        # VPIP/PFR 계산을 위한 쿼리 (PostgreSQL)
+        vpip_pfr_query = text("""
+            WITH user_hands AS (
+                SELECT DISTINCT hp.hand_id
+                FROM hand_participants hp
+                WHERE hp.user_id = :user_id
+            ),
+            preflop_actions AS (
+                SELECT
+                    he.hand_id,
+                    he.event_type,
+                    (he.payload->>'user_id') as action_user_id
+                FROM hand_events he
+                JOIN user_hands uh ON he.hand_id = uh.hand_id
+                WHERE he.event_type IN ('call', 'bet', 'raise', 'all_in', 'post_blind')
+                  AND he.seq_no <= (
+                      SELECT MIN(seq_no) FROM hand_events
+                      WHERE hand_id = he.hand_id AND event_type = 'deal_flop'
+                  )
+            )
+            SELECT
+                COUNT(DISTINCT CASE
+                    WHEN pa.action_user_id = :user_id
+                         AND pa.event_type IN ('call', 'bet', 'raise', 'all_in')
+                    THEN pa.hand_id
+                END) as vpip_hands,
+                COUNT(DISTINCT CASE
+                    WHEN pa.action_user_id = :user_id
+                         AND pa.event_type IN ('bet', 'raise')
+                    THEN pa.hand_id
+                END) as pfr_hands,
+                (SELECT COUNT(*) FROM user_hands) as total_hands
+            FROM preflop_actions pa
+        """)
+
+        vpip_pfr_result = await self.db.execute(
+            vpip_pfr_query, {"user_id": user_id}
+        )
+        row = vpip_pfr_result.fetchone()
+
+        total_hands_played = row.total_hands if row else 0
+        vpip_hands = row.vpip_hands if row else 0
+        pfr_hands = row.pfr_hands if row else 0
+
+        # 비율 계산 (0으로 나누기 방지)
+        vpip = (vpip_hands / total_hands_played * 100) if total_hands_played > 0 else 0.0
+        pfr = (pfr_hands / total_hands_played * 100) if total_hands_played > 0 else 0.0
+
         return {
             "total_hands": user.total_hands,
             "total_winnings": user.total_winnings,
-            "hands_won": 0,  # To be calculated
-            "biggest_pot": 0,  # To be calculated
-            "vpip": 0.0,  # To be calculated
-            "pfr": 0.0,  # To be calculated
+            "hands_won": hands_won,
+            "biggest_pot": biggest_pot,
+            "vpip": round(vpip, 1),  # 소수점 1자리
+            "pfr": round(pfr, 1),
         }
 
     async def update_stats(

@@ -30,6 +30,19 @@ export interface DAUHistoryItem {
   dau: number;
 }
 
+export interface MAUHistoryItem {
+  month: string;
+  mau: number;
+}
+
+export interface UserStatisticsSummary {
+  ccu: number;
+  dau: number;
+  wau: number;
+  mau: number;
+  timestamp: string;
+}
+
 export interface RoomStats {
   activeRooms: number;
   totalPlayers: number;
@@ -106,8 +119,60 @@ export const dashboardApi = {
   async getServerHealth(): Promise<ServerHealth> {
     return api.get<ServerHealth>('/api/dashboard/server/health', { token: getToken() });
   },
+
+  // Phase 5.2: MAU APIs
+  async getMAU(month?: string): Promise<{ mau: number; month: string }> {
+    const params = month ? `?month=${month}` : '';
+    return api.get(`/api/dashboard/mau${params}`, { token: getToken() });
+  },
+
+  async getMAUHistory(months: number = 12): Promise<MAUHistoryItem[]> {
+    return api.get<MAUHistoryItem[]>(`/api/dashboard/mau/history?months=${months}`, { token: getToken() });
+  },
+
+  async getUserStatisticsSummary(): Promise<UserStatisticsSummary> {
+    return api.get<UserStatisticsSummary>('/api/dashboard/users/summary', { token: getToken() });
+  },
+
+  // Phase 5.3: Revenue APIs
+  async getRevenueSummary(days: number = 30): Promise<RevenueSummary> {
+    return api.get<RevenueSummary>(`/api/dashboard/revenue/summary?days=${days}`, { token: getToken() });
+  },
+
+  async getDailyRevenue(days: number = 30): Promise<DailyRevenue[]> {
+    return api.get<DailyRevenue[]>(`/api/dashboard/revenue/daily?days=${days}`, { token: getToken() });
+  },
+
+  async getWeeklyRevenue(weeks: number = 12): Promise<DailyRevenue[]> {
+    return api.get<DailyRevenue[]>(`/api/dashboard/revenue/weekly?weeks=${weeks}`, { token: getToken() });
+  },
+
+  async getMonthlyRevenue(months: number = 12): Promise<DailyRevenue[]> {
+    return api.get<DailyRevenue[]>(`/api/dashboard/revenue/monthly?months=${months}`, { token: getToken() });
+  },
+
+  async getGameStatistics(): Promise<GameStatistics> {
+    return api.get<GameStatistics>('/api/dashboard/game/statistics', { token: getToken() });
+  },
+
+  async getTopPlayersByRake(limit: number = 10): Promise<{ players: any[] }> {
+    return api.get(`/api/dashboard/revenue/top-players?limit=${limit}`, { token: getToken() });
+  },
+
+  async getPlayerActivitySummary(): Promise<any> {
+    return api.get('/api/dashboard/players/activity', { token: getToken() });
+  },
+
+  async getHourlyPlayerActivity(hours: number = 24): Promise<{ activity: any[] }> {
+    return api.get(`/api/dashboard/players/hourly-activity?hours=${hours}`, { token: getToken() });
+  },
+
+  async getStakeLevelStatistics(): Promise<{ stake_levels: any[] }> {
+    return api.get('/api/dashboard/stake-levels', { token: getToken() });
+  },
 };
 
+// Legacy statisticsApi for backwards compatibility
 export const statisticsApi = {
   async getRevenueSummary(startDate?: string, endDate?: string): Promise<RevenueSummary> {
     const params = new URLSearchParams();

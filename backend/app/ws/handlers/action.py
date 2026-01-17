@@ -32,6 +32,9 @@ from app.ws.messages import MessageEnvelope
 from app.ws.schemas import ActionRequestPayload
 from app.logging_config import get_logger
 from app.services.fraud_event_publisher import FraudEventPublisher, get_fraud_publisher
+from app.services.hand_history import HandHistoryService
+from app.services.player_session_tracker import get_session_tracker
+from app.utils.db import get_db_session
 
 if TYPE_CHECKING:
     from app.ws.manager import ConnectionManager
@@ -1523,6 +1526,38 @@ class ActionHandler(BaseHandler):
                 participants=participants,
             )
 
+            # Phase 2.3: 플레이어 세션 통계 업데이트
+            session_tracker = get_session_tracker()
+            if session_tracker:
+                for p in participants:
+                    user_id = p.get("user_id", "")
+                    # 봇 플레이어는 세션 통계에서 제외
+                    if user_id.startswith("bot_") or user_id.startswith("test_player_"):
+                        continue
+                    session_tracker.update_hand_stats(
+                        user_id=user_id,
+                        room_id=room_id,
+                        bet_amount=p.get("bet_amount", 0),
+                        won_amount=p.get("won_amount", 0),
+                    )
+
+            # Phase 2.5: 핸드 히스토리 DB 저장
+            try:
+                async with get_db_session() as db:
+                    hand_history_service = HandHistoryService(db)
+                    await hand_history_service.save_hand_result({
+                        "hand_id": hand_id,
+                        "table_id": room_id,
+                        "hand_number": table.hand_number,
+                        "pot_size": hand_result.get("pot", 0),
+                        "community_cards": table.community_cards or [],
+                        "participants": participants,
+                    })
+                    logger.info(f"핸드 히스토리 저장 완료: hand_id={hand_id}")
+            except Exception as db_error:
+                # DB 저장 실패는 게임 진행에 영향을 주지 않음
+                logger.error(f"핸드 히스토리 DB 저장 실패: {db_error}")
+
         except Exception as e:
             logger.error(f"Failed to publish hand_completed event: {e}")
 
@@ -1535,10 +1570,14 @@ class ActionHandler(BaseHandler):
         is_bot: bool,
     ) -> None:
         """Publish player action event for fraud detection.
-        
+
         플레이어 액션 시 fraud:player_action 채널로 이벤트를 발행합니다.
         봇 탐지에 사용됩니다.
-        
+
+        Phase 2.2 개선:
+        - 응답 시간을 Redis SORTED SET에 저장 (7일간 보관)
+        - 액션 패턴을 Redis HASH에 저장 (24시간 집계)
+
         봇 플레이어의 액션은 발행하지 않습니다 (Requirements 2.4).
         """
         if not self._fraud_publisher.enabled:
@@ -1557,7 +1596,7 @@ class ActionHandler(BaseHandler):
             # 응답 시간 계산
             turn_key = f"{room_id}:{user_id}"
             turn_start_time = self._turn_start_times.get(turn_key)
-            
+
             if turn_start_time:
                 response_time_ms = int((datetime.now() - turn_start_time).total_seconds() * 1000)
                 turn_start_iso = turn_start_time.isoformat()
@@ -1578,14 +1617,39 @@ class ActionHandler(BaseHandler):
                 turn_start_time=turn_start_iso,
             )
 
-            # 턴 시작 시간 정리
+            # Phase 2.2: Redis에 응답 시간 및 액션 패턴 저장
+            if self.redis_service and response_time_ms > 0:
+                # 응답 시간 저장 (SORTED SET)
+                await self.redis_service.save_response_time(user_id, response_time_ms)
+                # 액션 패턴 저장 (HASH)
+                await self.redis_service.save_action_pattern(user_id, action_type)
+                logger.debug(
+                    f"Saved timing data to Redis: user={user_id}, "
+                    f"response_time={response_time_ms}ms, action={action_type}"
+                )
+
+            # 턴 시작 시간 정리 (인메모리)
             if turn_key in self._turn_start_times:
                 del self._turn_start_times[turn_key]
+
+            # Redis 턴 시작 시간 정리
+            if self.redis_service:
+                await self.redis_service.delete_turn_start(room_id, user_id)
 
         except Exception as e:
             logger.error(f"Failed to publish player_action event: {e}")
 
     def _record_turn_start(self, room_id: str, user_id: str) -> None:
-        """Record turn start time for response time measurement."""
+        """Record turn start time for response time measurement.
+
+        인메모리와 Redis 모두에 저장하여 즉시 응답 시간 계산과
+        다중 인스턴스 간 공유를 모두 지원합니다.
+        """
         turn_key = f"{room_id}:{user_id}"
         self._turn_start_times[turn_key] = datetime.now()
+
+        # Redis에도 저장 (비동기 태스크로 처리하여 블로킹 방지)
+        if self.redis_service:
+            asyncio.create_task(
+                self.redis_service.record_turn_start(room_id, user_id)
+            )

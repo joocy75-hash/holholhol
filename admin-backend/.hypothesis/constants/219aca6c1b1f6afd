@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/main.py
+# hypothesis_version: 6.150.2
+
+[8001, '*', '/api', '/api/audit', '/api/auth', '/api/auth/login', '/api/bans', '/api/crypto', '/api/dashboard', '/api/fraud', '/api/hands', '/api/rooms', '/api/statistics', '/api/system', '/api/ton', '/api/users', '/docs', '/health', '/openapi.json', '/redoc', '0.0.0.0', '0.1.0', 'Admin TON Deposit', 'Audit', 'Authentication', 'Bans', 'Crypto', 'Dashboard', 'Fraud Monitoring', 'Hands', 'Rooms', 'Statistics', 'System', 'TON Deposit', 'Users', '__main__', 'admin-backend', 'app.main:app', 'healthy', 'service', 'status']

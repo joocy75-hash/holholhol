@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/api/announcements.py
+# hypothesis_version: 6.150.2
+
+[100, 200, '/active', '/types/list', '/{announcement_id}', 'Redis 서버에 연결할 수 없습니다', 'VIP 사용자', 'announcement', 'broadcast_count', 'channel', 'create_announcement', 'delete_announcement', 'error', 'label', 'priorities', 'priority', 'success', 'target', 'targets', 'title', 'type', 'types', 'update_announcement', 'updates', 'value', '공지 내용', '공지 유형', '공지 제목', '공지사항을 찾을 수 없습니다', '긴급', '긴급 공지', '낮음', '높음', '대상', '대상 필터', '만료된 공지 포함 여부', '방 ID (해당 방 공지 포함)', '보통', '브로드캐스트 실패', '생성 시 즉시 브로드캐스트 여부', '시작 시간 (없으면 즉시 활성화)', '예약 발송 시간', '우선순위', '우선순위 필터', '유형 필터', '이벤트 공지', '일반 공지', '전체 사용자', '점검 공지', '종료 시간 (없으면 무기한)', '특정 방']

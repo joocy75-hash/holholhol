@@ -34,6 +34,7 @@ from app.ws.handlers.table import TableHandler
 from app.ws.handlers.action import ActionHandler
 from app.ws.handlers.chat import ChatHandler
 from app.services.room import RoomService
+from app.middleware.maintenance import check_maintenance_mode_for_websocket
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["WebSocket"])
@@ -125,6 +126,107 @@ def create_reauth_required_message() -> dict[str, Any]:
     }
 
 
+# Heartbeat configuration
+HEARTBEAT_INTERVAL_SECONDS = 30.0  # 서버 → 클라이언트 PING 전송 주기
+HEARTBEAT_TIMEOUT_SECONDS = 60.0   # PONG 응답 대기 시간
+MAX_MISSED_PONGS = 2               # 최대 허용 미응답 횟수
+
+
+class HeartbeatManager:
+    """서버 → 클라이언트 하트비트 관리.
+
+    - 30초마다 PING 전송
+    - 60초 내에 PONG 응답 확인
+    - 2회 연속 미응답 시 연결 종료
+    """
+
+    def __init__(self, connection: WebSocketConnection):
+        self.connection = connection
+        self._task: asyncio.Task | None = None
+        self._running = False
+
+    async def start(self) -> None:
+        """하트비트 루프 시작."""
+        self._running = True
+        self._task = asyncio.create_task(self._heartbeat_loop())
+
+    async def stop(self) -> None:
+        """하트비트 루프 중지."""
+        self._running = False
+        if self._task:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+            self._task = None
+
+    def record_pong(self) -> None:
+        """클라이언트로부터 PONG 수신 시 호출."""
+        self.connection.last_pong_at = datetime.utcnow()
+        self.connection.missed_pongs = 0
+
+    async def _heartbeat_loop(self) -> None:
+        """주기적으로 PING 전송하고 응답 확인."""
+        while self._running:
+            try:
+                await asyncio.sleep(HEARTBEAT_INTERVAL_SECONDS)
+
+                if not self._running:
+                    break
+
+                # PING 전송 전에 이전 PONG 응답 확인
+                if self.connection.last_ping_at is not None:
+                    # 마지막 PING 이후 PONG이 없으면 미응답 카운트 증가
+                    if (self.connection.last_pong_at is None or
+                        self.connection.last_pong_at < self.connection.last_ping_at):
+                        self.connection.missed_pongs += 1
+                        logger.warning(
+                            f"하트비트 미응답: user={self.connection.user_id}, "
+                            f"conn={self.connection.connection_id}, "
+                            f"missed={self.connection.missed_pongs}/{MAX_MISSED_PONGS}"
+                        )
+
+                        # 최대 미응답 횟수 초과 시 연결 종료
+                        if self.connection.missed_pongs >= MAX_MISSED_PONGS:
+                            logger.info(
+                                f"하트비트 타임아웃으로 연결 종료: "
+                                f"user={self.connection.user_id}, "
+                                f"conn={self.connection.connection_id}"
+                            )
+                            try:
+                                await self.connection.websocket.close(
+                                    4003, "Heartbeat timeout - connection closed"
+                                )
+                            except Exception as e:
+                                logger.warning(f"연결 종료 실패: {e}")
+                            self._running = False
+                            break
+
+                # PING 전송
+                ping_message = {
+                    "type": "PING",
+                    "payload": {},
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+
+                try:
+                    sent = await self.connection.send(ping_message)
+                    if sent:
+                        self.connection.last_ping_at = datetime.utcnow()
+                    else:
+                        logger.warning(
+                            f"PING 전송 실패: user={self.connection.user_id}"
+                        )
+                except Exception as e:
+                    logger.warning(f"PING 전송 에러: {e}")
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.warning(f"하트비트 루프 에러: {e}")
+
+
 class TokenValidator:
     """Handles periodic token validation for WebSocket connections."""
 
@@ -213,13 +315,30 @@ async def websocket_endpoint(websocket: WebSocket):
 
     Security-enhanced connection flow:
     1. Client connects (no token in URL)
-    2. Server accepts connection
-    3. Client sends AUTH message with token (within 5 seconds)
-    4. Server validates token
-    5. Server sends CONNECTION_STATE(connected)
-    6. Client subscribes to channels
-    7. Bidirectional message exchange
+    2. Server checks maintenance mode
+    3. Server accepts connection
+    4. Client sends AUTH message with token (within 5 seconds)
+    5. Server validates token
+    6. Server sends CONNECTION_STATE(connected)
+    7. Client subscribes to channels
+    8. Bidirectional message exchange
     """
+    # 0. Check maintenance mode before accepting connection
+    from app.utils.redis_client import redis_client as current_redis_client
+
+    is_maintenance, maintenance_message = await check_maintenance_mode_for_websocket(
+        current_redis_client
+    )
+
+    if is_maintenance:
+        logger.info("WebSocket 연결 거부: 점검 모드 활성화")
+        # Close with code 1013 (Try Again Later) per RFC 6455
+        await websocket.close(
+            code=1013,
+            reason=maintenance_message or "서버 점검 중입니다."
+        )
+        return
+
     # 1. Accept connection first (token will be sent via message)
     await websocket.accept()
 
@@ -288,6 +407,10 @@ async def websocket_endpoint(websocket: WebSocket):
     # 7. Start periodic token validation
     token_validator = TokenValidator(token, conn)
     await token_validator.start()
+
+    # 7.5. Start heartbeat manager (서버 → 클라이언트 PING)
+    heartbeat_manager = HeartbeatManager(conn)
+    await heartbeat_manager.start()
 
     # 8. Send CONNECTION_STATE(connected)
     welcome_message = create_connection_state_message(
@@ -372,8 +495,9 @@ async def websocket_endpoint(websocket: WebSocket):
             logger.exception(f"WebSocket error: {e}")
 
         finally:
-            # Stop token validation
+            # Stop token validation and heartbeat
             await token_validator.stop()
+            await heartbeat_manager.stop()
 
             # Store state for potential reconnection
             await manager.store_user_state(

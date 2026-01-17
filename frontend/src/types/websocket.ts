@@ -17,6 +17,7 @@ export enum EventType {
   ERROR = 'ERROR',
   RECOVERY_REQUEST = 'RECOVERY_REQUEST',
   RECOVERY_RESPONSE = 'RECOVERY_RESPONSE',
+  ANNOUNCEMENT = 'ANNOUNCEMENT',
 
   // Lobby events
   SUBSCRIBE_LOBBY = 'SUBSCRIBE_LOBBY',
@@ -104,6 +105,10 @@ export interface SeatInfo {
   status: PlayerStatus;
   betAmount: number;
   totalBet: number;
+  isDealer?: boolean;
+  isCurrent?: boolean;
+  isCardsRevealed?: boolean;
+  timeBankRemaining?: number;  // 타임 뱅크 남은 횟수
 }
 
 // =============================================================================
@@ -162,24 +167,62 @@ export interface ErrorPayload {
   details?: Record<string, unknown>;
 }
 
-export interface TableSnapshotPayload {
-  tableId: string;
-  roomId: string;
-  tableName: string;
+/** 핸드 내 액션 기록 (중간 입장 동기화용) */
+export interface ActionHistoryItem {
+  seat: number;
+  action: string;
+  amount: number;
+  phase: string;
+}
+
+/** 턴 타이머 정보 (중간 입장 동기화용) */
+export interface TurnInfo {
+  currentSeat: number;
+  startedAt: string;
+  deadlineAt: string;
+  remainingSeconds: number;
+  extraSeconds: number;
+}
+
+/** 핸드 정보 (진행 중인 핸드가 있을 때) */
+export interface HandInfo {
   handNumber: number;
   phase: GamePhase;
   pot: number;
   communityCards: string[];
   currentTurn: number | null;
   currentBet: number;
-  dealer: number;
-  smallBlindSeat: number | null;
-  bigBlindSeat: number | null;
-  smallBlind: number;
-  bigBlind: number;
-  players: (PlayerInfo | null)[];
-  seats: Record<string, SeatInfo>;
+  actionHistory?: ActionHistoryItem[];  // 중간 입장 동기화용
+}
+
+export interface TableSnapshotPayload {
+  tableId: string;
+  roomId: string;
+  tableName?: string;
   config?: TableConfig;
+  seats: SeatInfo[];
+  hand?: HandInfo | null;
+  dealerPosition: number;
+  myPosition?: number | null;
+  myHoleCards?: string[] | null;
+  allowedActions?: AvailableAction[] | null;
+  turnInfo?: TurnInfo | null;  // 중간 입장 시 턴 타이머 동기화용
+  stateVersion?: number;
+  updatedAt?: string | null;
+  isStateRestore?: boolean;  // 상태 복원 플래그 (새로고침/재접속 구분용)
+  // Legacy fields (for backwards compatibility)
+  handNumber?: number;
+  phase?: GamePhase;
+  pot?: number;
+  communityCards?: string[];
+  currentTurn?: number | null;
+  currentBet?: number;
+  dealer?: number;
+  smallBlindSeat?: number | null;
+  bigBlindSeat?: number | null;
+  smallBlind?: number;
+  bigBlind?: number;
+  players?: (PlayerInfo | null)[];
 }
 
 export interface TableConfig {
@@ -334,6 +377,24 @@ export interface TimeBankUsedPayload {
 }
 
 // =============================================================================
+// Announcement Types
+// =============================================================================
+
+export type AnnouncementType = 'notice' | 'event' | 'maintenance' | 'urgent';
+export type AnnouncementPriority = 'low' | 'normal' | 'high' | 'critical';
+export type AnnouncementTarget = 'all' | 'vip' | 'specific_room';
+
+export interface AnnouncementPayload {
+  id: string;
+  title: string;
+  content: string;
+  type: AnnouncementType;
+  priority: AnnouncementPriority;
+  target: AnnouncementTarget;
+  targetRoomId?: string | null;
+}
+
+// =============================================================================
 // Client → Server Payloads
 // =============================================================================
 
@@ -410,6 +471,7 @@ export interface TypedEventHandlers {
   [EventType.STACK_ZERO]: EventHandler<StackZeroPayload>;
   [EventType.TIMEOUT_FOLD]: EventHandler<TimeoutFoldPayload>;
   [EventType.TIME_BANK_USED]: EventHandler<TimeBankUsedPayload>;
+  [EventType.ANNOUNCEMENT]: EventHandler<AnnouncementPayload>;
 }
 
 // =============================================================================
