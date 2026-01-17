@@ -1,15 +1,17 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import LobbyHeader from '@/components/lobby/LobbyHeader';
 import BannerCarousel from '@/components/lobby/BannerCarousel';
-import GameTabs from '@/components/lobby/GameTabs';
+import GameTabs, { TabType } from '@/components/lobby/GameTabs';
 import TournamentCard from '@/components/lobby/TournamentCard';
 import HoldemCard from '@/components/lobby/HoldemCard';
 import BottomNavigation from '@/components/lobby/BottomNavigation';
 // import QuickJoinButton from '@/components/lobby/QuickJoinButton'; // 임시 숨김
 import { tablesApi } from '@/lib/api';
+
+type GameType = 'tournament' | 'holdem';
 
 interface Room {
   id: string;
@@ -21,6 +23,27 @@ interface Room {
   isPrivate: boolean;
   buyInMin: number;
   buyInMax: number;
+  gameType?: GameType; // 백엔드에서 제공 가능
+}
+
+// 방 이름으로 게임 타입 결정 (백엔드에 gameType이 없을 경우)
+function determineGameType(room: Room): GameType {
+  if (room.gameType) return room.gameType;
+
+  const name = room.name.toLowerCase();
+  // 토너먼트 키워드 포함 여부로 판단
+  if (
+    name.includes('토너먼트') ||
+    name.includes('tournament') ||
+    name.includes('프리롤') ||
+    name.includes('freeroll') ||
+    name.includes('gtd') ||
+    name.includes('하이퍼') ||
+    name.includes('turbo')
+  ) {
+    return 'tournament';
+  }
+  return 'holdem';
 }
 
 export default function LobbyPage() {
@@ -28,6 +51,7 @@ export default function LobbyPage() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<TabType>('all');
 
   const fetchRooms = useCallback(async () => {
     setLoading(true);
@@ -36,8 +60,8 @@ export default function LobbyPage() {
       const response = await tablesApi.list();
       setRooms(response.data.rooms || []);
     } catch (err) {
-      const errorMessage = err instanceof Error 
-        ? err.message 
+      const errorMessage = err instanceof Error
+        ? err.message
         : '방 목록을 불러오는데 실패했습니다';
       setError(errorMessage);
       console.error('방 목록 로드 실패:', err);
@@ -50,12 +74,35 @@ export default function LobbyPage() {
     fetchRooms();
   }, [fetchRooms]);
 
+  // 필터링된 방 목록
+  const filteredRooms = useMemo(() => {
+    return rooms.map(room => ({
+      ...room,
+      gameType: determineGameType(room),
+    }));
+  }, [rooms]);
+
+  // 탭에 따라 표시할 방 분류
+  const { tournamentRooms, holdemRooms } = useMemo(() => {
+    const tournament = filteredRooms.filter(r => r.gameType === 'tournament');
+    const holdem = filteredRooms.filter(r => r.gameType === 'holdem');
+    return { tournamentRooms: tournament, holdemRooms: holdem };
+  }, [filteredRooms]);
+
+  // 탭에 따른 표시 여부
+  const showTournament = activeTab === 'all' || activeTab === 'tournament';
+  const showHoldem = activeTab === 'all' || activeTab === 'holdem';
+
   const handleJoinRoom = (roomId: string) => {
     router.push(`/table/${roomId}`);
   };
 
   const handleRetry = () => {
     fetchRooms();
+  };
+
+  const handleTabChange = (tab: TabType) => {
+    setActiveTab(tab);
   };
 
   // 에러 상태 UI
@@ -79,17 +126,17 @@ export default function LobbyPage() {
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="flex flex-col items-center gap-4 p-6 text-center">
             <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center">
-              <svg 
-                className="w-8 h-8 text-red-500" 
-                fill="none" 
-                stroke="currentColor" 
+              <svg
+                className="w-8 h-8 text-red-500"
+                fill="none"
+                stroke="currentColor"
                 viewBox="0 0 24 24"
               >
-                <path 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  strokeWidth={2} 
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
                 />
               </svg>
             </div>
@@ -217,42 +264,59 @@ export default function LobbyPage() {
 
       {/* 게임 탭 (380px) */}
       <div style={{ position: 'absolute', left: '10px', top: '380px', zIndex: 1 }}>
-        <GameTabs />
+        <GameTabs onTabChange={handleTabChange} />
       </div>
 
-      {/* 빠른 입장 버튼 - 임시 숨김 처리
-      <div style={{ position: 'absolute', right: '10px', top: '350px', zIndex: 2 }}>
-        <QuickJoinButton />
-      </div>
-      */}
+      {/* 방 목록 - 스크롤 가능한 영역 */}
+      <div
+        style={{
+          position: 'absolute',
+          left: '10px',
+          top: '414px',
+          right: '10px',
+          bottom: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          zIndex: 1,
+          scrollbarWidth: 'none', // Firefox
+          msOverflowStyle: 'none', // IE/Edge
+        }}
+        className="hide-scrollbar"
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', paddingBottom: '110px' }}>
+          {/* 토너먼트 카드들 */}
+          {showTournament && tournamentRooms.map((room) => (
+            <TournamentCard
+              key={room.id}
+              roomId={room.id}
+              name={room.name}
+              buyIn={room.buyInMin}
+              onJoin={handleJoinRoom}
+            />
+          ))}
 
-      {/* 토너먼트 카드 (414px) */}
-      <div style={{ position: 'absolute', left: '10px', top: '414px', zIndex: 1 }}>
-        {rooms.length > 0 ? (
-          <TournamentCard
-            roomId={rooms[0].id}
-            name={rooms[0].name}
-            buyIn={rooms[0].buyInMin}
-            onJoin={handleJoinRoom}
-          />
-        ) : (
-          <TournamentCard />
-        )}
-      </div>
+          {/* 토너먼트 표시인데 방이 없을 때 기본 카드 표시 */}
+          {showTournament && tournamentRooms.length === 0 && (
+            <TournamentCard />
+          )}
 
-      {/* 홀덤 카드 (546px) */}
-      <div style={{ position: 'absolute', left: '10px', top: '546px', zIndex: 1 }}>
-        {rooms.length > 1 ? (
-          <HoldemCard
-            roomId={rooms[1].id}
-            name={rooms[1].name}
-            maxSeats={rooms[1].maxSeats}
-            buyIn={rooms[1].buyInMin}
-            onJoin={handleJoinRoom}
-          />
-        ) : (
-          <HoldemCard />
-        )}
+          {/* 홀덤 카드들 */}
+          {showHoldem && holdemRooms.map((room) => (
+            <HoldemCard
+              key={room.id}
+              roomId={room.id}
+              name={room.name}
+              maxSeats={room.maxSeats}
+              buyIn={room.buyInMin}
+              onJoin={handleJoinRoom}
+            />
+          ))}
+
+          {/* 홀덤 표시인데 방이 없을 때 기본 카드 표시 */}
+          {showHoldem && holdemRooms.length === 0 && (
+            <HoldemCard />
+          )}
+        </div>
       </div>
 
       {/* 하단 네비게이션 (fixed) */}

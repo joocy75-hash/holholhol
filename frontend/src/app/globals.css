@@ -987,6 +987,16 @@ body {
   background: var(--border-light);
 }
 
+/* Hide scrollbar utility */
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* --------------------------------------------
    8. RESPONSIVE BREAKPOINTS
    -------------------------------------------- */
