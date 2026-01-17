@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const ADMIN_API_BASE_URL = process.env.NEXT_PUBLIC_ADMIN_API_URL || 'http://localhost:8001';
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -223,6 +224,176 @@ export const botsApi = {
   // Clear all bots from all rooms
   clearAllBots: () =>
     api.delete('/api/v1/bots/all'),
+};
+
+// Admin API instance (for deposit)
+export const adminApi = axios.create({
+  baseURL: ADMIN_API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Deposit API Types (snake_case - 백엔드 응답 형식)
+export interface DepositRequestCreate {
+  requested_krw: number;
+  telegram_id?: number;
+}
+
+export interface DepositRequestResponse {
+  id: string;
+  user_id: string;
+  telegram_id: number | null;
+  requested_krw: number;
+  calculated_usdt: string;
+  exchange_rate: string;
+  memo: string;
+  qr_data: string;
+  status: 'pending' | 'confirmed' | 'expired' | 'cancelled';
+  expires_at: string;
+  remaining_seconds: number;
+  created_at: string;
+  confirmed_at: string | null;
+  tx_hash: string | null;
+}
+
+export interface DepositStatusResponse {
+  id: string;
+  status: 'pending' | 'confirmed' | 'expired' | 'cancelled';
+  remaining_seconds: number;
+  is_expired: boolean;
+  confirmed_at: string | null;
+  tx_hash: string | null;
+}
+
+export interface ExchangeRateResponse {
+  usdt_krw: string;
+  timestamp: string;
+}
+
+// Users API Types
+export interface UserProfile {
+  id: string;
+  email: string;
+  nickname: string;
+  avatar_url: string | null;
+  balance: number;
+  total_hands: number;
+  total_winnings: number;
+  created_at: string;
+}
+
+export interface UserStats {
+  total_hands: number;
+  hands_won: number;
+  vpip: number;
+  pfr: number;
+  biggest_pot: number;
+  win_rate: number;
+}
+
+export interface UpdateProfileRequest {
+  nickname?: string;
+  avatar_url?: string;
+}
+
+export interface ChangePasswordRequest {
+  current_password: string;
+  new_password: string;
+}
+
+// Users API
+export const usersApi = {
+  getProfile: () => api.get<UserProfile>('/api/v1/users/me'),
+
+  updateProfile: (data: UpdateProfileRequest) =>
+    api.patch<UserProfile>('/api/v1/users/me', data),
+
+  getStats: () => api.get<UserStats>('/api/v1/users/me/stats'),
+
+  changePassword: (data: ChangePasswordRequest) =>
+    api.post('/api/v1/users/me/password', data),
+};
+
+// History API Types
+export interface HandHistory {
+  hand_id: string;
+  table_id: string;
+  hand_number: number;
+  started_at: string;
+  ended_at: string;
+  pot_size: number;
+  community_cards: string[];
+  user_hole_cards: string[];
+  user_bet_amount: number;
+  user_won_amount: number;
+  user_final_action: string;
+  net_result: number;
+}
+
+export interface WalletTransaction {
+  id: string;
+  tx_type: 'crypto_deposit' | 'crypto_withdrawal' | 'buy_in' | 'cash_out' | 'win' | 'lose' | 'rake' | 'rakeback' | 'admin_adjust' | 'bonus';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  krw_amount: number;
+  krw_balance_after: number;
+  crypto_type: string | null;
+  crypto_amount: string | null;
+  crypto_tx_hash: string | null;
+  description: string | null;
+  created_at: string;
+}
+
+// History API
+export const historyApi = {
+  getGameHistory: (limit = 50, offset = 0) =>
+    api.get<HandHistory[]>(`/api/v1/hands/history`, { params: { limit, offset } }),
+
+  getTransactions: (txType?: string, limit = 50, offset = 0) =>
+    api.get<WalletTransaction[]>('/wallet/transactions', {
+      params: { tx_type: txType, limit, offset },
+    }),
+};
+
+// 2FA API Types
+export interface TwoFactorSetupResponse {
+  secret: string;
+  qr_code: string;
+  backup_codes: string[];
+}
+
+export interface TwoFactorStatusResponse {
+  is_enabled: boolean;
+  backup_codes_remaining: number;
+}
+
+// 2FA API
+export const twoFactorApi = {
+  setup: () => api.post<TwoFactorSetupResponse>('/api/v1/auth/2fa/setup'),
+
+  verify: (code: string) => api.post('/api/v1/auth/2fa/verify', { code }),
+
+  status: () => api.get<TwoFactorStatusResponse>('/api/v1/auth/2fa/status'),
+
+  disable: (code: string) => api.delete('/api/v1/auth/2fa', { data: { code } }),
+};
+
+// Deposit API
+export const depositApi = {
+  // 환율 조회
+  getRate: () => adminApi.get<ExchangeRateResponse>('/deposit/rate'),
+
+  // 입금 요청 생성
+  createRequest: (data: DepositRequestCreate) =>
+    adminApi.post<DepositRequestResponse>('/deposit/request', data),
+
+  // 상태 확인 (폴링용)
+  getStatus: (requestId: string) =>
+    adminApi.get<DepositStatusResponse>(`/deposit/status/${requestId}`),
+
+  // 상세 조회 (QR 포함)
+  getRequest: (requestId: string) =>
+    adminApi.get<DepositRequestResponse>(`/deposit/request/${requestId}`),
 };
 
 export default api;

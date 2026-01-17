@@ -1,12 +1,16 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useSettingsStore } from "@/stores/settings";
+import { useAuthStore } from "@/stores/auth";
 
 const quickSpring = { type: "spring" as const, stiffness: 400, damping: 20 };
 
 export default function LobbyHeader() {
+  const router = useRouter();
   const { bgmEnabled, toggleBgm } = useSettingsStore();
+  const { user } = useAuthStore();
 
   const imgProfile = "https://www.figma.com/api/mcp/asset/13104cc5-cafd-4aa1-927c-ea3c235a61e5";
   const imgUsdtIcon = "https://www.figma.com/api/mcp/asset/c5c9cad3-b5b5-4668-b459-ba3d8e0c6cec";
@@ -157,7 +161,7 @@ export default function LobbyHeader() {
           color: 'var(--figma-username-color)',
         }}
       >
-        유저네임
+        {user?.nickname || '유저네임'}
       </p>
 
       {/* 잔액 */}
@@ -175,11 +179,12 @@ export default function LobbyHeader() {
           letterSpacing: '0.7px',
         }}
       >
-        1,000,000
+        {(user?.balance || 0).toLocaleString()}
       </p>
 
       {/* 충전소 버튼 */}
       <motion.div
+        onClick={() => router.push('/cashier')}
         whileHover={{
           boxShadow: '0 0 20px rgba(0, 255, 200, 0.35), var(--figma-shadow-charge-inset)',
           filter: 'brightness(1.15)',
