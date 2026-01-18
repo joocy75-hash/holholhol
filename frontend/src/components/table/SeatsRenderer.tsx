@@ -1,11 +1,13 @@
 'use client';
 
+import { useMemo } from 'react';
 import { PlayerSeat, type Player } from './PlayerSeat';
 import type { Card } from './PlayingCard';
 import type { SeatInfo } from '@/hooks/table/useGameState';
-import { TABLE, MAX_SEATS } from '@/constants/tableCoordinates';
+import { MAX_SEATS, getTableConstants, MY_SEAT_Y } from '@/constants/tableCoordinates';
 
 interface SeatsRendererProps {
+  maxSeats?: number;  // 6 또는 9 (기본값 9)
   seats: SeatInfo[];
   myPosition: number | null;
   myHoleCards: Card[];
@@ -29,6 +31,7 @@ interface SeatsRendererProps {
 }
 
 export function SeatsRenderer({
+  maxSeats = MAX_SEATS,
   seats,
   myPosition,
   myHoleCards,
@@ -50,14 +53,17 @@ export function SeatsRenderer({
   onSeatClick,
   onRevealCards,
 }: SeatsRendererProps) {
+  // 동적 좌표 선택 (6인 또는 9인)
+  const tableConfig = useMemo(() => getTableConstants(maxSeats), [maxSeats]);
+
   // DEBUG: myHoleCards 확인
-  console.log(`🎴 [SeatsRenderer] myPosition=${myPosition}, myHoleCards=${JSON.stringify(myHoleCards)}, dealingComplete=${dealingComplete}`);
-  
+  console.log(`🎴 [SeatsRenderer] maxSeats=${maxSeats}, myPosition=${myPosition}, myHoleCards=${JSON.stringify(myHoleCards)}, dealingComplete=${dealingComplete}`);
+
   return (
     <>
-      {TABLE.SEATS.map((pos, visualIndex) => {
+      {tableConfig.SEATS.map((pos, visualIndex) => {
         const actualPosition = myPosition !== null
-          ? (visualIndex + myPosition) % MAX_SEATS
+          ? (visualIndex + myPosition) % maxSeats
           : visualIndex;
         const seat = seats.find(s => s.position === actualPosition);
         const isWinner = winnerPositions.includes(actualPosition);
@@ -67,6 +73,15 @@ export function SeatsRenderer({
         const handRank = allHandRanks[actualPosition];
         const isCurrentTurn = currentTurnPosition === actualPosition;
         const isMe = actualPosition === myPosition;
+
+        // 화면 하단 중앙 좌석(visualIndex=0):
+        // - 내가 앉아있고, 게임 진행 중 & 딜링 완료 & 카드를 받았을 때만 88%
+        // - 그 외 모든 경우 (관전자, 대기 중, 중간 참여 등) → 70% 고정
+        const hasMyCards = myHoleCards.length > 0;
+        const isAtPlayingPosition = isMe && gameInProgress && dealingComplete && hasMyCards;
+        const seatPosition = visualIndex === 0
+          ? { x: pos.x, y: isAtPlayingPosition ? MY_SEAT_Y.PLAYING : MY_SEAT_Y.WAITING }
+          : pos;
 
         const player: Player | undefined = seat?.player ? {
           id: seat.player.userId,
@@ -81,6 +96,7 @@ export function SeatsRenderer({
           isWinner,
           winAmount,
           winHandRank: handRank,
+          avatarId: seat.player.avatarUrl ?? null, // avatar_url에 아바타 ID 저장
         } : undefined;
 
         // DEBUG: 폴드 상태 추적
@@ -99,7 +115,7 @@ export function SeatsRenderer({
         return (
           <PlayerSeat
             key={visualIndex}
-            position={pos}
+            position={seatPosition}
             seatPosition={actualPosition}
             player={player}
             isCurrentUser={isMe}

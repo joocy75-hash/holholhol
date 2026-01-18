@@ -115,6 +115,7 @@ class RoomSummaryResponse(BaseSchema):
     is_private: bool = Field(..., alias="isPrivate")
     buy_in_min: int = Field(..., alias="buyInMin")
     buy_in_max: int = Field(..., alias="buyInMax")
+    room_type: str = Field(default="cash", alias="roomType")
 
     @classmethod
     def from_room(cls, room: Any) -> "RoomSummaryResponse":
@@ -129,6 +130,7 @@ class RoomSummaryResponse(BaseSchema):
             is_private=room.config.get("is_private", False),
             buy_in_min=room.config.get("buy_in_min", 400),
             buy_in_max=room.config.get("buy_in_max", 2000),
+            room_type=room.config.get("room_type", "cash"),
         )
 
 

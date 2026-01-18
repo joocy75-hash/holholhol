@@ -12,6 +12,12 @@ export const GAME_SIZE = {
   HEIGHT: 889,
 } as const;
 
+// 0번 플레이어(ME) 위치 상태별 Y좌표
+export const MY_SEAT_Y = {
+  WAITING: 622,  // 70% - 게임 시작 전/딜링 중
+  PLAYING: 782,  // 88% - 딜링 완료 후
+} as const;
+
 // 좌표 타입
 export interface Position {
   x: number;
@@ -95,5 +101,47 @@ export const CHIP_POSITIONS_PERCENT = [
 
 export const POT_POSITION_PERCENT = { top: '34%', left: '50%' } as const;
 
-// 좌석 수
-export const MAX_SEATS = 9;
+// 9인 테이블 별칭 (하위호환)
+export const TABLE_9 = TABLE;
+
+// 6인 테이블 좌표 (9인 테이블과 동일한 크기, 좌석만 6개)
+export const TABLE_6 = {
+  // 공통 위치 (9인 테이블과 동일)
+  DEALING_CENTER: { x: 250, y: 285 } as Position,
+  POT: { x: 250, y: 350 } as Position,
+  POT_DISPLAY: { x: 250, y: 380 } as Position,
+  COMMUNITY: { x: 250, y: 418 } as Position,
+  HAND_RANK: { x: 250, y: 703 } as Position,
+  MY_CARDS_OFFSET: -152,
+
+  // 플레이어 좌석 6개 (visualIndex 순서)
+  // 더 넓은 간격으로 배치
+  SEATS: [
+    { x: 250, y: 782 },  // 0 - ME (하단 중앙)
+    { x: 55, y: 480 },   // 1 - 좌하
+    { x: 445, y: 480 },  // 2 - 우하
+    { x: 70, y: 300 },   // 3 - 좌상
+    { x: 430, y: 300 },  // 4 - 우상
+    { x: 250, y: 195 },  // 5 - 상단 중앙
+  ] as Position[],
+
+  // 베팅 칩 위치 6개
+  CHIPS: [
+    { x: 250, y: 600 },  // 0 - ME
+    { x: 130, y: 430 },  // 1 - 좌하
+    { x: 370, y: 430 },  // 2 - 우하
+    { x: 140, y: 320 },  // 3 - 좌상
+    { x: 360, y: 320 },  // 4 - 우상
+    { x: 250, y: 240 },  // 5 - 상단 중앙
+  ] as Position[],
+} as const;
+
+// 테이블 좌표 선택 헬퍼 함수
+export function getTableConstants(maxSeats: number) {
+  return maxSeats === 6 ? TABLE_6 : TABLE;
+}
+
+// 좌석 수 상수
+export const MAX_SEATS_6 = 6;
+export const MAX_SEATS_9 = 9;
+export const MAX_SEATS = 9;  // 하위호환

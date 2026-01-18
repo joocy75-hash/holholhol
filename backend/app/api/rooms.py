@@ -84,6 +84,7 @@ async def list_rooms(
                 is_private=room.config.get("is_private", False),
                 buy_in_min=room.config.get("buy_in_min", 400),
                 buy_in_max=room.config.get("buy_in_max", 2000),
+                room_type=room.config.get("room_type", "cash"),
             )
             for room in rooms
         ],
@@ -243,6 +244,7 @@ async def create_room(
             owner_id=current_user.id,
             name=request_body.name,
             description=request_body.description,
+            room_type=request_body.room_type,
             max_seats=request_body.max_seats,
             small_blind=request_body.small_blind,
             big_blind=request_body.big_blind,

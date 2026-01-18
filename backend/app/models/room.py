@@ -51,7 +51,8 @@ class Room(Base, UUIDMixin, TimestampMixin):
     """
     Config structure:
     {
-        "max_seats": 6,
+        "room_type": "cash" | "tournament",
+        "max_seats": 6 | 9,
         "small_blind": 10,
         "big_blind": 20,
         "buy_in_min": 400,
@@ -95,6 +96,11 @@ class Room(Base, UUIDMixin, TimestampMixin):
     @property
     def big_blind(self) -> int:
         return self.config.get("big_blind", 20)
+
+    @property
+    def room_type(self) -> str:
+        """Get room type from config."""
+        return self.config.get("room_type", "cash")
 
     @property
     def is_full(self) -> bool:

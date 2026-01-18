@@ -1,25 +1,26 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { PlayingCard } from './PlayingCard';
-import { TABLE, MAX_SEATS } from '@/constants/tableCoordinates';
+import { MAX_SEATS, getTableConstants, MY_SEAT_Y } from '@/constants/tableCoordinates';
 
 interface DealingAnimationProps {
   isDealing: boolean;
   dealingSequence: { position: number; cardIndex: number }[];
   onDealingComplete: () => void;
   myPosition: number | null; // 내 좌석 번호 (actualPosition -> visualIndex 변환용)
+  maxSeats?: number;  // 6 또는 9 (기본값 9)
 }
 
 /**
  * actualPosition(실제 좌석 번호)을 visualIndex(화면상 위치)로 변환
  * visualIndex 0은 항상 화면 하단(ME)
  */
-function actualToVisualIndex(actualPosition: number, myPosition: number | null): number {
+function actualToVisualIndex(actualPosition: number, myPosition: number | null, maxSeats: number): number {
   if (myPosition === null) {
     return actualPosition; // 관전자는 변환 없이 그대로 사용
   }
-  return (actualPosition - myPosition + MAX_SEATS) % MAX_SEATS;
+  return (actualPosition - myPosition + maxSeats) % maxSeats;
 }
 
 export function DealingAnimation({
@@ -27,18 +28,26 @@ export function DealingAnimation({
   dealingSequence,
   onDealingComplete,
   myPosition,
+  maxSeats = MAX_SEATS,
 }: DealingAnimationProps) {
+  // 동적 좌표 선택 (6인 또는 9인)
+  const tableConfig = useMemo(() => getTableConstants(maxSeats), [maxSeats]);
+
   const [visibleCards, setVisibleCards] = useState<{ position: number; cardIndex: number; visualIndex: number; key: string }[]>([]);
   const dealingIdRef = useRef(0);
   const myPositionRef = useRef(myPosition);
+  const maxSeatsRef = useRef(maxSeats);
   const dealingSequenceRef = useRef(dealingSequence);
   const onDealingCompleteRef = useRef(onDealingComplete);
+  const tableConfigRef = useRef(tableConfig);
 
   // ref 업데이트 (의존성 배열 문제 방지)
   useEffect(() => {
     myPositionRef.current = myPosition;
+    maxSeatsRef.current = maxSeats;
     dealingSequenceRef.current = dealingSequence;
     onDealingCompleteRef.current = onDealingComplete;
+    tableConfigRef.current = tableConfig;
   });
 
   useEffect(() => {
@@ -78,12 +87,12 @@ export function DealingAnimation({
       }
 
       const deal = dealingSequenceRef.current[index];
-      const visualIndex = actualToVisualIndex(deal.position, myPositionRef.current);
+      const visualIndex = actualToVisualIndex(deal.position, myPositionRef.current, maxSeatsRef.current);
 
       console.log(`🎴 카드 딜링 [${index}]:`, {
         actualPosition: deal.position,
         visualIndex,
-        target: TABLE.SEATS[visualIndex],
+        target: tableConfigRef.current.SEATS[visualIndex],
         myPosition: myPositionRef.current,
       });
 
@@ -118,20 +127,22 @@ export function DealingAnimation({
   return (
     <div className="absolute inset-0 pointer-events-none z-50">
       {visibleCards.map((deal) => {
-        const visualIndex = actualToVisualIndex(deal.position, currentMyPosition);
-        const target = TABLE.SEATS[visualIndex];
+        const visualIndex = actualToVisualIndex(deal.position, currentMyPosition, maxSeats);
+        const target = tableConfig.SEATS[visualIndex];
+        // visualIndex=0(내 좌석)은 70% 위치(WAITING)로 카드 딜링
+        const targetY = visualIndex === 0 ? MY_SEAT_Y.WAITING : target.y;
         // 프로필 위 카드 영역으로 조정 (y 좌표를 위로 이동)
-        const cardTargetY = target.y - 60;
-        const deltaX = target.x - TABLE.DEALING_CENTER.x;
-        const deltaY = cardTargetY - TABLE.DEALING_CENTER.y;
+        const cardTargetY = targetY - 60;
+        const deltaX = target.x - tableConfig.DEALING_CENTER.x;
+        const deltaY = cardTargetY - tableConfig.DEALING_CENTER.y;
 
         return (
           <div
             key={deal.key}
             className="dealing-card animating"
             style={{
-              left: TABLE.DEALING_CENTER.x,
-              top: TABLE.DEALING_CENTER.y,
+              left: tableConfig.DEALING_CENTER.x,
+              top: tableConfig.DEALING_CENTER.y,
               width: '36px',
               height: '50px',
               '--deal-x': `${deltaX}px`,

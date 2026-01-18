@@ -52,7 +52,7 @@
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { wsClient } from '@/lib/websocket';
-import { soundManager } from '@/lib/sounds';
+import { soundManager, chipSoundManager } from '@/lib/sounds';
 import { analyzeHand } from '@/lib/handEvaluator';
 import { parseCards, type Card } from '@/components/table/PlayingCard';
 import type { UseGameStateReturn, SeatInfo, GameState } from './useGameState';
@@ -91,10 +91,6 @@ export function useTableWebSocket({
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
-
-  // 타임 뱅크 상태 (TIME_BANK_USED 핸들러에서 사용)
-  const timeBankRemainingRef = useRef(3);
-  const isTimeBankLoadingRef = useRef(false);
 
   // 액션 효과 표시 중 여부
   const isShowingActionEffectRef = useRef(false);
@@ -201,8 +197,6 @@ export function useTableWebSocket({
     actions.setAllowedActions([]);
     actions.setIsActionPending(false);
     actions.setHasAutoFolded(false);
-    timeBankRemainingRef.current = 3;
-    isTimeBankLoadingRef.current = false;
     isShowingActionEffectRef.current = false;
 
     gameState.setGameState((prev) => {
@@ -348,6 +342,7 @@ export function useTableWebSocket({
     wsClient
       .connect(token)
       .then(() => {
+        console.log('✅ [WS] Connected, sending SUBSCRIBE_TABLE for tableId:', tableId);
         setIsConnected(true);
         wsClient.send('SUBSCRIBE_TABLE', { tableId });
       })
@@ -382,7 +377,10 @@ export function useTableWebSocket({
       });
 
       if (data.config) {
+        console.log('📋 [TABLE_SNAPSHOT] Setting tableConfig:', data.config);
         gameState.setTableConfig(data.config as UseGameStateReturn['tableConfig']);
+      } else {
+        console.warn('⚠️ [TABLE_SNAPSHOT] No config in snapshot!');
       }
 
       if (data.seats) {
@@ -572,7 +570,7 @@ export function useTableWebSocket({
             minRaise: 0,
             currentBet: 0,
           }),
-          phase: isShowdownBlocking ? (prev?.phase || 'showdown') : ((stateData.phase as GameState['phase']) || 'waiting'),
+          phase: isShowdownBlocking ? (prev?.phase || 'showdown') : ((stateData.phase as GameState['phase']) || prev?.phase || 'waiting'),
           pot: isShowdownBlocking ? (prev?.pot ?? 0) : ((stateData.pot as number) ?? prev?.pot ?? 0),
           communityCards: (stateData.communityCards && Array.isArray(stateData.communityCards) && stateData.communityCards.length > 0)
             ? parseCards(stateData.communityCards as string[])
@@ -773,6 +771,12 @@ export function useTableWebSocket({
       if (changes.lastAction) {
         const { type, amount, position } = changes.lastAction as { type: string; amount?: number; position: number };
         soundManager.play(type);
+        // 베팅 액션 시 칩 사운드 추가
+        if (type === 'bet' || type === 'call' || type === 'raise') {
+          chipSoundManager.playCall();
+        } else if (type === 'all_in' || type === 'allin') {
+          chipSoundManager.playAllin();
+        }
         isShowingActionEffectRef.current = true;
         gameState.setPlayerActions((prev) => ({
           ...prev,
@@ -932,6 +936,7 @@ export function useTableWebSocket({
           if (chipsToCollect.length > 0) {
             const totalCollected = chipsToCollect.reduce((sum, c) => sum + c.amount, 0);
             gameState.setCollectingChips(chipsToCollect);
+            chipSoundManager.playCollect();
             setTimeout(() => gameState.setIsCollectingToPot(true), 50);
 
             setTimeout(() => {
@@ -1015,6 +1020,7 @@ export function useTableWebSocket({
 
         if (chipsToCollect.length > 0) {
           gameState.setCollectingChips(chipsToCollect);
+          chipSoundManager.playCollect();
           setTimeout(() => gameState.setIsCollectingToPot(true), 100);
 
           setTimeout(() => {
@@ -1061,6 +1067,7 @@ export function useTableWebSocket({
                     amount: totalWinAmount,
                     toPosition: winnerSeats[0],
                   });
+                  chipSoundManager.playWin();
 
                   const pendingStacks = { ...gameState.pendingStackUpdatesRef.current };
                   if (Object.keys(pendingStacks).length > 0) {
@@ -1169,6 +1176,7 @@ export function useTableWebSocket({
                     amount: totalWinAmount,
                     toPosition: winnerSeats[0],
                   });
+                  chipSoundManager.playWin();
                 }, PRE_CHIP_DISTRIBUTE_DELAY);
               }
               setTimeout(() => completeShowdown(), WINNER_DISPLAY_TIME);
@@ -1198,6 +1206,7 @@ export function useTableWebSocket({
                           amount: totalWinAmount,
                           toPosition: winnerSeats[0],
                         });
+                        chipSoundManager.playWin();
 
                         const pendingStacks = { ...gameState.pendingStackUpdatesRef.current };
                         if (Object.keys(pendingStacks).length > 0) {
@@ -1254,23 +1263,6 @@ export function useTableWebSocket({
       // 리바이 모달은 page.tsx에서 처리
     });
 
-    // TIME_BANK_USED 핸들러
-    const unsubTimeBankUsed = wsClient.on('TIME_BANK_USED', (rawData) => {
-      const data = rawData as { success: boolean; remaining?: number; addedSeconds?: number; errorMessage?: string };
-      console.log('TIME_BANK_USED received:', data);
-      isTimeBankLoadingRef.current = false;
-
-      if (data.success) {
-        timeBankRemainingRef.current = data.remaining ?? 0;
-        if (data.addedSeconds && data.addedSeconds > 0) {
-          gameState.setCurrentTurnTime(prev => prev + data.addedSeconds!);
-        }
-      } else if (data.errorMessage) {
-        setError(data.errorMessage);
-        setTimeout(() => setError(null), 3000);
-      }
-    });
-
     // ADD_BOT_RESULT 핸들러 (page.tsx에서 상태 관리, 여기서는 SUBSCRIBE_TABLE만)
     const unsubAddBotResult = wsClient.on('ADD_BOT_RESULT', (rawData) => {
       const data = rawData as { success: boolean; errorMessage?: string };
@@ -1309,7 +1301,6 @@ export function useTableWebSocket({
       unsubSendFailed();
       unsubConnectionLost();
       unsubStackZero();
-      unsubTimeBankUsed();
       unsubAddBotResult();
       unsubBotLoopResult();
       wsClient.send('UNSUBSCRIBE_TABLE', { tableId });

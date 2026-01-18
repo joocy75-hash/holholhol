@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserProfile } from '@/lib/api';
+import { AvatarSelector } from '@/components/common';
+import { DEFAULT_AVATAR_ID } from '@/constants/avatars';
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -20,13 +22,15 @@ export default function EditProfileModal({
   isLoading,
 }: EditProfileModalProps) {
   const [nickname, setNickname] = useState('');
-  const [avatarUrl, setAvatarUrl] = useState('');
+  const [selectedAvatarId, setSelectedAvatarId] = useState<number>(DEFAULT_AVATAR_ID);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (user) {
       setNickname(user.nickname || '');
-      setAvatarUrl(user.avatar_url || '');
+      // avatar_url이 숫자 문자열이면 파싱, 아니면 기본값
+      const avatarId = parseInt(user.avatar_url || '', 10);
+      setSelectedAvatarId(isNaN(avatarId) || avatarId < 1 || avatarId > 10 ? DEFAULT_AVATAR_ID : avatarId);
     }
   }, [user]);
 
@@ -44,7 +48,8 @@ export default function EditProfileModal({
     }
 
     try {
-      await onSave({ nickname: nickname.trim(), avatar_url: avatarUrl.trim() });
+      // avatar_url 필드에 아바타 ID를 문자열로 저장
+      await onSave({ nickname: nickname.trim(), avatar_url: String(selectedAvatarId) });
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : '저장에 실패했습니다');
@@ -99,8 +104,27 @@ export default function EditProfileModal({
               프로필 수정
             </h3>
 
+            {/* 아바타 선택 */}
+            <div style={{ marginBottom: '20px' }}>
+              <label
+                style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  color: '#888',
+                  marginBottom: '12px',
+                }}
+              >
+                아바타 선택
+              </label>
+              <AvatarSelector
+                selectedId={selectedAvatarId}
+                onSelect={setSelectedAvatarId}
+                disabled={isLoading}
+              />
+            </div>
+
             {/* 닉네임 입력 */}
-            <div style={{ marginBottom: '16px' }}>
+            <div style={{ marginBottom: '20px' }}>
               <label
                 style={{
                   display: 'block',
@@ -116,37 +140,6 @@ export default function EditProfileModal({
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
                 placeholder="닉네임을 입력하세요"
-                style={{
-                  width: '100%',
-                  padding: '12px 16px',
-                  background: 'rgba(255,255,255,0.1)',
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  borderRadius: '8px',
-                  color: 'white',
-                  fontSize: '16px',
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                }}
-              />
-            </div>
-
-            {/* 아바타 URL 입력 */}
-            <div style={{ marginBottom: '20px' }}>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: '14px',
-                  color: '#888',
-                  marginBottom: '8px',
-                }}
-              >
-                아바타 URL (선택)
-              </label>
-              <input
-                type="text"
-                value={avatarUrl}
-                onChange={(e) => setAvatarUrl(e.target.value)}
-                placeholder="https://example.com/avatar.png"
                 style={{
                   width: '100%',
                   padding: '12px 16px',

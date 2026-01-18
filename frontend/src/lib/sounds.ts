@@ -87,3 +87,76 @@ class SoundManager {
 }
 
 export const soundManager = new SoundManager();
+
+// 칩 사운드 타입
+type ChipSoundKey = 'call' | 'allin' | 'collect' | 'win';
+
+// 칩 사운드 매니저 (개별 파일 방식)
+class ChipSoundManager {
+  private audioPool: Map<ChipSoundKey, HTMLAudioElement[]> = new Map();
+  private volume = 0.6;
+  private poolSize = 5; // 동시 재생 지원 (최대 5개)
+
+  private getSrc(key: ChipSoundKey): string {
+    return `/sounds/chips/chip_${key}.webm`;
+  }
+
+  private getOrCreateAudio(key: ChipSoundKey): HTMLAudioElement | null {
+    if (typeof window === 'undefined') return null;
+
+    // 풀 초기화
+    if (!this.audioPool.has(key)) {
+      this.audioPool.set(key, []);
+    }
+
+    const pool = this.audioPool.get(key)!;
+
+    // 사용 가능한 오디오 찾기
+    for (const audio of pool) {
+      if (audio.paused || audio.ended) {
+        audio.currentTime = 0;
+        return audio;
+      }
+    }
+
+    // 풀에 여유 있으면 새로 생성
+    if (pool.length < this.poolSize) {
+      const audio = new Audio(this.getSrc(key));
+      audio.volume = this.volume;
+      audio.preload = 'auto';
+      pool.push(audio);
+      return audio;
+    }
+
+    // 풀 가득 차면 첫 번째 재사용
+    const audio = pool[0];
+    audio.currentTime = 0;
+    return audio;
+  }
+
+  play(type: ChipSoundKey) {
+    const audio = this.getOrCreateAudio(type);
+    if (!audio) return;
+
+    audio.play().catch(() => {
+      // 자동재생 차단 - 무시
+    });
+  }
+
+  // 편의 메서드
+  playCall() { this.play('call'); }
+  playAllin() { this.play('allin'); }
+  playCollect() { this.play('collect'); }
+  playWin() { this.play('win'); }
+
+  setVolume(vol: number) {
+    this.volume = Math.max(0, Math.min(1, vol));
+    this.audioPool.forEach(pool => {
+      pool.forEach(audio => {
+        audio.volume = this.volume;
+      });
+    });
+  }
+}
+
+export const chipSoundManager = new ChipSoundManager();

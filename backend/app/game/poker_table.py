@@ -52,10 +52,32 @@ class GamePhase(Enum):
 #
 # 포커 시계방향 = 딜러 왼쪽으로 진행 (테이블 위에서 내려다볼 때 시계방향)
 # 0에서 시작해서 왼쪽으로: 0 → 1 → 3 → 5 → 7 → 8 → 6 → 4 → 2 → 0
-CLOCKWISE_SEAT_ORDER = [0, 1, 3, 5, 7, 8, 6, 4, 2]
+CLOCKWISE_SEAT_ORDER_9 = [0, 1, 3, 5, 7, 8, 6, 4, 2]
 
-# 좌석 번호 → 시계방향 순서 인덱스 매핑
+# 6인 테이블 시계방향 좌석 순서
+# 시각적 배치:
+#        5         (top center)
+#    3       4     (upper row)
+#    1       2     (lower row)
+#        0         (bottom/player)
+#
+# 0에서 시작해서 왼쪽으로: 0 → 1 → 3 → 5 → 4 → 2 → 0
+CLOCKWISE_SEAT_ORDER_6 = [0, 1, 3, 5, 4, 2]
+
+# 하위호환용 별칭 (기존 코드 지원)
+CLOCKWISE_SEAT_ORDER = CLOCKWISE_SEAT_ORDER_9
 SEAT_TO_CLOCKWISE_INDEX = {seat: idx for idx, seat in enumerate(CLOCKWISE_SEAT_ORDER)}
+
+
+def get_clockwise_order(max_players: int) -> list[int]:
+    """Get clockwise seat order for table size."""
+    return CLOCKWISE_SEAT_ORDER_6 if max_players == 6 else CLOCKWISE_SEAT_ORDER_9
+
+
+def get_seat_to_clockwise_index(max_players: int) -> dict[int, int]:
+    """Get seat to clockwise index mapping for table size."""
+    order = get_clockwise_order(max_players)
+    return {seat: idx for idx, seat in enumerate(order)}
 
 
 def card_to_str(card) -> str:
@@ -75,7 +97,6 @@ class Player:
     status: str = "active"  # active, folded, all_in, sitting_out
     total_bet_this_hand: int = 0
     is_bot: bool = False
-    time_bank_remaining: int = 3  # 남은 타임 뱅크 횟수
     is_cards_revealed: bool = False  # 카드 오픈 상태 (클라이언트에서 카드를 열었는지)
 
 
@@ -93,10 +114,6 @@ class PokerTable:
     min_buy_in: int
     max_buy_in: int
     max_players: int = 9
-
-    # Time Bank 설정
-    TIME_BANK_COUNT: int = 3  # 기본 타임 뱅크 횟수
-    TIME_BANK_SECONDS: int = 30  # 타임 뱅크당 추가 시간 (초)
 
     players: Dict[int, Optional[Player]] = field(default_factory=dict)
     dealer_seat: int = -1
@@ -121,7 +138,6 @@ class PokerTable:
 
     # Turn timer tracking
     _turn_started_at: Optional[datetime] = field(default=None, repr=False)
-    _turn_extra_seconds: int = field(default=0)  # 타임 뱅크로 추가된 시간
 
     def __post_init__(self):
         for i in range(self.max_players):
@@ -196,104 +212,6 @@ class PokerTable:
         logger.info(f"Player {player.username} (seat {seat}) is now active")
         return True
 
-    # =========================================================================
-    # Time Bank Methods
-    # =========================================================================
-
-    def use_time_bank(self, seat: int) -> Dict[str, Any]:
-        """Use time bank for the current player.
-        
-        Args:
-            seat: The seat number of the player requesting time bank
-            
-        Returns:
-            TimeBankResult dict with success, remaining, added_seconds, new_deadline, error
-        """
-        from app.game.types import TimeBankResult
-        
-        # 현재 턴인지 확인
-        if self.current_player_seat != seat:
-            return {
-                "success": False,
-                "remaining": 0,
-                "added_seconds": 0,
-                "error": "NOT_YOUR_TURN",
-            }
-        
-        # 플레이어 확인
-        player = self.players.get(seat)
-        if player is None:
-            return {
-                "success": False,
-                "remaining": 0,
-                "added_seconds": 0,
-                "error": "PLAYER_NOT_FOUND",
-            }
-        
-        # 타임 뱅크 횟수 확인
-        if player.time_bank_remaining <= 0:
-            return {
-                "success": False,
-                "remaining": 0,
-                "added_seconds": 0,
-                "error": "NO_TIME_BANK",
-            }
-        
-        # 진행 중인 핸드 확인
-        if self.phase == GamePhase.WAITING:
-            return {
-                "success": False,
-                "remaining": player.time_bank_remaining,
-                "added_seconds": 0,
-                "error": "NO_ACTIVE_HAND",
-            }
-        
-        # 타임 뱅크 사용
-        player.time_bank_remaining -= 1
-        self._turn_extra_seconds += self.TIME_BANK_SECONDS
-        
-        # 새 마감 시간 계산
-        new_deadline = None
-        if self._turn_started_at:
-            # 기본 턴 시간 (30초) + 추가 시간
-            base_timeout = 30
-            total_seconds = base_timeout + self._turn_extra_seconds
-            new_deadline = (self._turn_started_at + 
-                          timedelta(seconds=total_seconds)).isoformat()
-        
-        logger.info(
-            f"Player {player.username} (seat {seat}) used time bank. "
-            f"Remaining: {player.time_bank_remaining}, Added: {self.TIME_BANK_SECONDS}s"
-        )
-        
-        return {
-            "success": True,
-            "remaining": player.time_bank_remaining,
-            "added_seconds": self.TIME_BANK_SECONDS,
-            "new_deadline": new_deadline,
-        }
-
-    def reset_time_banks(self) -> None:
-        """Reset all players' time banks at hand start."""
-        for seat, player in self.players.items():
-            if player is not None:
-                player.time_bank_remaining = self.TIME_BANK_COUNT
-        logger.debug(f"Reset time banks for all players to {self.TIME_BANK_COUNT}")
-
-    def get_time_bank_remaining(self, seat: int) -> int:
-        """Get remaining time bank count for a player.
-        
-        Args:
-            seat: The seat number
-            
-        Returns:
-            Remaining time bank count, or 0 if player not found
-        """
-        player = self.players.get(seat)
-        if player is None:
-            return 0
-        return player.time_bank_remaining
-
     def is_sitting_out(self, seat: int) -> bool:
         """Check if a player is sitting out.
         
@@ -320,26 +238,30 @@ class PokerTable:
     def get_seated_players_clockwise(self) -> List[Tuple[int, Player]]:
         """Get list of (seat, player) sorted in clockwise order around the table."""
         seated = self.get_seated_players()
-        # 시계방향 순서로 정렬 (SEAT_TO_CLOCKWISE_INDEX 사용)
-        seated.sort(key=lambda x: SEAT_TO_CLOCKWISE_INDEX.get(x[0], x[0]))
+        # 테이블 크기에 맞는 시계방향 순서로 정렬
+        seat_to_idx = get_seat_to_clockwise_index(self.max_players)
+        seated.sort(key=lambda x: seat_to_idx.get(x[0], x[0]))
         return seated
 
     def get_next_clockwise_seat(self, current_seat: int, occupied_seats: List[int]) -> int:
         """Get next occupied seat in clockwise order."""
+        clockwise_order = get_clockwise_order(self.max_players)
+        seat_to_idx = get_seat_to_clockwise_index(self.max_players)
+
         if current_seat not in occupied_seats:
             # current_seat이 점유되지 않은 경우, 첫 번째 점유된 좌석 반환
-            for seat in CLOCKWISE_SEAT_ORDER:
+            for seat in clockwise_order:
                 if seat in occupied_seats:
                     return seat
             return current_seat
 
         # current_seat의 시계방향 인덱스 찾기
-        current_idx = SEAT_TO_CLOCKWISE_INDEX.get(current_seat, 0)
+        current_idx = seat_to_idx.get(current_seat, 0)
 
         # 다음 점유된 좌석 찾기 (시계방향으로)
-        for i in range(1, len(CLOCKWISE_SEAT_ORDER)):
-            next_idx = (current_idx + i) % len(CLOCKWISE_SEAT_ORDER)
-            next_seat = CLOCKWISE_SEAT_ORDER[next_idx]
+        for i in range(1, len(clockwise_order)):
+            next_idx = (current_idx + i) % len(clockwise_order)
+            next_seat = clockwise_order[next_idx]
             if next_seat in occupied_seats:
                 return next_seat
 
@@ -354,6 +276,33 @@ class PokerTable:
         """Check if a new hand can be started."""
         return len(self.get_active_players()) >= 2 and self.phase == GamePhase.WAITING
 
+    def get_blind_seats(self) -> tuple[int | None, int | None]:
+        """SB와 BB 좌석 번호를 반환합니다.
+
+        Returns:
+            (sb_seat, bb_seat) 튜플. 플레이어가 부족하면 (None, None).
+
+        포커 규칙:
+        - 헤즈업(2인): 딜러=SB, 상대=BB
+        - 3인 이상: 딜러 시계방향 다음=SB, 그 다음=BB
+        """
+        seated = self.get_seated_players_clockwise()
+        seats_in_order = [s for s, _ in seated]
+
+        if len(seats_in_order) < 2 or self.dealer_seat not in seats_in_order:
+            return None, None
+
+        if len(seats_in_order) == 2:
+            # 헤즈업: 딜러가 SB, 상대가 BB
+            sb_seat = self.dealer_seat
+            bb_seat = self.get_next_clockwise_seat(self.dealer_seat, seats_in_order)
+        else:
+            # 3명 이상: 딜러 다음이 SB, 그 다음이 BB
+            sb_seat = self.get_next_clockwise_seat(self.dealer_seat, seats_in_order)
+            bb_seat = self.get_next_clockwise_seat(sb_seat, seats_in_order)
+
+        return sb_seat, bb_seat
+
     def start_new_hand(self) -> HandStartResult:
         """Start a new hand."""
         if not self.can_start_hand():
@@ -362,8 +311,36 @@ class PokerTable:
         # 즉시 phase 변경 - 동시 시작 방지
         self.phase = GamePhase.PREFLOP
 
-        # 시계방향 순서로 플레이어 정렬 (텍사스 홀덤 표준 규칙)
+        # 먼저 딜러 이동 (플레이어 순서 결정 전에 필요)
+        self._move_dealer()
+
+        # 시계방향 순서로 플레이어 정렬
         seated = self.get_seated_players_clockwise()
+
+        # PokerKit은 [SB, BB, ..., BTN] 순서를 기대함
+        # 딜러(BTN)를 마지막으로 이동하여 SB부터 시작하는 순서로 재정렬
+        if len(seated) >= 2:
+            # 딜러 위치 찾기
+            dealer_idx = None
+            for i, (seat, _) in enumerate(seated):
+                if seat == self.dealer_seat:
+                    dealer_idx = i
+                    break
+
+            if dealer_idx is not None:
+                # PokerKit 블라인드 할당 규칙:
+                # - 헤즈업: Player 0=BB, Player 1=SB (SB가 먼저 액션)
+                # - 3명+: Player 0=SB, Player 1=BB, ..., Player N-1=BTN
+
+                if len(seated) == 2:
+                    # 헤즈업: [상대(BB), 딜러(SB)] 순서로 전달
+                    # 딜러=SB, 상대=BB (표준 헤즈업 규칙)
+                    other_idx = 1 - dealer_idx
+                    seated = [seated[other_idx], seated[dealer_idx]]
+                else:
+                    # 3명 이상: 딜러 다음(SB)부터 시작하여 딜러(BTN)로 끝남
+                    # [SB, BB, UTG, ..., BTN]
+                    seated = seated[dealer_idx + 1:] + seated[:dealer_idx + 1]
 
         # Initialize hand tracking
         self._hand_start_time = datetime.now(timezone.utc)
@@ -410,13 +387,6 @@ class PokerTable:
             player.hole_cards = None
             player.total_bet_this_hand = 0
             player.is_cards_revealed = False
-
-        # Reset time banks for all players (핸드 시작 시 타임 뱅크 초기화)
-        self.reset_time_banks()
-        self._turn_extra_seconds = 0  # 추가 시간도 리셋
-
-        # Move dealer
-        self._move_dealer()
 
         # Deal hole cards
         self._deal_hole_cards()
@@ -709,22 +679,8 @@ class PokerTable:
             else:
                 players_data.append(None)
 
-        # Calculate SB and BB seats (시계방향 순서로)
-        seated = self.get_seated_players_clockwise()
-        seats_in_order = [s for s, _ in seated]
-
-        sb_seat = None
-        bb_seat = None
-        if len(seats_in_order) >= 2 and self.dealer_seat in seats_in_order:
-            # 딜러의 시계방향 다음 = SB, 그 다음 = BB
-            if len(seats_in_order) == 2:
-                # 헤즈업: 딜러가 SB, 상대가 BB
-                sb_seat = self.dealer_seat
-                bb_seat = self.get_next_clockwise_seat(self.dealer_seat, seats_in_order)
-            else:
-                # 3명 이상: 딜러 다음이 SB, 그 다음이 BB
-                sb_seat = self.get_next_clockwise_seat(self.dealer_seat, seats_in_order)
-                bb_seat = self.get_next_clockwise_seat(sb_seat, seats_in_order)
+        # Calculate SB and BB seats
+        sb_seat, bb_seat = self.get_blind_seats()
 
         return {
             "tableId": self.room_id,
@@ -817,7 +773,9 @@ class PokerTable:
         # 현재 핸드에 참여 중인 플레이어 (active 또는 all_in)
         active_players = [(seat, p) for seat, p in self.players.items()
                           if p and p.status in ("active", "all_in")]
-        active_players.sort(key=lambda x: SEAT_TO_CLOCKWISE_INDEX.get(x[0], x[0]))
+        # 테이블 크기에 맞는 시계방향 인덱스 사용
+        seat_to_idx = get_seat_to_clockwise_index(self.max_players)
+        active_players.sort(key=lambda x: seat_to_idx.get(x[0], x[0]))
 
         self._seat_to_index = {seat: idx for idx, (seat, _) in enumerate(active_players)}
         self._index_to_seat = {idx: seat for seat, idx in self._seat_to_index.items()}

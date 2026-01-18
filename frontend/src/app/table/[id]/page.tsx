@@ -12,14 +12,14 @@ import { DevAdminPanel } from '@/components/table/DevAdminPanel';
 import { TableCenter } from '@/components/table/TableCenter';
 import { useAnimatedNumber } from '@/components/table/PotDisplay';
 import { BuyInModal } from '@/components/table/BuyInModal';
+import { GameHeader } from '@/components/table/GameHeader';
 import { SeatsRenderer } from '@/components/table/SeatsRenderer';
 import { ChipsRenderer } from '@/components/table/ChipsRenderer';
 import { ActionPanel } from '@/components/table/ActionPanel';
 import { useGameState } from '@/hooks/table/useGameState';
 import { useTableActions } from '@/hooks/table/useTableActions';
 import { useTableWebSocket } from '@/hooks/table/useTableWebSocket';
-import { SEAT_POSITIONS } from '@/components/table/PlayerSeat';
-import { GAME_SIZE, TABLE, SEAT_POSITIONS_PERCENT } from '@/constants/tableCoordinates';
+import { GAME_SIZE } from '@/constants/tableCoordinates';
 
 // 게임 컨테이너 스케일 계산 훅
 function useGameScale() {
@@ -61,8 +61,6 @@ export default function TablePage() {
   const [isStartingLoop, setIsStartingLoop] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [showRebuyModal, setShowRebuyModal] = useState(false);
-  const [timeBankRemaining] = useState(3);
-  const [isTimeBankLoading, setIsTimeBankLoading] = useState(false);
 
   // 테이블 컨테이너 ref
   const tableRef = useRef<HTMLDivElement>(null);
@@ -154,10 +152,10 @@ export default function TablePage() {
   }, [gameState.myHoleCards.length, gameState.myCardsRevealed, gameState.dealingComplete, handleRevealCards]);
 
   // 새 핸드 시작 시 상태 초기화
+  // 주의: 카드가 이미 있거나 딜링 완료 상태면 초기화하지 않음 (TABLE_SNAPSHOT에서 phase 누락으로 인한 오류 방지)
   useEffect(() => {
-    if (gameState.gameState?.phase === 'waiting') {
+    if (gameState.gameState?.phase === 'waiting' && !gameState.dealingComplete && gameState.myHoleCards.length === 0) {
       gameState.setMyCardsRevealed(false);
-      gameState.setDealingComplete(false);
       gameState.setIsDealing(false);
       gameState.setDealingSequence([]);
     }
@@ -222,13 +220,6 @@ export default function TablePage() {
   const handleSpectate = useCallback(() => {
     setShowRebuyModal(false);
   }, []);
-
-  // 타임 뱅크 사용 핸들러
-  const handleUseTimeBank = useCallback(() => {
-    if (isTimeBankLoading || timeBankRemaining <= 0) return;
-    setIsTimeBankLoading(true);
-    wsClient.send('TIME_BANK_REQUEST', { tableId });
-  }, [tableId, isTimeBankLoading, timeBankRemaining]);
 
   // 테이블 퇴장 핸들러
   const handleLeave = useCallback(() => {
@@ -416,30 +407,13 @@ export default function TablePage() {
       {/* 메인 게임 영역 - 전체 화면 */}
       <main className="absolute inset-0" data-testid="poker-table">
         {/* 상단 UI - 나가기, 테이블 정보, 잔액 */}
-        <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 py-2 z-[80]">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={handleLeave}
-              disabled={isLeaving}
-              className="text-white/70 hover:text-white transition-colors text-sm"
-            >
-              ← 나가기
-            </button>
-            <h1 className="text-sm font-bold text-white">
-              테이블 #{tableId.slice(0, 8)}
-            </h1>
-          </div>
-          <div className="flex items-center gap-4">
-            {!isConnected && (
-              <span className="text-red-500 text-xs">연결 끊김</span>
-            )}
-            {user && (
-              <span className="text-white/70 text-xs">
-                잔액: {user.balance?.toLocaleString() || 0}
-              </span>
-            )}
-          </div>
-        </div>
+        <GameHeader
+          tableId={tableId}
+          balance={user?.balance || 0}
+          onLeave={handleLeave}
+          isLeaving={isLeaving}
+          isConnected={isConnected}
+        />
 
         {/* 에러 메시지 - 5초 후 자동 해제 */}
         {error && (
@@ -454,62 +428,6 @@ export default function TablePage() {
           </div>
         )}
 
-          {/* DEV: 좌표 그리드 */}
-          {true && (
-            <div className="absolute inset-0 pointer-events-none z-[200]">
-              {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((percent) => (
-                <div
-                  key={`h-${percent}`}
-                  className="absolute left-0 right-0 border-t border-cyan-500/30"
-                  style={{ top: `${percent}%` }}
-                >
-                  <span className="absolute left-1 text-[10px] text-cyan-400 bg-black/50 px-1">
-                    {percent}%
-                  </span>
-                </div>
-              ))}
-              {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((percent) => (
-                <div
-                  key={`v-${percent}`}
-                  className="absolute top-0 bottom-0 border-l border-cyan-500/30"
-                  style={{ left: `${percent}%` }}
-                >
-                  <span className="absolute top-1 text-[10px] text-cyan-400 bg-black/50 px-1">
-                    {percent}%
-                  </span>
-                </div>
-              ))}
-              {/* 퍼센트 기반 좌석 마커 (빨간색) - 기존 */}
-              {SEAT_POSITIONS.map((pos, i) => (
-                <div
-                  key={`seat-marker-${i}`}
-                  className="absolute w-5 h-5 bg-red-500 rounded-full border-2 border-white flex items-center justify-center text-[10px] text-white font-bold shadow-lg"
-                  style={{
-                    top: pos.top,
-                    left: pos.left,
-                    transform: 'translate(-50%, -50%)',
-                  }}
-                >
-                  {i}
-                </div>
-              ))}
-              {/* 픽셀 기반 좌석 마커 (파란색) - 새 좌표 시스템 */}
-              {TABLE.SEATS.map((pos, i) => (
-                <div
-                  key={`seat-px-${i}`}
-                  className="absolute w-4 h-4 bg-blue-500 rounded-full border-2 border-yellow-400 flex items-center justify-center text-[8px] text-white font-bold shadow-lg"
-                  style={{
-                    top: pos.y,
-                    left: pos.x,
-                    transform: 'translate(-50%, -50%)',
-                  }}
-                >
-                  {i}
-                </div>
-              ))}
-            </div>
-          )}
-
           {/* 카운트다운 오버레이 */}
           {countdown !== null && (
             <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -522,61 +440,77 @@ export default function TablePage() {
             </div>
           )}
 
-          {/* 딜링 애니메이션 */}
-          <DealingAnimation
-            isDealing={gameState.isDealing}
-            dealingSequence={gameState.dealingSequence}
-            onDealingComplete={handleDealingComplete}
-            myPosition={gameState.myPosition}
-          />
+          {/* tableConfig 로드 전 로딩 표시 */}
+          {!gameState.tableConfig && (
+            <div className="absolute inset-0 flex items-center justify-center z-20">
+              <div className="w-8 h-8 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
 
-          {/* 플레이어 좌석 */}
-          <SeatsRenderer
-            seats={gameState.seats}
-            myPosition={gameState.myPosition}
-            myHoleCards={gameState.myHoleCards}
-            myCardsRevealed={gameState.myCardsRevealed}
-            dealingComplete={gameState.dealingComplete}
-            currentTurnPosition={gameState.currentTurnPosition}
-            currentTurnTime={gameState.currentTurnTime}
-            turnStartTime={gameState.turnStartTime}
-            winnerPositions={gameState.winnerPositions}
-            winnerAmounts={gameState.winnerAmounts}
-            winnerBestCards={gameState.winnerBestCards}
-            showdownCards={gameState.showdownCards}
-            revealedPositions={gameState.revealedPositions}
-            allHandRanks={gameState.allHandRanks}
-            playerActions={gameState.playerActions}
-            gameInProgress={gameInProgress}
-            isSpectator={isSpectator}
-            onAutoFold={actions.handleAutoFold}
-            onSeatClick={handleSeatClick}
-            onRevealCards={handleRevealCards}
-          />
+          {/* tableConfig 로드 후에만 게임 UI 렌더링 */}
+          {gameState.tableConfig && (
+            <>
+              {/* 딜링 애니메이션 */}
+              <DealingAnimation
+                isDealing={gameState.isDealing}
+                dealingSequence={gameState.dealingSequence}
+                onDealingComplete={handleDealingComplete}
+                myPosition={gameState.myPosition}
+                maxSeats={gameState.tableConfig.maxSeats}
+              />
 
-          {/* 중앙 정보 (팟, 커뮤니티 카드) */}
-          <TableCenter
-            pot={gameState.gameState?.pot ?? 0}
-            animatedPot={animatedPot}
-            sidePots={gameState.sidePots}
-            communityCards={gameState.gameState?.communityCards || []}
-            revealedCommunityCount={gameState.revealedCommunityCount}
-            winnerPositions={gameState.winnerPositions}
-            winnerBestCards={gameState.winnerBestCards}
-            myHandAnalysis={gameState.myCardsRevealed ? myHandAnalysis : { hand: null, draws: [] }}
-            isSpectator={isSpectator}
-          />
+              {/* 플레이어 좌석 */}
+              <SeatsRenderer
+                maxSeats={gameState.tableConfig.maxSeats}
+                seats={gameState.seats}
+                myPosition={gameState.myPosition}
+                myHoleCards={gameState.myHoleCards}
+                myCardsRevealed={gameState.myCardsRevealed}
+                dealingComplete={gameState.dealingComplete}
+                currentTurnPosition={gameState.currentTurnPosition}
+                currentTurnTime={gameState.currentTurnTime}
+                turnStartTime={gameState.turnStartTime}
+                winnerPositions={gameState.winnerPositions}
+                winnerAmounts={gameState.winnerAmounts}
+                winnerBestCards={gameState.winnerBestCards}
+                showdownCards={gameState.showdownCards}
+                revealedPositions={gameState.revealedPositions}
+                allHandRanks={gameState.allHandRanks}
+                playerActions={gameState.playerActions}
+                gameInProgress={gameInProgress}
+                isSpectator={isSpectator}
+                onAutoFold={actions.handleAutoFold}
+                onSeatClick={handleSeatClick}
+                onRevealCards={handleRevealCards}
+              />
 
-          {/* 베팅 칩 */}
-          <ChipsRenderer
-            seats={gameState.seats}
-            myPosition={gameState.myPosition}
-            collectingChips={gameState.collectingChips}
-            isCollectingToPot={gameState.isCollectingToPot}
-            potChips={gameState.potChips}
-            distributingChip={gameState.distributingChip}
-            onDistributingComplete={() => gameState.setDistributingChip(null)}
-          />
+              {/* 중앙 정보 (팟, 커뮤니티 카드) */}
+              <TableCenter
+                maxSeats={gameState.tableConfig.maxSeats}
+                pot={gameState.gameState?.pot ?? 0}
+                animatedPot={animatedPot}
+                sidePots={gameState.sidePots}
+                communityCards={gameState.gameState?.communityCards || []}
+                revealedCommunityCount={gameState.revealedCommunityCount}
+                winnerPositions={gameState.winnerPositions}
+                winnerBestCards={gameState.winnerBestCards}
+                myHandAnalysis={gameState.myCardsRevealed ? myHandAnalysis : { hand: null, draws: [] }}
+                isSpectator={isSpectator}
+              />
+
+              {/* 베팅 칩 */}
+              <ChipsRenderer
+                maxSeats={gameState.tableConfig.maxSeats}
+                seats={gameState.seats}
+                myPosition={gameState.myPosition}
+                collectingChips={gameState.collectingChips}
+                isCollectingToPot={gameState.isCollectingToPot}
+                potChips={gameState.potChips}
+                distributingChip={gameState.distributingChip}
+                onDistributingComplete={() => gameState.setDistributingChip(null)}
+              />
+            </>
+          )}
 
           {/* 쇼다운 인트로 오버레이 - 간소화 */}
           {gameState.showdownPhase === 'intro' && (
@@ -600,8 +534,6 @@ export default function TablePage() {
                 setShowRaiseSlider={setShowRaiseSlider}
                 myStack={myStack}
                 minRaise={gameState.gameState?.minRaise || 0}
-                timeBankRemaining={timeBankRemaining}
-                isTimeBankLoading={isTimeBankLoading}
                 currentTurnPosition={gameState.currentTurnPosition}
                 phase={gameState.gameState?.phase}
                 seatsCount={gameState.seats.filter(s => s.player && s.status !== 'empty').length}
@@ -610,7 +542,6 @@ export default function TablePage() {
                 onCall={actions.handleCall}
                 onRaise={actions.handleRaise}
                 onAllIn={actions.handleAllIn}
-                onUseTimeBank={handleUseTimeBank}
                 onStartGame={handleStartGame}
               />
             </div>

@@ -11,6 +11,7 @@ export { BettingChips } from './BettingChips';
 export { DealingAnimation, calculateDealingSequence } from './DealingAnimation';
 export { DevAdminPanel } from './DevAdminPanel';
 export { TimeBankButton } from './TimeBankButton';
+export { GameHeader } from './GameHeader';
 
 // Re-export pmang components
 export * from './pmang';

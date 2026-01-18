@@ -1,8 +1,9 @@
 """API request schemas."""
 
 import re
+from typing import Literal, Self
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 # Reserved nicknames that cannot be used (case-insensitive)
 RESERVED_NICKNAMES = {
@@ -89,12 +90,17 @@ class CreateRoomRequest(BaseModel):
         max_length=500,
         description="Room description",
     )
+    room_type: Literal["cash", "tournament"] = Field(
+        default="cash",
+        alias="roomType",
+        description="Room type: cash game or tournament",
+    )
     max_seats: int = Field(
-        default=6,
+        default=9,
         ge=2,
         le=9,
         alias="maxSeats",
-        description="Maximum number of seats (2-9)",
+        description="Maximum number of seats (6 or 9)",
     )
     small_blind: int = Field(
         default=10,
@@ -150,6 +156,17 @@ class CreateRoomRequest(BaseModel):
             raise ValueError("Max buy-in must be >= min buy-in")
         return v
 
+    @model_validator(mode="after")
+    def validate_room_config(self) -> Self:
+        """Validate room configuration based on type."""
+        # max_seats는 6 또는 9만 허용
+        if self.max_seats not in (6, 9):
+            raise ValueError("maxSeats must be 6 or 9")
+        # 토너먼트는 9인 강제
+        if self.room_type == "tournament" and self.max_seats != 9:
+            object.__setattr__(self, "max_seats", 9)
+        return self
+
 
 class JoinRoomRequest(BaseModel):
     """Room join request."""
@@ -184,7 +201,7 @@ class UpdateProfileRequest(BaseModel):
     """User profile update request."""
 
     nickname: str | None = Field(default=None, min_length=2, max_length=50)
-    avatar_url: str | None = Field(default=None, alias="avatarUrl", max_length=500)
+    avatar_url: str | None = Field(default=None, alias="avatarUrl", max_length=10)
 
     @field_validator("nickname")
     @classmethod
@@ -198,6 +215,21 @@ class UpdateProfileRequest(BaseModel):
             if not re.match(r"^[a-zA-Z0-9가-힣_]+$", v):
                 raise ValueError("Nickname can only contain letters, numbers, Korean, and underscores")
         return v
+
+    @field_validator("avatar_url")
+    @classmethod
+    def validate_avatar_url(cls, v: str | None) -> str | None:
+        """Validate avatar_url is a valid avatar ID (1-10)."""
+        if v is None:
+            return v
+        # 기본 아바타 ID 검증 (1-10)
+        try:
+            avatar_id = int(v)
+            if 1 <= avatar_id <= 10:
+                return v
+        except ValueError:
+            pass
+        raise ValueError("Avatar must be a number between 1 and 10")
 
 
 class ChangePasswordRequest(BaseModel):

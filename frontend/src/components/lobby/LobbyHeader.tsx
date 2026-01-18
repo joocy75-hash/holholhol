@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useSettingsStore } from "@/stores/settings";
 import { useAuthStore } from "@/stores/auth";
+import { Avatar } from "@/components/common";
 
 const quickSpring = { type: "spring" as const, stiffness: 400, damping: 20 };
 
@@ -12,7 +13,6 @@ export default function LobbyHeader() {
   const { bgmEnabled, toggleBgm } = useSettingsStore();
   const { user } = useAuthStore();
 
-  const imgProfile = "https://www.figma.com/api/mcp/asset/13104cc5-cafd-4aa1-927c-ea3c235a61e5";
   const imgUsdtIcon = "https://www.figma.com/api/mcp/asset/c5c9cad3-b5b5-4668-b459-ba3d8e0c6cec";
 
   return (
@@ -130,20 +130,12 @@ export default function LobbyHeader() {
           position: 'absolute',
           left: '19px',
           top: '77px',
-          width: '56px',
-          height: '56px',
-          borderRadius: '50%',
-          overflow: 'hidden',
         }}
       >
-        <img
-          src={imgProfile}
-          alt="프로필"
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-          }}
+        <Avatar
+          avatarId={user?.avatarUrl ?? null}
+          size="lg"
+          nickname={user?.nickname}
         />
       </div>
 
@@ -245,10 +237,11 @@ export default function LobbyHeader() {
         </p>
       </motion.div>
 
-      {/* 우측 버튼 */}
+      {/* 이벤트/공지 버튼 */}
       <motion.div
+        onClick={() => router.push('/events')}
         whileHover={{
-          boxShadow: '0 0 15px rgba(147, 51, 234, 0.25)',
+          boxShadow: '0 0 20px rgba(255, 200, 0, 0.35)',
           filter: 'brightness(1.15)',
         }}
         whileTap={{ filter: 'brightness(0.9)' }}
@@ -262,8 +255,42 @@ export default function LobbyHeader() {
           background: 'var(--figma-profile-box-bg)',
           borderRadius: '10px',
           cursor: 'pointer',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '4px',
         }}
-      />
+      >
+        {/* 이벤트 아이콘 */}
+        <svg
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#FFD700"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+        </svg>
+        {/* 이벤트/공지 라벨 */}
+        <p
+          style={{
+            margin: 0,
+            fontFamily: 'Paperlogy, sans-serif',
+            fontWeight: 500,
+            fontSize: '9px',
+            lineHeight: 'normal',
+            color: '#ddd',
+            textAlign: 'center',
+          }}
+        >
+          이벤트/공지
+        </p>
+      </motion.div>
     </div>
   );
 }

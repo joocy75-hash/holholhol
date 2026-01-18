@@ -22,7 +22,6 @@ export default function HoldemCard({
 }: HoldemCardProps) {
   const imgHoldemLogo = "https://www.figma.com/api/mcp/asset/db214331-32fb-46bc-bb89-2776aa09bf39";
   const imgUsersIcon = "https://www.figma.com/api/mcp/asset/97d5b03e-7258-44c8-8323-1ed5e70bedef";
-  const imgLine = "https://www.figma.com/api/mcp/asset/20d4e8b0-3e7b-4b9e-a864-e9be55ea6b0a";
   const imgArrowIcon = "https://www.figma.com/api/mcp/asset/6e981a85-711f-46da-8435-7e9e56531fcd";
 
   return (
@@ -125,31 +124,7 @@ export default function HoldemCard({
         {maxSeats}인
       </p>
 
-      {/* 구분선 */}
-      <div
-        style={{
-          position: 'absolute',
-          left: '187px',
-          top: '20px',
-          width: '10px',
-          height: '0px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          transform: 'rotate(90deg)',
-        }}
-      >
-        <img
-          src={imgLine}
-          alt="divider"
-          style={{
-            width: '10px',
-            height: 'auto',
-          }}
-        />
-      </div>
-
-      {/* 텍사스 홀덤 */}
+      {/* 테이블 이름 */}
       <p
         style={{
           position: 'absolute',

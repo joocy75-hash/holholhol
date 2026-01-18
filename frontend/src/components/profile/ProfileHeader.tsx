@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { UserProfile } from '@/lib/api';
+import { Avatar } from '@/components/common';
 
 interface ProfileHeaderProps {
   user: UserProfile | null;
@@ -22,26 +23,16 @@ export default function ProfileHeader({ user, onEditClick }: ProfileHeaderProps)
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         style={{
-          width: '100px',
-          height: '100px',
-          borderRadius: '50%',
-          margin: '0 auto 16px',
-          background: user?.avatar_url
-            ? `url(${user.avatar_url}) center/cover`
-            : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-          border: '3px solid rgba(255,255,255,0.2)',
           position: 'relative',
+          display: 'inline-block',
+          margin: '0 auto 16px',
         }}
       >
-        {!user?.avatar_url && (
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="rgba(255,255,255,0.8)">
-            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-          </svg>
-        )}
+        <Avatar
+          avatarId={user?.avatar_url ?? null}
+          size="xl"
+          nickname={user?.nickname}
+        />
         {/* 편집 버튼 */}
         <motion.button
           onClick={onEditClick}

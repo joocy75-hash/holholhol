@@ -5,6 +5,7 @@ import { PlayingCard, FlippableCard, type Card } from './PlayingCard';
 import { TurnTimer, DEFAULT_TURN_TIME } from './TimerDisplay';
 import type { HandResult } from '@/lib/handEvaluator';
 import { TABLE } from '@/constants/tableCoordinates';
+import { Avatar } from '@/components/common';
 
 // 카드 비교 함수 (rank와 suit 모두 일치하는지 확인)
 function isSameCard(card1: Card, card2: Card): boolean {
@@ -45,6 +46,7 @@ export interface Player {
   isWinner?: boolean; // 승자 여부 (WIN 표시용)
   winAmount?: number; // 승리 금액
   winHandRank?: string; // 승리 족보 (예: "풀하우스", "스트레이트")
+  avatarId?: string | null; // 아바타 ID (1-10)
 }
 
 interface PlayerSeatProps {
@@ -137,7 +139,7 @@ export function PlayerSeat({
 
     return (
       <div
-        className={`player-seat ${isClickable ? 'cursor-pointer hover:opacity-80' : ''} transition-opacity z-[35]`}
+        className={`player-seat ${isClickable ? 'cursor-pointer hover:opacity-80' : ''} transition-all duration-500 ease-out z-[35]`}
         style={{ top: position.y, left: position.x }}
         data-testid={`seat-${seatPosition}`}
         data-occupied="false"
@@ -195,7 +197,7 @@ export function PlayerSeat({
 
   return (
     <div
-      className={`player-seat ${foldedClass} ${actionZIndex} ${winnerClass} ${spotlightClass} z-30`}
+      className={`player-seat ${foldedClass} ${actionZIndex} ${winnerClass} ${spotlightClass} transition-all duration-500 ease-out z-30`}
       style={{ top: position.y, left: position.x }}
       data-testid={`seat-${seatPosition}`}
       data-occupied="true"
@@ -302,12 +304,15 @@ export function PlayerSeat({
           onAutoFold={onAutoFold}
         >
           {/* 프로필 아바타 */}
-          <div className={`player-avatar ${isCurrentUser ? 'border-[var(--primary)]' : ''} ${player.folded ? 'bg-gray-600' : ''} ${player.isWinner ? 'winner-avatar' : ''}`}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="12" cy="8" r="3.5" fill="currentColor" opacity="0.7"/>
-              <path d="M6 20C6 16.6863 8.68629 14 12 14C15.3137 14 18 16.6863 18 20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity="0.7"/>
-            </svg>
-          </div>
+          <Avatar
+            avatarId={player.avatarId ?? null}
+            size="md"
+            nickname={player.username}
+            isCurrentUser={isCurrentUser}
+            isFolded={player.folded}
+            isWinner={player.isWinner}
+            isActive={isActive}
+          />
         </TurnTimer>
 
         {/* 다른 플레이어 카드 오픈 시 - 프로필 정중앙 배치 (쇼다운 시에만) */}
@@ -318,8 +323,7 @@ export function PlayerSeat({
                 const hasBestFiveInfo = bestFiveCards && bestFiveCards.length > 0;
                 const isInBestFive = hasBestFiveInfo && isCardInBestFive(card, bestFiveCards);
                 const shouldHighlight = player.isWinner && (!hasBestFiveInfo || isInBestFive);
-                const shouldDim = player.isWinner && hasBestFiveInfo && !isInBestFive;
-                const cardClass = `w-[32px] h-[44px] ${shouldHighlight ? 'ring-2 ring-yellow-400 rounded shadow-lg shadow-yellow-400/50' : ''} ${shouldDim ? 'opacity-40 grayscale' : ''}`;
+                const cardClass = `w-[32px] h-[44px] ${shouldHighlight ? 'ring-2 ring-yellow-400 rounded shadow-lg shadow-yellow-400/50' : ''}`;
                 return (
                   <div key={i} className={cardClass}>
                     <PlayingCard card={card} />

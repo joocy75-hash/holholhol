@@ -1,58 +1,170 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  staggeredChip,
-  floatingNumber,
-  CHIP_CONSTANTS,
-  calculateCurvedPath,
-  pathToKeyframes,
-  springTransition,
-} from '@/lib/animations';
+import { floatingNumber, CHIP_CONSTANTS } from '@/lib/animations';
 
 interface BettingChipsProps {
   amount: number;
-  position: { x: number; y: number };  // 고정 픽셀 좌표
+  position: { x: number; y: number };
   isAnimating?: boolean;
-  animateTo?: { x: number; y: number };  // 고정 픽셀 좌표
+  animateTo?: { x: number; y: number };
   onAnimationEnd?: () => void;
-  /** 새 베팅 애니메이션 활성화 */
   showBetAnimation?: boolean;
-  /** 베팅 시작 위치 (픽셀) */
   betStartPosition?: { x: number; y: number };
-  /** 금액 라벨 숨기기 (중앙 POT용) */
   hideLabel?: boolean;
 }
 
-// 칩 색상 결정 (금액에 따라)
-const getChipColor = (amt: number) => {
-  if (amt >= 1000) return { bg: '#8B5CF6', border: '#A78BFA' }; // purple
-  if (amt >= 500) return { bg: '#3B82F6', border: '#60A5FA' }; // blue
-  if (amt >= 100) return { bg: '#22C55E', border: '#4ADE80' }; // green
-  if (amt >= 25) return { bg: '#EF4444', border: '#F87171' }; // red
-  return { bg: '#9CA3AF', border: '#D1D5DB' }; // gray
-};
+// 칩 이미지 경로 (색상별 개별 파일 - CSS 필터 제거로 성능 향상)
+const CHIP_IMAGES = {
+  purple: '/assets/chips/bluechip.svg',   // 1000단위
+  green: '/assets/chips/greenchip.svg',   // 100단위
+  red: '/assets/chips/chip_stack.svg',    // 10단위
+} as const;
 
-// 칩 개수 계산 (최대 5개)
-const getChipCount = (amount: number) => Math.min(Math.ceil(amount / 100), 5);
+// 칩 이미지 크기
+const CHIP_WIDTH = 16;
+const CHIP_HEIGHT = 10;
+const CHIP_V_OVERLAP = 7; // 세로 겹침
+const CHIP_H_GAP = 1; // 가로 간격
+
+// 칩 스택 타입
+interface ChipStackData {
+  src: string;
+  count: number;
+}
+
+// 칩 배치 모드
+type ChipMode = 'single' | 'double' | 'triple';
+
+// 칩 스택 계산 (메모이제이션용 순수 함수)
+function calculateChipStacks(amount: number): { stacks: ChipStackData[]; mode: ChipMode } {
+  const stacks: ChipStackData[] = [];
+  let remaining = amount;
+
+  if (remaining >= 1000) {
+    const count = Math.min(Math.floor(remaining / 1000), 5);
+    stacks.push({ src: CHIP_IMAGES.purple, count });
+    remaining -= count * 1000;
+  }
+
+  if (remaining >= 100) {
+    const count = Math.min(Math.floor(remaining / 100), 5);
+    stacks.push({ src: CHIP_IMAGES.green, count });
+    remaining -= count * 100;
+  }
+
+  if (remaining > 0 || stacks.length === 0) {
+    const count = Math.min(Math.max(Math.ceil(remaining / 10), 1), 5);
+    stacks.push({ src: CHIP_IMAGES.red, count });
+  }
+
+  const mode: ChipMode =
+    stacks.length === 1 ? 'single' :
+    stacks.length === 2 ? 'double' : 'triple';
+
+  return { stacks: stacks.slice(0, 3), mode };
+}
 
 // 금액 포맷팅
 function formatAmount(amount: number): string {
-  if (amount >= 10000) {
-    return `+${(amount / 10000).toFixed(1)}만`;
-  }
-  if (amount >= 1000) {
-    return `+${(amount / 1000).toFixed(1)}천`;
-  }
+  if (amount >= 10000) return `+${(amount / 10000).toFixed(1)}만`;
+  if (amount >= 1000) return `+${(amount / 1000).toFixed(1)}천`;
   return `+${amount.toLocaleString()}`;
 }
 
+// 단일 칩 이미지 (CSS 필터 없음 - 성능 최적화)
+const ChipImage = memo(function ChipImage({ src }: { src: string }) {
+  return (
+    <img
+      src={src}
+      alt=""
+      width={CHIP_WIDTH}
+      height={CHIP_HEIGHT}
+    />
+  );
+});
+
+// 세로 스택 (위로 쌓임, 위 칩이 앞에 보임)
+const VerticalStack = memo(function VerticalStack({ stack }: { stack: ChipStackData }) {
+  return (
+    <div className="flex flex-col items-center">
+      {Array.from({ length: stack.count }, (_, i) => (
+        <div
+          key={i}
+          style={{
+            marginTop: i > 0 ? -CHIP_V_OVERLAP : 0,
+            zIndex: stack.count - i,  // 위 칩일수록 높은 z-index
+          }}
+        >
+          <ChipImage src={stack.src} />
+        </div>
+      ))}
+    </div>
+  );
+});
+
+// 정적 칩 스택 (애니메이션 없음)
+const StaticChipStack = memo(function StaticChipStack({
+  stacks,
+  mode
+}: {
+  stacks: ChipStackData[];
+  mode: ChipMode
+}) {
+  if (mode === 'single') {
+    return <VerticalStack stack={stacks[0]} />;
+  }
+
+  if (mode === 'double') {
+    return (
+      <div className="flex gap-1 items-end">
+        {stacks.map((stack, i) => (
+          <VerticalStack key={i} stack={stack} />
+        ))}
+      </div>
+    );
+  }
+
+  // triple: 뒤 1줄 + 앞 2줄
+  const backRow = stacks[0];
+  const frontRows = stacks.slice(1);
+
+  return (
+    <div className="relative flex flex-col items-center">
+      <div className="flex z-10">
+        {Array.from({ length: backRow.count }, (_, i) => (
+          <div key={i} style={{ marginLeft: i > 0 ? CHIP_H_GAP : 0 }}>
+            <ChipImage src={backRow.src} />
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-1 z-20" style={{ marginTop: -4 }}>
+        {frontRows.map((stack, stackIndex) => (
+          <div key={stackIndex} className="flex">
+            {Array.from({ length: stack.count }, (_, i) => (
+              <div key={i} style={{ marginLeft: i > 0 ? CHIP_H_GAP : 0 }}>
+                <ChipImage src={stack.src} />
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+});
+
+// 금액 라벨
+const AmountLabel = memo(function AmountLabel({ amount }: { amount: number }) {
+  return (
+    <div className="mt-1 px-2 py-0.5 bg-black/80 rounded text-white text-[10px] font-bold whitespace-nowrap">
+      {amount.toLocaleString()}
+    </div>
+  );
+});
+
 /**
- * 베팅 칩 컴포넌트 (Framer Motion 버전)
- * - 정적 칩 스택 표시
- * - 베팅 시 곡선 경로 애니메이션
- * - Floating Number 효과
+ * 베팅 칩 컴포넌트 (최적화 버전)
  */
 export function BettingChips({
   amount,
@@ -67,21 +179,19 @@ export function BettingChips({
   const [showFloatingNumber, setShowFloatingNumber] = useState(false);
   const [animationComplete, setAnimationComplete] = useState(false);
 
-  const chipCount = getChipCount(amount);
-  const chipColor = getChipColor(amount);
+  // 칩 스택 계산 메모이제이션
+  const { stacks, mode } = useMemo(() => calculateChipStacks(amount), [amount]);
 
-  // 애니메이션 완료 처리
   const handleAnimationComplete = useCallback(() => {
     setAnimationComplete(true);
     onAnimationEnd?.();
   }, [onAnimationEnd]);
 
-  // 첫 칩 도착 시 floating number 표시
   const handleFirstChipArrived = useCallback(() => {
     setShowFloatingNumber(true);
   }, []);
 
-  // 애니메이션 상태 리셋 - 렌더링 중 처리
+  // 상태 리셋
   const [lastBetState, setLastBetState] = useState({ showBetAnimation, amount });
   if (showBetAnimation !== lastBetState.showBetAnimation || amount !== lastBetState.amount) {
     setLastBetState({ showBetAnimation, amount });
@@ -93,65 +203,38 @@ export function BettingChips({
 
   if (amount <= 0) return null;
 
-  // 베팅 애니메이션 모드
+  // 베팅 애니메이션 모드 (단순 직선 이동)
   if (showBetAnimation && betStartPosition && !animationComplete) {
-    // 고정 픽셀 좌표 직접 사용
-    const path = calculateCurvedPath(
-      betStartPosition,
-      { x: position.x, y: position.y },
-      { curvature: 0.25, direction: 'up' }
-    );
-    const keyframes = pathToKeyframes(path);
-
     return (
       <div className="absolute inset-0 pointer-events-none z-50">
         <AnimatePresence>
-          {/* 애니메이션 칩들 */}
-          {Array.from({ length: chipCount }).map((_, index) => (
-            <motion.div
-              key={`bet-chip-${index}`}
-              className="absolute"
-              style={{
-                left: betStartPosition.x,
-                top: betStartPosition.y,
-              }}
-              variants={staggeredChip}
-              initial="initial"
-              animate={{
-                x: keyframes.x.map(x => x - betStartPosition.x),
-                y: keyframes.y.map(y => y - betStartPosition.y),
-                opacity: 1,
-                scale: 1,
-              }}
-              transition={{
-                duration: CHIP_CONSTANTS.MOVE_DURATION / 1000,
-                delay: index * (CHIP_CONSTANTS.STAGGER_DELAY / 1000),
-                ease: [0.25, 0.1, 0.25, 1],
-              }}
-              onAnimationComplete={() => {
-                if (index === 0) handleFirstChipArrived();
-                if (index === chipCount - 1) handleAnimationComplete();
-              }}
-            >
-              <div
-                className="w-8 h-3 rounded-full shadow-md"
-                style={{
-                  background: `linear-gradient(135deg, ${chipColor.bg} 0%, ${chipColor.border} 100%)`,
-                  border: `2px solid ${chipColor.border}`,
-                }}
-              />
-            </motion.div>
-          ))}
+          <motion.div
+            key="bet-chip"
+            className="absolute -translate-x-1/2 -translate-y-1/2"
+            style={{ left: betStartPosition.x, top: betStartPosition.y }}
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{
+              x: position.x - betStartPosition.x,
+              y: position.y - betStartPosition.y,
+              opacity: 1,
+              scale: 1,
+            }}
+            transition={{
+              duration: CHIP_CONSTANTS.MOVE_DURATION / 1000,
+              ease: 'easeOut',
+            }}
+            onAnimationComplete={() => {
+              handleFirstChipArrived();
+              handleAnimationComplete();
+            }}
+          >
+            <StaticChipStack stacks={stacks} mode={mode} />
+          </motion.div>
 
-          {/* Floating Number */}
           {showFloatingNumber && (
             <motion.div
               className="absolute text-xl font-bold text-yellow-400 drop-shadow-lg"
-              style={{
-                left: position.x,
-                top: position.y,
-                transform: 'translate(-50%, -50%)',
-              }}
+              style={{ left: position.x, top: position.y, transform: 'translate(-50%, -50%)' }}
               variants={floatingNumber}
               initial="initial"
               animate="animate"
@@ -165,109 +248,37 @@ export function BettingChips({
     );
   }
 
-  // 팟 이동 애니메이션 모드 (곡선 경로)
+  // 팟 이동 애니메이션 모드 (단순 직선 이동)
   if (isAnimating && animateTo) {
-    const path = calculateCurvedPath(
-      position,
-      animateTo,
-      { curvature: 0.3, direction: 'up' }
-    );
-    const keyframes = pathToKeyframes(path);
-
     return (
       <div className="absolute inset-0 pointer-events-none z-50">
-        <AnimatePresence>
-          {Array.from({ length: chipCount }).map((_, index) => (
-            <motion.div
-              key={`collect-chip-${index}`}
-              className="absolute -translate-x-1/2 -translate-y-1/2"
-              style={{
-                left: position.x,
-                top: position.y,
-              }}
-              initial={{ opacity: 1, scale: 1 }}
-              animate={{
-                x: keyframes.x.map(x => x - position.x),
-                y: keyframes.y.map(y => y - position.y),
-                opacity: 1,
-                scale: [1, 1, 0.9, 0.8],
-              }}
-              transition={{
-                duration: 0.5,
-                delay: index * 0.03,
-                ease: [0.4, 0, 0.2, 1],
-              }}
-              onAnimationComplete={() => {
-                if (index === chipCount - 1) handleAnimationComplete();
-              }}
-            >
-              <div
-                className="w-8 h-3 rounded-full shadow-md"
-                style={{
-                  background: `linear-gradient(135deg, ${chipColor.bg} 0%, ${chipColor.border} 100%)`,
-                  border: `2px solid ${chipColor.border}`,
-                }}
-              />
-            </motion.div>
-          ))}
-        </AnimatePresence>
+        <motion.div
+          className="absolute -translate-x-1/2 -translate-y-1/2"
+          style={{ left: position.x, top: position.y }}
+          initial={{ opacity: 1, scale: 1 }}
+          animate={{
+            x: animateTo.x - position.x,
+            y: animateTo.y - position.y,
+            scale: [1, 1, 0.9, 0.8],
+            opacity: [1, 1, 1, 0],
+          }}
+          transition={{ duration: 0.4, ease: 'linear' }}
+          onAnimationComplete={handleAnimationComplete}
+        >
+          <StaticChipStack stacks={stacks} mode={mode} />
+        </motion.div>
       </div>
     );
   }
 
-  // 정적 칩 스택 표시
+  // 정적 표시 (애니메이션 없음 - 가장 빠름)
   return (
-    <motion.div
+    <div
       className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-30"
       style={{ top: position.y, left: position.x }}
-      initial={{ scale: 0, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      transition={springTransition}
     >
-      <ChipStack chipCount={chipCount} chipColor={chipColor} />
+      <StaticChipStack stacks={stacks} mode={mode} />
       {!hideLabel && <AmountLabel amount={amount} />}
-    </motion.div>
-  );
-}
-
-// 칩 스택 컴포넌트
-function ChipStack({ 
-  chipCount, 
-  chipColor 
-}: { 
-  chipCount: number; 
-  chipColor: { bg: string; border: string };
-}) {
-  return (
-    <div className="relative flex flex-col-reverse items-center">
-      {Array.from({ length: chipCount }).map((_, i) => (
-        <motion.div
-          key={i}
-          className="w-8 h-3 rounded-full shadow-md"
-          style={{
-            marginTop: i > 0 ? '-6px' : '0',
-            background: `linear-gradient(135deg, ${chipColor.bg} 0%, ${chipColor.border} 100%)`,
-            border: `2px solid ${chipColor.border}`,
-          }}
-          initial={{ y: -20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: i * 0.05 }}
-        />
-      ))}
     </div>
-  );
-}
-
-// 금액 라벨 컴포넌트
-function AmountLabel({ amount }: { amount: number }) {
-  return (
-    <motion.div 
-      className="mt-1 px-2 py-0.5 bg-black/80 rounded text-white text-[10px] font-bold whitespace-nowrap"
-      initial={{ opacity: 0, y: 5 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.2 }}
-    >
-      {amount.toLocaleString()}
-    </motion.div>
   );
 }

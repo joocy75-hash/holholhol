@@ -10,6 +10,7 @@ import HoldemCard from '@/components/lobby/HoldemCard';
 import BottomNavigation from '@/components/lobby/BottomNavigation';
 // import QuickJoinButton from '@/components/lobby/QuickJoinButton'; // 임시 숨김
 import { tablesApi } from '@/lib/api';
+import { useAuthStore } from '@/stores/auth';
 
 type GameType = 'tournament' | 'holdem';
 
@@ -23,15 +24,19 @@ interface Room {
   isPrivate: boolean;
   buyInMin: number;
   buyInMax: number;
-  gameType?: GameType; // 백엔드에서 제공 가능
+  roomType?: 'cash' | 'tournament'; // 백엔드에서 제공
+  gameType?: GameType; // UI 표시용
 }
 
-// 방 이름으로 게임 타입 결정 (백엔드에 gameType이 없을 경우)
+// 게임 타입 결정 (roomType=tournament 우선, 그 외는 이름 기반 판단)
 function determineGameType(room: Room): GameType {
-  if (room.gameType) return room.gameType;
+  // 백엔드에서 tournament로 명시적 지정된 경우
+  if (room.roomType === 'tournament') {
+    return 'tournament';
+  }
 
+  // 이름 기반 판단 (기존 방들은 roomType="cash"가 기본값이라 이름으로 판단)
   const name = room.name.toLowerCase();
-  // 토너먼트 키워드 포함 여부로 판단
   if (
     name.includes('토너먼트') ||
     name.includes('tournament') ||
@@ -48,10 +53,16 @@ function determineGameType(room: Room): GameType {
 
 export default function LobbyPage() {
   const router = useRouter();
+  const { fetchUser } = useAuthStore();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('all');
+
+  // 유저 정보 로드 (새로고침 시 필요)
+  useEffect(() => {
+    fetchUser();
+  }, [fetchUser]);
 
   const fetchRooms = useCallback(async () => {
     setLoading(true);
@@ -192,7 +203,7 @@ export default function LobbyPage() {
         </div>
 
         {/* 탭 스켈레톤 */}
-        <div style={{ position: 'absolute', left: '10px', top: '380px' }}>
+        <div style={{ position: 'absolute', left: '10px', top: '358px' }}>
           <div className="flex gap-4">
             <div className="w-16 h-8 bg-surface animate-pulse rounded-md" />
             <div className="w-16 h-8 bg-surface animate-pulse rounded-md" />
@@ -201,7 +212,7 @@ export default function LobbyPage() {
         </div>
 
         {/* 카드 스켈레톤들 */}
-        <div style={{ position: 'absolute', left: '10px', top: '414px', right: '10px' }}>
+        <div style={{ position: 'absolute', left: '10px', top: '392px', right: '10px' }}>
           <div className="w-full h-[120px] bg-surface animate-pulse rounded-xl mb-4" />
           <div className="w-full h-[120px] bg-surface animate-pulse rounded-xl" />
         </div>
@@ -235,7 +246,7 @@ export default function LobbyPage() {
           top: '88px',
           width: '388px',
           height: '687px',
-          opacity: 0.5,
+          opacity: 0.3,
           pointerEvents: 'none',
           zIndex: 0,
         }}
@@ -262,8 +273,8 @@ export default function LobbyPage() {
         <BannerCarousel />
       </div>
 
-      {/* 게임 탭 (380px) */}
-      <div style={{ position: 'absolute', left: '10px', top: '380px', zIndex: 1 }}>
+      {/* 게임 탭 */}
+      <div style={{ position: 'absolute', left: '10px', top: '358px', zIndex: 1 }}>
         <GameTabs onTabChange={handleTabChange} />
       </div>
 
@@ -272,7 +283,7 @@ export default function LobbyPage() {
         style={{
           position: 'absolute',
           left: '10px',
-          top: '414px',
+          top: '392px',
           right: '10px',
           bottom: 0,
           overflowY: 'auto',

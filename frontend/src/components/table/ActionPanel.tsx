@@ -13,8 +13,6 @@ interface ActionPanelProps {
   setShowRaiseSlider: (show: boolean) => void;
   myStack: number;
   minRaise: number;
-  timeBankRemaining: number;
-  isTimeBankLoading: boolean;
   currentTurnPosition: number | null;
   phase: string | undefined;
   seatsCount: number;
@@ -23,7 +21,6 @@ interface ActionPanelProps {
   onCall: () => void;
   onRaise: () => void;
   onAllIn: () => void;
-  onUseTimeBank: () => void;
   onStartGame: () => void;
 }
 
@@ -37,8 +34,6 @@ export function ActionPanel({
   setShowRaiseSlider,
   myStack,
   minRaise,
-  timeBankRemaining,
-  isTimeBankLoading,
   currentTurnPosition,
   phase,
   seatsCount,
@@ -47,7 +42,6 @@ export function ActionPanel({
   onCall,
   onRaise,
   onAllIn,
-  onUseTimeBank,
   onStartGame,
 }: ActionPanelProps) {
   const canFold = allowedActions.some(a => a.type === 'fold');
@@ -124,62 +118,49 @@ export function ActionPanel({
           </div>
         )}
 
-        {/* 액션 버튼 */}
-        <div className="flex gap-2 justify-center items-center">
-          {timeBankRemaining > 0 && (
-            <button
-              onClick={onUseTimeBank}
-              disabled={isTimeBankLoading || timeBankRemaining <= 0}
-              className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-sm transition-all duration-200 ${
-                !isTimeBankLoading && timeBankRemaining > 0
-                  ? 'bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-400 hover:to-cyan-400 text-white shadow-lg shadow-blue-500/30 hover:scale-105 active:scale-95'
-                  : 'bg-gray-700/50 text-gray-400 cursor-not-allowed'
-              }`}
-              data-testid="time-bank-button"
-            >
-              <svg className={`w-4 h-4 ${isTimeBankLoading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span>+30초</span>
-              <span className={`ml-1 px-1.5 py-0.5 rounded-full text-xs font-bold ${!isTimeBankLoading && timeBankRemaining > 0 ? 'bg-white/20' : 'bg-gray-600/50'}`} data-testid="time-bank-remaining">
-                {timeBankRemaining}
-              </span>
-            </button>
-          )}
-          {canFold && (
-            <button onClick={onFold} className="relative hover:scale-105 active:scale-95 transition-transform" data-testid="fold-button">
-              <img src="/assets/ui/btn_fold.png?v=3" alt="폴드" className="h-[53px]" />
-              <span className="absolute inset-0 flex items-center justify-center text-white font-bold text-sm drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">폴드</span>
-            </button>
-          )}
-          {canCheck && (
-            <button onClick={onCheck} className="relative hover:scale-105 active:scale-95 transition-transform" data-testid="check-button">
-              <img src="/assets/ui/btn_check.png?v=3" alt="체크" className="h-[53px]" />
-              <span className="absolute inset-0 flex items-center justify-center text-white font-bold text-sm drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">체크</span>
-            </button>
-          )}
-          {canCall && (
-            <button onClick={onCall} className="relative hover:scale-105 active:scale-95 transition-transform" data-testid="call-button">
-              <img src="/assets/ui/btn_call.png?v=3" alt="콜" className="h-[53px]" />
-              <span className="absolute inset-0 flex items-center justify-center text-white font-bold text-sm drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">
-                콜{callAmount > 0 && <span className="text-yellow-300">({callAmount.toLocaleString()})</span>}
-              </span>
-            </button>
-          )}
-          {(canBet || canRaise) && (
-            <button onClick={() => setShowRaiseSlider(!showRaiseSlider)} className="relative hover:scale-105 active:scale-95 transition-transform" data-testid="raise-button">
-              <img src="/assets/ui/btn_raise.png?v=3" alt="레이즈" className="h-[53px]" />
-              <span className="absolute inset-0 flex items-center justify-center text-white font-bold text-sm drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">
-                레이즈<span className="text-yellow-300">({raiseAmount.toLocaleString()})</span>
-              </span>
-            </button>
-          )}
-          {(canRaise || canBet || canCall) && (
-            <button onClick={onAllIn} className="relative hover:scale-105 active:scale-95 transition-transform" data-testid="allin-button">
-              <img src="/assets/ui/btn_allin.png?v=3" alt="올인" className="h-[53px]" />
-              <span className="absolute inset-0 flex items-center justify-center text-white font-bold text-sm drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">올인</span>
-            </button>
-          )}
+        {/* 액션 버튼 - 좌우 배치 */}
+        <div className="relative w-full">
+          {/* 좌측: 레이즈, 올인 */}
+          <div className="absolute left-12 bottom-0 flex flex-col gap-1">
+            {(canBet || canRaise) && (
+              <button onClick={() => setShowRaiseSlider(!showRaiseSlider)} className="relative hover:scale-105 active:scale-95 transition-transform" data-testid="raise-button">
+                <img src="/assets/ui/btn_raise.png?v=3" alt="레이즈" className="h-[60px]" />
+                <span className="absolute inset-0 flex items-center justify-center text-white font-bold text-base drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">
+                  레이즈<span className="text-yellow-300 text-sm">({raiseAmount.toLocaleString()})</span>
+                </span>
+              </button>
+            )}
+            {(canRaise || canBet || canCall) && (
+              <button onClick={onAllIn} className="relative hover:scale-105 active:scale-95 transition-transform" data-testid="allin-button">
+                <img src="/assets/ui/btn_allin.png?v=3" alt="올인" className="h-[60px]" />
+                <span className="absolute inset-0 flex items-center justify-center text-white font-bold text-base drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">올인</span>
+              </button>
+            )}
+          </div>
+
+          {/* 우측: 콜, 체크, 폴드 */}
+          <div className="absolute right-12 bottom-0 flex flex-col gap-1">
+            {canCall && (
+              <button onClick={onCall} className="relative hover:scale-105 active:scale-95 transition-transform" data-testid="call-button">
+                <img src="/assets/ui/btn_call.png?v=3" alt="콜" className="h-[60px]" />
+                <span className="absolute inset-0 flex items-center justify-center text-white font-bold text-base drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">
+                  콜{callAmount > 0 && <span className="text-yellow-300 text-sm">({callAmount.toLocaleString()})</span>}
+                </span>
+              </button>
+            )}
+            {canCheck && (
+              <button onClick={onCheck} className="relative hover:scale-105 active:scale-95 transition-transform" data-testid="check-button">
+                <img src="/assets/ui/btn_check.png?v=3" alt="체크" className="h-[60px]" />
+                <span className="absolute inset-0 flex items-center justify-center text-white font-bold text-base drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">체크</span>
+              </button>
+            )}
+            {canFold && (
+              <button onClick={onFold} className="relative hover:scale-105 active:scale-95 transition-transform" data-testid="fold-button">
+                <img src="/assets/ui/btn_fold.png?v=3" alt="폴드" className="h-[60px]" />
+                <span className="absolute inset-0 flex items-center justify-center text-white font-bold text-base drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">폴드</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );

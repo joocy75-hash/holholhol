@@ -37,7 +37,8 @@ class RoomService:
         owner_id: str,
         name: str,
         description: str | None = None,
-        max_seats: int = 6,
+        room_type: str = "cash",
+        max_seats: int = 9,
         small_blind: int = 10,
         big_blind: int = 20,
         buy_in_min: int = 400,
@@ -73,6 +74,7 @@ class RoomService:
 
         # Create room config
         config = {
+            "room_type": room_type,
             "max_seats": max_seats,
             "small_blind": small_blind,
             "big_blind": big_blind,

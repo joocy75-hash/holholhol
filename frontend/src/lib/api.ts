@@ -307,7 +307,10 @@ export const usersApi = {
   getProfile: () => api.get<UserProfile>('/api/v1/users/me'),
 
   updateProfile: (data: UpdateProfileRequest) =>
-    api.patch<UserProfile>('/api/v1/users/me', data),
+    api.patch<UserProfile>('/api/v1/users/me', {
+      nickname: data.nickname,
+      avatarUrl: data.avatar_url,
+    }),
 
   getStats: () => api.get<UserStats>('/api/v1/users/me/stats'),
 

@@ -74,10 +74,6 @@ class EventType(str, Enum):
     # Timer events
     TIMEOUT_FOLD = "TIMEOUT_FOLD"
 
-    # Time Bank events
-    TIME_BANK_REQUEST = "TIME_BANK_REQUEST"
-    TIME_BANK_USED = "TIME_BANK_USED"
-
     # Chat events (2)
     CHAT_MESSAGE = "CHAT_MESSAGE"
     CHAT_HISTORY = "CHAT_HISTORY"
@@ -105,7 +101,6 @@ CLIENT_TO_SERVER_EVENTS = frozenset([
     EventType.SIT_OUT_REQUEST,
     EventType.SIT_IN_REQUEST,
     EventType.REBUY,  # 리바이 요청
-    EventType.TIME_BANK_REQUEST,  # 타임 뱅크 요청
     EventType.REVEAL_CARDS,  # 카드 오픈 요청
     EventType.WAITLIST_JOIN_REQUEST,  # 대기열 등록 요청
     EventType.WAITLIST_CANCEL_REQUEST,  # 대기열 취소 요청
@@ -142,7 +137,6 @@ SERVER_TO_CLIENT_EVENTS = frozenset([
     EventType.TIMEOUT_FOLD,
     EventType.PLAYER_SIT_OUT,
     EventType.PLAYER_SIT_IN,
-    EventType.TIME_BANK_USED,  # 타임 뱅크 사용 결과
     EventType.CARDS_REVEALED,  # 카드 오픈 브로드캐스트
     EventType.ANNOUNCEMENT,  # 공지사항 브로드캐스트
     EventType.ROOM_FORCE_CLOSED,  # 방 강제 종료 알림

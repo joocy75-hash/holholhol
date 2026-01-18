@@ -97,11 +97,13 @@ class TableHandler(BaseHandler):
     ) -> MessageEnvelope:
         """Handle SUBSCRIBE_TABLE event."""
         table_id = event.payload.get("tableId")  # Could be roomId
+        logger.info(f"[SUBSCRIBE_TABLE] table_id={table_id}, user_id={conn.user_id}")
         # mode는 아래에서 자동 결정 (유저가 테이블에 앉아있으면 player)
 
         # Get or load table from DB and sync with GameManager
         table = await self._get_table_by_id_or_room(table_id, load_room=True)
         if not table:
+            logger.warning(f"[SUBSCRIBE_TABLE] TABLE_NOT_FOUND for table_id={table_id}")
             return MessageEnvelope.create(
                 event_type=EventType.TABLE_SNAPSHOT,
                 payload={"tableId": table_id, "error": "TABLE_NOT_FOUND"},
@@ -128,7 +130,7 @@ class TableHandler(BaseHandler):
         else:
             await self.manager.subscribe_as_spectator(conn.connection_id, room_id)
 
-        logger.info(f"[SUBSCRIBE_TABLE] user_id={conn.user_id}, auto mode={mode}")
+        logger.info(f"[SUBSCRIBE_TABLE] user_id={conn.user_id}, mode={mode}")
 
         # Build snapshot using GameManager state
         snapshot = await self._build_table_snapshot(table, conn.user_id, mode)
@@ -774,7 +776,6 @@ class TableHandler(BaseHandler):
                         "isDealer": i == game_table.dealer_seat,
                         "isCurrent": i == game_table.current_player_seat,
                         "isCardsRevealed": player.is_cards_revealed,  # 카드 오픈 상태
-                        "timeBankRemaining": player.time_bank_remaining,  # 타임 뱅크 남은 횟수
                     })
                 else:
                     seats.append({
@@ -831,9 +832,8 @@ class TableHandler(BaseHandler):
             if game_table.current_player_seat is not None and game_table._turn_started_at:
                 from datetime import datetime, timezone, timedelta
 
-                base_timeout = config.get("turn_timeout", 30)
-                total_seconds = base_timeout + game_table._turn_extra_seconds
-                deadline = game_table._turn_started_at + timedelta(seconds=total_seconds)
+                base_timeout = config.get("turn_timeout", 15)  # 고정 15초 턴 타임
+                deadline = game_table._turn_started_at + timedelta(seconds=base_timeout)
 
                 # 남은 시간 계산
                 now = datetime.now(timezone.utc)
@@ -844,7 +844,6 @@ class TableHandler(BaseHandler):
                     "startedAt": game_table._turn_started_at.isoformat(),
                     "deadlineAt": deadline.isoformat(),
                     "remainingSeconds": round(remaining_seconds, 1),
-                    "extraSeconds": game_table._turn_extra_seconds,
                 }
 
             return {
@@ -947,17 +946,7 @@ class TableHandler(BaseHandler):
                 seats_data.append(None)
 
         # SB/BB 좌석 계산
-        seated = game_table.get_seated_players_clockwise()
-        seats_in_order = [s for s, _ in seated]
-        sb_seat = None
-        bb_seat = None
-        if len(seats_in_order) >= 2 and game_table.dealer_seat in seats_in_order:
-            if len(seats_in_order) == 2:
-                sb_seat = game_table.dealer_seat
-                bb_seat = game_table.get_next_clockwise_seat(game_table.dealer_seat, seats_in_order)
-            else:
-                sb_seat = game_table.get_next_clockwise_seat(game_table.dealer_seat, seats_in_order)
-                bb_seat = game_table.get_next_clockwise_seat(sb_seat, seats_in_order)
+        sb_seat, bb_seat = game_table.get_blind_seats()
 
         message = MessageEnvelope.create(
             event_type=EventType.HAND_STARTED,

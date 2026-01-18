@@ -19,3 +19,7 @@ export {
   LoadingOverlay,
   InlineLoading,
 } from './Loading';
+
+// 아바타
+export { Avatar, AvatarSelector } from './Avatar';
+export type { AvatarProps, AvatarSelectorProps, AvatarSize } from './Avatar';

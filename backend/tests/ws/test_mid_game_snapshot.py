@@ -182,42 +182,6 @@ class TestMidGameSnapshot:
         assert action_history[-1]["action"] in ("call", "check")
 
     @pytest.mark.asyncio
-    async def test_snapshot_includes_time_bank_info(
-        self,
-        room_id: str,
-        user_id: str,
-        mock_table,
-        mock_db,
-        mock_manager,
-        game_table_with_players,
-    ):
-        """Test that each seat includes timeBankRemaining."""
-        game_table = game_table_with_players
-
-        # Start a hand
-        result = game_table.start_new_hand()
-        assert result["success"]
-
-        # Create handler and mock table lookup
-        handler = TableHandler(mock_manager, mock_db)
-        handler._get_table_by_id_or_room = AsyncMock(return_value=mock_table)
-        handler._ensure_game_table = AsyncMock(return_value=game_table)
-
-        # Create connection
-        conn = MagicMock(spec=WebSocketConnection)
-        conn.user_id = user_id
-        conn.connection_id = str(uuid4())
-
-        # Build snapshot
-        snapshot = await handler._build_table_snapshot(mock_table, user_id, "player")
-
-        # Check seats have timeBankRemaining
-        for seat in snapshot["seats"]:
-            if seat["player"] is not None:
-                assert "timeBankRemaining" in seat
-                assert seat["timeBankRemaining"] == 3  # Default value
-
-    @pytest.mark.asyncio
     async def test_snapshot_includes_turn_info(
         self,
         room_id: str,
@@ -236,7 +200,6 @@ class TestMidGameSnapshot:
 
         # Set turn started time
         game_table._turn_started_at = datetime.now(timezone.utc)
-        game_table._turn_extra_seconds = 0
 
         # Create handler and mock table lookup
         handler = TableHandler(mock_manager, mock_db)
@@ -254,50 +217,9 @@ class TestMidGameSnapshot:
         assert "startedAt" in turn_info
         assert "deadlineAt" in turn_info
         assert "remainingSeconds" in turn_info
-        assert "extraSeconds" in turn_info
 
         # Remaining seconds should be close to turn timeout
-        assert turn_info["remainingSeconds"] > 25  # Should be around 30 seconds
-        assert turn_info["extraSeconds"] == 0
-
-    @pytest.mark.asyncio
-    async def test_snapshot_turn_info_with_time_bank(
-        self,
-        room_id: str,
-        user_id: str,
-        mock_table,
-        mock_db,
-        mock_manager,
-        game_table_with_players,
-    ):
-        """Test that turnInfo reflects time bank extra seconds."""
-        game_table = game_table_with_players
-
-        # Start a hand
-        result = game_table.start_new_hand()
-        assert result["success"]
-
-        # Set turn started time
-        game_table._turn_started_at = datetime.now(timezone.utc)
-
-        # Use time bank (adds 30 seconds)
-        current_seat = game_table.current_player_seat
-        time_bank_result = game_table.use_time_bank(current_seat)
-        assert time_bank_result["success"]
-
-        # Create handler and mock table lookup
-        handler = TableHandler(mock_manager, mock_db)
-        handler._get_table_by_id_or_room = AsyncMock(return_value=mock_table)
-        handler._ensure_game_table = AsyncMock(return_value=game_table)
-
-        # Build snapshot
-        snapshot = await handler._build_table_snapshot(mock_table, user_id, "player")
-
-        # Check turnInfo has extra seconds
-        turn_info = snapshot["turnInfo"]
-        assert turn_info is not None
-        assert turn_info["extraSeconds"] == 30  # Time bank adds 30 seconds
-        assert turn_info["remainingSeconds"] > 55  # Should be around 60 seconds
+        assert turn_info["remainingSeconds"] > 10  # Should be around 15 seconds
 
     @pytest.mark.asyncio
     async def test_spectator_snapshot_no_hole_cards(

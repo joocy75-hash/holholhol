@@ -1,11 +1,13 @@
 'use client';
 
+import { useMemo } from 'react';
 import { PlayingCard, type Card } from './PlayingCard';
 import { isCardInBestFive } from './CommunityCards';
 import type { HandResult } from '@/lib/handEvaluator';
-import { TABLE } from '@/constants/tableCoordinates';
+import { MAX_SEATS, getTableConstants } from '@/constants/tableCoordinates';
 
 interface TableCenterProps {
+  maxSeats?: number;  // 6 또는 9 (기본값 9)
   pot: number;
   animatedPot: number;
   sidePots: { amount: number; eligiblePlayers: number[] }[];
@@ -18,6 +20,7 @@ interface TableCenterProps {
 }
 
 export function TableCenter({
+  maxSeats = MAX_SEATS,
   pot,
   animatedPot,
   sidePots,
@@ -28,6 +31,8 @@ export function TableCenter({
   myHandAnalysis,
   isSpectator,
 }: TableCenterProps) {
+  // 동적 좌표 선택 (6인 또는 9인)
+  const tableConfig = useMemo(() => getTableConstants(maxSeats), [maxSeats]);
   // 5장의 커뮤니티 카드 슬롯 생성
   const cardSlots = Array.from({ length: 5 }, (_, idx) => {
     const card = communityCards[idx];
@@ -44,8 +49,8 @@ export function TableCenter({
       <div
         className="absolute flex gap-2 z-10"
         style={{
-          top: TABLE.COMMUNITY.y,
-          left: TABLE.COMMUNITY.x,
+          top: tableConfig.COMMUNITY.y,
+          left: tableConfig.COMMUNITY.x,
           transform: 'translate(-50%, -50%)',
         }}
         data-testid="community-cards"
@@ -83,8 +88,8 @@ export function TableCenter({
       <div
         className="absolute flex flex-col items-center z-10"
         style={{
-          top: TABLE.POT_DISPLAY.y,
-          left: TABLE.POT_DISPLAY.x,
+          top: tableConfig.POT_DISPLAY.y,
+          left: tableConfig.POT_DISPLAY.x,
           transform: 'translate(-50%, -50%)',
         }}
       >
@@ -111,8 +116,8 @@ export function TableCenter({
         <div
           className="absolute z-10"
           style={{
-            top: TABLE.HAND_RANK.y,
-            left: TABLE.HAND_RANK.x,
+            top: tableConfig.HAND_RANK.y,
+            left: tableConfig.HAND_RANK.x,
             transform: 'translate(-50%, -50%)',
           }}
         >

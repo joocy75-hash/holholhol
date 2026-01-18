@@ -1,10 +1,12 @@
 'use client';
 
+import { useMemo } from 'react';
 import { BettingChips } from './BettingChips';
-import { TABLE, MAX_SEATS } from '@/constants/tableCoordinates';
+import { MAX_SEATS, getTableConstants } from '@/constants/tableCoordinates';
 import type { SeatInfo } from '@/hooks/table/useGameState';
 
 interface ChipsRendererProps {
+  maxSeats?: number;  // 6 또는 9 (기본값 9)
   seats: SeatInfo[];
   myPosition: number | null;
   collectingChips: { position: number; amount: number }[];
@@ -15,6 +17,7 @@ interface ChipsRendererProps {
 }
 
 export function ChipsRenderer({
+  maxSeats = MAX_SEATS,
   seats,
   myPosition,
   collectingChips,
@@ -23,10 +26,13 @@ export function ChipsRenderer({
   distributingChip,
   onDistributingComplete,
 }: ChipsRendererProps) {
+  // 동적 좌표 선택 (6인 또는 9인)
+  const tableConfig = useMemo(() => getTableConstants(maxSeats), [maxSeats]);
+
   // visualPosition 계산 (내 시점 기준 상대 위치)
   const getVisualPosition = (position: number) => {
     if (myPosition === null) return position;
-    return (position - myPosition + MAX_SEATS) % MAX_SEATS;
+    return (position - myPosition + maxSeats) % maxSeats;
   };
 
   return (
@@ -40,7 +46,7 @@ export function ChipsRenderer({
             <BettingChips
               key={`chip-${seat.position}`}
               amount={seat.betAmount}
-              position={TABLE.CHIPS[visualPosition]}
+              position={tableConfig.CHIPS[visualPosition]}
             />
           );
         }
@@ -52,9 +58,9 @@ export function ChipsRenderer({
         <BettingChips
           key={`collecting-${idx}`}
           amount={chip.amount}
-          position={TABLE.CHIPS[getVisualPosition(chip.position)]}
+          position={tableConfig.CHIPS[getVisualPosition(chip.position)]}
           isAnimating={isCollectingToPot}
-          animateTo={TABLE.POT}
+          animateTo={tableConfig.POT}
         />
       ))}
 
@@ -62,7 +68,7 @@ export function ChipsRenderer({
       {potChips > 0 && (
         <BettingChips
           amount={potChips}
-          position={TABLE.POT}
+          position={tableConfig.POT}
           hideLabel
         />
       )}
@@ -71,9 +77,9 @@ export function ChipsRenderer({
       {distributingChip && (
         <BettingChips
           amount={distributingChip.amount}
-          position={TABLE.POT}
+          position={tableConfig.POT}
           isAnimating={true}
-          animateTo={TABLE.CHIPS[getVisualPosition(distributingChip.toPosition)]}
+          animateTo={tableConfig.CHIPS[getVisualPosition(distributingChip.toPosition)]}
           onAnimationEnd={onDistributingComplete}
         />
       )}
