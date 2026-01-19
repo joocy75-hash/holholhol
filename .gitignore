@@ -36,3 +36,7 @@ coverage/
 build/
 *.egg-info/
 .kiro/settings/mcp.json
+
+# Planning (계정 정보는 개인 정보)
+.planning/accounts.md
+.planning/.last_save_time
