@@ -62,7 +62,7 @@ class EventType(str, Enum):
     REVEAL_CARDS = "REVEAL_CARDS"  # 클라이언트 → 서버: 카드 오픈 알림
     CARDS_REVEALED = "CARDS_REVEALED"  # 서버 → 클라이언트: 카드 오픈 브로드캐스트
 
-    # Action events (6)
+    # Action events (7)
     ACTION_REQUEST = "ACTION_REQUEST"
     ACTION_RESULT = "ACTION_RESULT"
     SHOWDOWN_RESULT = "SHOWDOWN_RESULT"
@@ -70,6 +70,7 @@ class EventType(str, Enum):
     TURN_CHANGED = "TURN_CHANGED"
     STACK_ZERO = "STACK_ZERO"  # 스택 0 시 리바이 모달용
     REBUY = "REBUY"  # 리바이 요청
+    REFUND = "REFUND"  # 환불 (Uncalled bet 반환)
 
     # Timer events
     TIMEOUT_FOLD = "TIMEOUT_FOLD"
@@ -146,4 +147,5 @@ SERVER_TO_CLIENT_EVENTS = frozenset([
     EventType.WAITLIST_CANCELLED,  # 대기열 취소됨/타임아웃
     EventType.WAITLIST_POSITION_CHANGED,  # 대기열 위치 변경
     EventType.WAITLIST_SEAT_READY,  # 자리 비었음 - 착석 가능
+    EventType.REFUND,  # 환불 (Uncalled bet 반환)
 ])

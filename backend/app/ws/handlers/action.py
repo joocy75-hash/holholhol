@@ -1112,6 +1112,21 @@ class ActionHandler(BaseHandler):
         channel = f"table:{room_id}"
         await self.manager.broadcast_to_channel(channel, message.to_dict())
 
+        # 환불 (Uncalled Bet) 이벤트 발송
+        refund_info = hand_result.get("refund")
+        if refund_info:
+            refund_message = MessageEnvelope.create(
+                event_type=EventType.REFUND,
+                payload={
+                    "tableId": room_id,
+                    "seat": refund_info.get("seat"),
+                    "userId": refund_info.get("userId"),
+                    "amount": refund_info.get("amount"),
+                },
+            )
+            await self.manager.broadcast_to_channel(channel, refund_message.to_dict())
+            logger.info(f"[REFUND] Broadcast: seat={refund_info.get('seat')}, amount={refund_info.get('amount')}")
+
         # Publish fraud detection event (hand completed)
         await self._publish_hand_completed_event(room_id, hand_result)
 

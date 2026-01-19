@@ -139,6 +139,15 @@ class PokerTable:
     # Turn timer tracking
     _turn_started_at: Optional[datetime] = field(default=None, repr=False)
 
+    # Under-raise tracking (WSOP 규칙)
+    # 마지막 풀 레이즈 금액 (레이즈 차액, 예: 100→300이면 200)
+    _last_full_raise: int = field(default=0)
+    # 마지막 풀 레이즈 이후 행동한 플레이어 (좌석 번호 집합)
+    # 이 플레이어들은 언더 레이즈 발생 시 리레이즈 불가
+    _players_acted_on_full_raise: set = field(default_factory=set)
+    # 현재 언더 레이즈 상태인지 (마지막 레이즈가 언더 레이즈였는지)
+    _is_under_raise_active: bool = field(default=False)
+
     def __post_init__(self):
         for i in range(self.max_players):
             if i not in self.players:
@@ -276,6 +285,15 @@ class PokerTable:
         """Check if a new hand can be started."""
         return len(self.get_active_players()) >= 2 and self.phase == GamePhase.WAITING
 
+    def _is_heads_up(self) -> bool:
+        """헤즈업(2인) 게임인지 확인합니다.
+
+        Returns:
+            정확히 2명의 active 플레이어가 있으면 True, 아니면 False
+        """
+        active_count = len(self.get_active_players())
+        return active_count == 2
+
     def get_blind_seats(self) -> tuple[int | None, int | None]:
         """SB와 BB 좌석 번호를 반환합니다.
 
@@ -292,7 +310,7 @@ class PokerTable:
         if len(seats_in_order) < 2 or self.dealer_seat not in seats_in_order:
             return None, None
 
-        if len(seats_in_order) == 2:
+        if self._is_heads_up():
             # 헤즈업: 딜러가 SB, 상대가 BB
             sb_seat = self.dealer_seat
             bb_seat = self.get_next_clockwise_seat(self.dealer_seat, seats_in_order)
@@ -380,6 +398,12 @@ class PokerTable:
         self.community_cards = []
         self.current_bet = self.big_blind
 
+        # Initialize under-raise tracking
+        # Preflop: BB가 첫 번째 "베팅"이므로 BB 금액이 초기 레이즈 기준
+        self._last_full_raise = self.big_blind
+        self._players_acted_on_full_raise = set()
+        self._is_under_raise_active = False
+
         # Reset player states
         for _, player in seated:
             player.status = "active"
@@ -456,6 +480,8 @@ class PokerTable:
                 if call_amount > 0:
                     return {"success": False, "error": "Cannot check, must call"}
                 self._state.check_or_call()
+                # 체크한 플레이어는 풀 레이즈에 대해 행동한 것으로 간주
+                self._players_acted_on_full_raise.add(player_seat)
 
             elif action == "call":
                 if not self._state.can_check_or_call():
@@ -466,6 +492,8 @@ class PokerTable:
                 if call_amount == 0:
                     action = "check"
                 amount = call_amount
+                # 콜한 플레이어는 풀 레이즈에 대해 행동한 것으로 간주
+                self._players_acted_on_full_raise.add(player_seat)
 
             elif action in ("bet", "raise"):
                 if amount <= 0:
@@ -479,16 +507,43 @@ class PokerTable:
                     return {"success": False, "error": f"최대 베팅/레이즈 금액은 {max_raise}입니다 (스택 초과)"}
                 if not self._state.can_complete_bet_or_raise_to(amount):
                     return {"success": False, "error": f"Cannot bet/raise to {amount}"}
+
+                # 언더 레이즈 추적: 레이즈 금액 계산
+                raise_amount = amount - self.current_bet
+                if raise_amount >= self._last_full_raise:
+                    # 풀 레이즈: 새로운 레이즈 기준 설정
+                    self._last_full_raise = raise_amount
+                    self._players_acted_on_full_raise = set()
+                    self._is_under_raise_active = False
+                else:
+                    # 언더 레이즈: 이전에 행동한 플레이어들은 리레이즈 불가
+                    self._is_under_raise_active = True
+                    logger.info(f"[UNDER_RAISE] seat={player_seat}, raise={raise_amount}, min_full={self._last_full_raise}")
+
                 self._state.complete_bet_or_raise_to(amount)
 
             elif action == "all_in":
                 max_raise = self._state.max_completion_betting_or_raising_to_amount
                 if max_raise is not None:
+                    # 올인이 레이즈인 경우 - 언더 레이즈 체크
+                    raise_amount = max_raise - self.current_bet
+                    if raise_amount >= self._last_full_raise:
+                        # 풀 레이즈
+                        self._last_full_raise = raise_amount
+                        self._players_acted_on_full_raise = set()
+                        self._is_under_raise_active = False
+                    else:
+                        # 언더 레이즈 (올인)
+                        self._is_under_raise_active = True
+                        logger.info(f"[UNDER_RAISE_ALLIN] seat={player_seat}, raise={raise_amount}, min_full={self._last_full_raise}")
+
                     self._state.complete_bet_or_raise_to(max_raise)
                     amount = max_raise
                 elif self._state.can_check_or_call():
+                    # 올인이 콜인 경우
                     amount = self._state.checking_or_calling_amount or 0
                     self._state.check_or_call()
+                    self._players_acted_on_full_raise.add(player_seat)
                 else:
                     return {"success": False, "error": "Cannot go all-in"}
                 player.status = "all_in"
@@ -526,6 +581,10 @@ class PokerTable:
         # Check for phase transitions
         old_phase = self.phase
         self._check_phase_transition()
+
+        # 페이즈 전환 시 언더 레이즈 상태 초기화
+        if old_phase != self.phase:
+            self._reset_under_raise_state()
 
         # Track if we saw flop
         if self.phase == GamePhase.FLOP and not self._saw_flop:
@@ -600,7 +659,13 @@ class PokerTable:
             actions.append("call")
 
         # Check if can raise
-        if self._state.can_complete_bet_or_raise_to():
+        # WSOP 규칙: 언더 레이즈 발생 시, 이미 행동한 플레이어는 리레이즈 불가
+        can_reraise = True
+        if self._is_under_raise_active and player_seat in self._players_acted_on_full_raise:
+            can_reraise = False
+            logger.debug(f"[UNDER_RAISE_BLOCK] seat={player_seat}는 이미 행동했으므로 리레이즈 불가")
+
+        if can_reraise and self._state.can_complete_bet_or_raise_to():
             min_raise = self._state.min_completion_betting_or_raising_to_amount
             max_raise = player.stack + player.current_bet
 
@@ -761,6 +826,17 @@ class PokerTable:
         if self._state.board_cards:
             self.community_cards = [card_to_str(c[0]) for c in self._state.board_cards if c]
 
+    def _reset_under_raise_state(self):
+        """새 베팅 라운드 시작 시 언더 레이즈 상태 초기화.
+
+        각 스트릿(Flop, Turn, River) 시작 시 호출됨.
+        Postflop에서는 첫 베팅이 오픈 베팅이므로 big_blind를 기준으로 사용.
+        """
+        self._last_full_raise = self.big_blind
+        self._players_acted_on_full_raise = set()
+        self._is_under_raise_active = False
+        logger.debug(f"[UNDER_RAISE_RESET] phase={self.phase.value}, last_full_raise={self._last_full_raise}")
+
     def _rebuild_index_mappings(self):
         """Rebuild seat-to-index mappings from current active players.
 
@@ -918,6 +994,32 @@ class PokerTable:
                     })
                     break
 
+        # 환불 (Uncalled Bet) 계산
+        # 조건: 1명만 남음 (모두 폴드), 승자의 베팅 > 다른 플레이어 최대 베팅
+        refund_info = None
+        if not is_actual_showdown and len(winners) == 1:
+            winner_seat = winners[0]["seat"]
+            bets = {}
+            for seat in self._seat_to_index:
+                player = self.players.get(seat)
+                if player:
+                    bets[seat] = player.total_bet_this_hand
+
+            winner_bet = bets.get(winner_seat, 0)
+            other_bets = [b for s, b in bets.items() if s != winner_seat]
+            other_max_bet = max(other_bets) if other_bets else 0
+
+            refund_amount = winner_bet - other_max_bet
+            if refund_amount > 0:
+                winner_player = self.players.get(winner_seat)
+                refund_info = {
+                    "seat": winner_seat,
+                    "userId": winner_player.user_id if winner_player else "",
+                    "amount": refund_amount,
+                }
+                logger.info(f"[REFUND] seat={winner_seat}, amount={refund_amount} "
+                          f"(winner_bet={winner_bet}, other_max={other_max_bet})")
+
         # HAND_RESULT 반환 데이터 (초기화 전에 저장)
         result_community_cards = self.community_cards.copy()
         seat_to_index_copy = dict(self._seat_to_index)
@@ -959,10 +1061,16 @@ class PokerTable:
         self._saw_flop = False
         self._is_preflop_first_turn = True
 
+        # 언더 레이즈 상태 초기화
+        self._last_full_raise = 0
+        self._players_acted_on_full_raise = set()
+        self._is_under_raise_active = False
+
         return {
             "winners": winners,
             "showdown": showdown_cards,
             "pot": total_pot,  # 계산된 총 팟 반환
             "communityCards": result_community_cards,  # 초기화 전 값 반환
             "zeroStackPlayers": zero_stack_players,  # 스택 0인 플레이어 (리바이 모달용)
+            "refund": refund_info,  # 환불 정보 (Uncalled bet 반환)
         }

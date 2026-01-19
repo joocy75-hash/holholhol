@@ -96,20 +96,36 @@ class ShowdownHand(TypedDict):
 
 class EliminatedPlayer(TypedDict):
     """Eliminated player information."""
-    
+
     seat: int
     userId: str
     nickname: str
 
 
+class ZeroStackPlayer(TypedDict):
+    """Player with zero stack (needs rebuy)."""
+
+    seat: int
+    userId: str
+
+
+class RefundInfo(TypedDict):
+    """Uncalled bet refund information."""
+
+    seat: int
+    userId: str
+    amount: int
+
+
 class HandResult(TypedDict):
     """Result of hand completion."""
-    
+
     winners: list[Winner]
     showdown: list[ShowdownHand]
     pot: int
     communityCards: list[str]
-    eliminatedPlayers: list[EliminatedPlayer]
+    zeroStackPlayers: NotRequired[list[ZeroStackPlayer]]  # 스택 0인 플레이어 (리바이 모달용)
+    refund: NotRequired[RefundInfo | None]  # 환불 정보 (Uncalled bet 반환)
 
 
 # =============================================================================
