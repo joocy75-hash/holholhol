@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { WaitlistSeatReadyPayload } from '@/types/websocket';
 
 interface WaitlistStatusCardProps {
@@ -22,6 +22,8 @@ export default function WaitlistStatusCard({
   const [countdown, setCountdown] = useState<number>(seatReadyInfo?.expiresInSeconds || 30);
 
   // 카운트다운 타이머
+  // 의도적 state 리셋: seatReadyInfo 변경 시 카운트다운 초기화 필요
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!seatReadyInfo) return;
 
@@ -39,6 +41,7 @@ export default function WaitlistStatusCard({
 
     return () => clearInterval(interval);
   }, [seatReadyInfo]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // 자리 준비됨 상태
   if (seatReadyInfo) {

@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/engine/core.py
+# hypothesis_version: 6.150.2
+
+['2', '3', '4', '5', '6', '7', '8', '9', 'A', 'Cannot call', 'Cannot check', 'Cannot fold or check', 'Cannot go all-in', 'Hand not finished', 'J', 'K', 'No active hand', 'No hand to evaluate', 'No player to act', 'Q', 'T', 'c', 'cards', 'd', 'flush', 'fourofakind', 'fullhouse', 'h', 'main', 'onepair', 'pair', 'quads', 'royal', 'royalflush', 's', 'straight', 'straightflush', 'threeofakind', 'trips', 'twopair']

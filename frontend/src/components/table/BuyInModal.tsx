@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  slideUp,
   fadeIn,
   springTransition,
 } from '@/lib/animations';

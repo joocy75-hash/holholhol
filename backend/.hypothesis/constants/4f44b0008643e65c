@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/game/types.py
+# hypothesis_version: 6.150.2
+
+['HandResult | None', 'active', 'all_in', 'bet', 'call', 'check', 'fold', 'folded', 'raise', 'sitting_out']

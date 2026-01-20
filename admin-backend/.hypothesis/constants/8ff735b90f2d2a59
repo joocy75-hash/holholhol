@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/models/announcement.py
+# hypothesis_version: 6.150.2
+
+[200, 'admin_users.id', 'all', 'announcements', 'critical', 'event', 'high', 'low', 'maintenance', 'normal', 'notice', 'specific_room', 'urgent', 'vip']

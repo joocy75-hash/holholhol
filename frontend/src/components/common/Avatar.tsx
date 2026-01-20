@@ -1,6 +1,6 @@
 'use client';
 
-import { getAvatarById, DEFAULT_AVATAR_ID } from '@/constants/avatars';
+import { getAvatarById, DEFAULT_AVATAR_ID, DEFAULT_AVATARS } from '@/constants/avatars';
 import { VIPBadge, type VIPLevel, type VIPBadgeSize } from './VIPBadge';
 
 /**
@@ -160,8 +160,7 @@ export function AvatarSelector({
   onSelect,
   disabled = false,
 }: AvatarSelectorProps) {
-  const { DEFAULT_AVATARS } = require('@/constants/avatars');
-
+  // ES6 import 사용 (상단에서 import됨) - require() 제거로 타입 안전성 확보
   return (
     <div
       style={{
@@ -171,7 +170,7 @@ export function AvatarSelector({
         padding: '8px',
       }}
     >
-      {DEFAULT_AVATARS.map((avatar: { id: number; gradient: string; name: string }) => (
+      {DEFAULT_AVATARS.map((avatar) => (
         <button
           key={avatar.id}
           type="button"

@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/services/user.py
+# hypothesis_version: 6.150.2
+
+[0.0, 100, 'USER_INACTIVE', 'USER_NICKNAME_EXISTS', 'USER_NOT_FOUND', 'User not found', 'biggest_pot', 'hands_won', 'pfr', 'total_hands', 'total_winnings', 'user_id', 'vpip']

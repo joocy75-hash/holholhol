@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/api/public_announcements.py
+# hypothesis_version: 6.150.2
+
+['/active', 'announcement_type', 'limit', '유형 필터', '조회 개수']

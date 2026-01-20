@@ -154,6 +154,8 @@ export const PlayerSeat = memo(function PlayerSeat({
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 액션 표시 효과 - 통합된 단일 useEffect
+  // 의도적 state 리셋: lastAction props 변경 시 액션 표시 상태 동기화 필요
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     // 기존 타이머 정리
     if (hideTimerRef.current) {
@@ -183,6 +185,7 @@ export const PlayerSeat = memo(function PlayerSeat({
       }
     };
   }, [lastAction]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const showAction = visibleAction !== null;
   const actionInfo = visibleAction ? ACTION_LABELS[visibleAction.type.toLowerCase()] || { text: visibleAction.type.toUpperCase(), className: 'bg-gray-500/80' } : null;

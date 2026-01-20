@@ -7,7 +7,7 @@
 
 /* eslint-disable react-hooks/rules-of-hooks */
 
-import { test as base, Page, BrowserContext } from '@playwright/test';
+import { test as base, Page, BrowserContext, Browser } from '@playwright/test';
 import { LoginPage } from '../pages/login.page.js';
 import { LobbyPage } from '../pages/lobby.page.js';
 import { TablePage } from '../pages/table.page.js';
@@ -48,7 +48,7 @@ export interface NPlayerFixtures {
  * Create an authenticated player session
  */
 async function createPlayerSession(
-  browser: any,
+  browser: Browser,
   user: TestUser,
   position: number
 ): Promise<PlayerSession> {

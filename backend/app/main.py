@@ -18,6 +18,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api import admin, auth, dev, hands, rooms, users, wallet
+from app.tournament.api import (
+    router as tournament_router,
+    admin_router as tournament_admin_router,
+)
 from app.config import get_settings
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.maintenance import MaintenanceMiddleware
@@ -42,8 +46,8 @@ settings = get_settings()
 validate_startup_secrets(
     jwt_secret_key=settings.jwt_secret_key,
     serialization_hmac_key=settings.serialization_hmac_key,
-    session_secret_key=getattr(settings, 'session_secret_key', None),
-    deposit_webhook_secret=getattr(settings, 'deposit_webhook_secret', None),
+    session_secret_key=getattr(settings, "session_secret_key", None),
+    deposit_webhook_secret=getattr(settings, "deposit_webhook_secret", None),
     environment=settings.app_env,
 )
 
@@ -59,8 +63,12 @@ logger = get_logger(__name__)
 sentry_enabled = init_sentry(
     dsn=settings.sentry_dsn,
     environment=settings.app_env,
-    traces_sample_rate=settings.sentry_traces_sample_rate if settings.app_env == "production" else 0.0,
-    profiles_sample_rate=settings.sentry_profiles_sample_rate if settings.app_env == "production" else 0.0,
+    traces_sample_rate=settings.sentry_traces_sample_rate
+    if settings.app_env == "production"
+    else 0.0,
+    profiles_sample_rate=settings.sentry_profiles_sample_rate
+    if settings.app_env == "production"
+    else 0.0,
 )
 if sentry_enabled:
     logger.info("Sentry error tracking initialized")
@@ -93,7 +101,9 @@ async def lifespan(_app: FastAPI):
         # Initialize Fraud Event Publisher (Phase 2.3)
         logger.info("Initializing FraudEventPublisher...")
         fraud_publisher = init_fraud_publisher(redis_instance)
-        logger.info(f"FraudEventPublisher initialized (enabled={fraud_publisher.enabled})")
+        logger.info(
+            f"FraudEventPublisher initialized (enabled={fraud_publisher.enabled})"
+        )
 
         # Initialize Player Session Tracker (Phase 2.3)
         logger.info("Initializing PlayerSessionTracker...")
@@ -109,6 +119,62 @@ async def lifespan(_app: FastAPI):
         logger.info("Starting GameManager cleanup task...")
         await game_manager.start_cleanup_task()
         logger.info("GameManager cleanup task started")
+
+        # === P0: Tournament Engine Auto-Recovery (Production Critical) ===
+        logger.info("Initializing Tournament Engine with auto-recovery...")
+        try:
+            from app.tournament.engine import TournamentEngine
+            from app.tournament.models import TournamentStatus
+
+            tournament_engine = TournamentEngine(redis_instance)
+            await tournament_engine.initialize()
+
+            # Auto-recover active tournaments from Redis snapshots
+            recovery_count = 0
+            async for key in redis_instance.scan_iter(
+                match="tournament:snapshot:*:latest"
+            ):
+                # key format: tournament:snapshot:{tournament_id}:latest
+                key_str = key.decode() if isinstance(key, bytes) else key
+                parts = key_str.split(":")
+                if len(parts) >= 3:
+                    tournament_id = parts[2]
+                    try:
+                        state = await tournament_engine.recover_tournament(
+                            tournament_id
+                        )
+                        if state and state.status in [
+                            TournamentStatus.RUNNING,
+                            TournamentStatus.STARTING,
+                            TournamentStatus.PAUSED,
+                            TournamentStatus.FINAL_TABLE,
+                        ]:
+                            recovery_count += 1
+                            logger.info(
+                                f"Recovered tournament: {tournament_id}, "
+                                f"status={state.status.value}, "
+                                f"players={state.active_player_count}"
+                            )
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to recover tournament {tournament_id}: {e}"
+                        )
+
+            if recovery_count > 0:
+                logger.info(
+                    f"Tournament auto-recovery complete: "
+                    f"{recovery_count} tournaments restored"
+                )
+            else:
+                logger.info("No active tournaments to recover")
+
+            # Store in app state for global access
+            _app.state.tournament_engine = tournament_engine
+            logger.info("Tournament Engine initialized successfully")
+
+        except Exception as e:
+            logger.error(f"Tournament engine initialization failed: {e}")
+            # Non-critical: basic game functionality continues
 
         logger.info("Application startup complete")
     except Exception as e:
@@ -159,6 +225,7 @@ app = FastAPI(
 
 # Setup Prometheus metrics (Phase 8)
 from app.middleware.prometheus import setup_prometheus
+
 prometheus_instrumentator = setup_prometheus(app, app_version="1.0.0")
 
 
@@ -343,7 +410,9 @@ async def user_error_handler(request: Request, exc: UserError) -> ORJSONResponse
 
 
 @app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException) -> ORJSONResponse:
+async def http_exception_handler(
+    request: Request, exc: HTTPException
+) -> ORJSONResponse:
     """Handle HTTP exceptions."""
     trace_id = get_request_id(request)
 
@@ -518,6 +587,10 @@ app.include_router(wallet.router, prefix=API_V1_PREFIX)
 
 # Internal Admin API (called from admin-backend)
 app.include_router(admin.router, prefix=API_V1_PREFIX)
+
+# Tournament API (Phase: Tournament Engine)
+app.include_router(tournament_router)
+app.include_router(tournament_admin_router)
 
 # Include Dev/Test API router (disabled in production)
 if settings.dev_api_enabled:

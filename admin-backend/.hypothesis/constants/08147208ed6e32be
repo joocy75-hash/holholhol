@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/api/users.py
+# hypothesis_version: 6.150.2
+
+[100, 500, 10000, '/{user_id}', '/{user_id}/activity', '/{user_id}/credit', '/{user_id}/debit', '/{user_id}/hands', '/{user_id}/status', 'Filter by ban status', 'Sort field', 'User not found', 'active', 'amount', 'balance', 'balance_after', 'balance_before', 'create_user', 'created_at', 'credit_chips', 'debit_chips', 'delete_user', 'desc', 'email', 'hand', 'id', 'login', 'new_status', 'nickname', 'reason', 'reset_password', 'suspended', 'transaction', 'transaction_id', 'update_user', 'update_user_status', 'user', 'username', '금액 (양수)', '닉네임', '비밀번호', '비밀번호가 초기화되었습니다', '사용자가 삭제되었습니다', '사유', '새 닉네임', '새 비밀번호', '새 이메일', '시작 날짜 (ISO 8601)', '이메일', '종료 날짜 (ISO 8601)', '초기 잔액']

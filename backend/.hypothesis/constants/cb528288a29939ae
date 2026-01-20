@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/models/room.py
+# hypothesis_version: 6.150.2
+
+[100, 'SET NULL', 'Table', 'User', 'all, delete-orphan', 'big_blind', 'cash', 'closed', 'max_seats', 'paused', 'playing', 'room', 'room_type', 'rooms', 'small_blind', 'users.id', 'waiting']

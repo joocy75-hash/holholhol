@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/services/crypto/ton_exchange_rate.py
+# hypothesis_version: 6.150.2
+
+[10.0, '0.000001', 'cloudflare', 'jsdelivr', 'krw', 'usd']

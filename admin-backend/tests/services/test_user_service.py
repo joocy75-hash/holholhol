@@ -1,39 +1,40 @@
 """
 User Service Tests - 사용자 조회 및 자산 관리 서비스 테스트
 """
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timezone
+from unittest.mock import AsyncMock, MagicMock
+from datetime import datetime
 
 from app.services.user_service import (
     UserService,
     UserServiceError,
     UserNotFoundError,
-    InsufficientBalanceError
+    InsufficientBalanceError,
 )
 
 
 class TestUserServiceSearchUsers:
     """search_users 메서드 테스트"""
-    
+
     @pytest.fixture
     def mock_db(self):
         """Mock database session"""
         db = AsyncMock()
         return db
-    
+
     @pytest.fixture
     def service(self, mock_db):
         """UserService instance with mock db"""
         return UserService(mock_db)
-    
+
     @pytest.mark.asyncio
     async def test_search_users_returns_paginated_result(self, service, mock_db):
         """검색 결과가 페이지네이션 형식으로 반환되어야 함"""
         # Mock count query
         count_result = MagicMock()
         count_result.scalar.return_value = 50
-        
+
         # Mock list query
         mock_row = MagicMock()
         mock_row.id = "user-123"
@@ -43,14 +44,14 @@ class TestUserServiceSearchUsers:
         mock_row.created_at = datetime(2026, 1, 1)
         mock_row.last_login = datetime(2026, 1, 15)
         mock_row.is_banned = False
-        
+
         list_result = MagicMock()
         list_result.fetchall.return_value = [mock_row]
-        
+
         mock_db.execute.side_effect = [count_result, list_result]
-        
+
         result = await service.search_users(page=1, page_size=20)
-        
+
         assert "items" in result
         assert "total" in result
         assert "page" in result
@@ -60,89 +61,89 @@ class TestUserServiceSearchUsers:
         assert result["page"] == 1
         assert result["page_size"] == 20
         assert result["total_pages"] == 3
-    
+
     @pytest.mark.asyncio
     async def test_search_users_with_search_term(self, service, mock_db):
         """검색어로 필터링되어야 함"""
         count_result = MagicMock()
         count_result.scalar.return_value = 1
-        
+
         mock_row = MagicMock()
         mock_row.id = "user-123"
-        mock_row.username = "searchuser"
+        mock_row.nickname = "searchuser"  # DB column is nickname
         mock_row.email = "search@example.com"
         mock_row.balance = 500.0
         mock_row.created_at = datetime(2026, 1, 1)
-        mock_row.last_login = None
-        mock_row.is_banned = False
-        
+        mock_row.updated_at = None  # DB column is updated_at, not last_login
+        mock_row.status = "active"  # DB column is status, not is_banned
+
         list_result = MagicMock()
         list_result.fetchall.return_value = [mock_row]
-        
+
         mock_db.execute.side_effect = [count_result, list_result]
-        
+
         result = await service.search_users(search="searchuser")
-        
+
         assert len(result["items"]) == 1
-        assert result["items"][0]["username"] == "searchuser"
-    
+        assert result["items"][0]["username"] == "searchuser"  # Service maps nickname to username
+
     @pytest.mark.asyncio
     async def test_search_users_with_ban_filter(self, service, mock_db):
         """제재 상태로 필터링되어야 함"""
         count_result = MagicMock()
         count_result.scalar.return_value = 2
-        
+
         mock_row = MagicMock()
         mock_row.id = "banned-user"
-        mock_row.username = "banneduser"
+        mock_row.nickname = "banneduser"  # DB column is nickname
         mock_row.email = "banned@example.com"
         mock_row.balance = 0.0
         mock_row.created_at = datetime(2026, 1, 1)
-        mock_row.last_login = datetime(2026, 1, 10)
-        mock_row.is_banned = True
-        
+        mock_row.updated_at = datetime(2026, 1, 10)  # DB column is updated_at
+        mock_row.status = "banned"  # DB column is status
+
         list_result = MagicMock()
         list_result.fetchall.return_value = [mock_row]
-        
+
         mock_db.execute.side_effect = [count_result, list_result]
-        
+
         result = await service.search_users(is_banned=True)
-        
-        assert result["items"][0]["is_banned"] is True
-    
+
+        assert result["items"][0]["is_banned"] is True  # Service calculates from status == 'banned'
+
     @pytest.mark.asyncio
     async def test_search_users_pagination(self, service, mock_db):
         """페이지네이션이 올바르게 동작해야 함"""
         count_result = MagicMock()
         count_result.scalar.return_value = 100
-        
+
         list_result = MagicMock()
         list_result.fetchall.return_value = []
-        
+
         mock_db.execute.side_effect = [count_result, list_result]
-        
+
         result = await service.search_users(page=3, page_size=10)
-        
+
         assert result["page"] == 3
         assert result["page_size"] == 10
         assert result["total_pages"] == 10
-    
+
     @pytest.mark.asyncio
     async def test_search_users_sort_validation(self, service, mock_db):
         """유효하지 않은 정렬 필드는 기본값으로 대체되어야 함"""
         count_result = MagicMock()
         count_result.scalar.return_value = 0
-        
+
         list_result = MagicMock()
         list_result.fetchall.return_value = []
-        
+
         mock_db.execute.side_effect = [count_result, list_result]
-        
+
         # Invalid sort field should not raise error
         result = await service.search_users(sort_by="invalid_field")
-        
+
         assert result["items"] == []
-    
+
     @pytest.mark.asyncio
     async def test_search_users_handles_exception(self, service, mock_db):
         """예외 발생 시 UserServiceError가 발생해야 함"""
@@ -150,105 +151,103 @@ class TestUserServiceSearchUsers:
 
         with pytest.raises(UserServiceError, match="사용자 검색 실패"):
             await service.search_users()
-    
+
     @pytest.mark.asyncio
     async def test_search_users_formats_dates(self, service, mock_db):
         """날짜가 ISO 형식으로 변환되어야 함"""
         count_result = MagicMock()
         count_result.scalar.return_value = 1
-        
+
         mock_row = MagicMock()
         mock_row.id = "user-123"
-        mock_row.username = "testuser"
+        mock_row.nickname = "testuser"  # DB column is nickname
         mock_row.email = "test@example.com"
         mock_row.balance = 1000.0
         mock_row.created_at = datetime(2026, 1, 15, 10, 30, 0)
-        mock_row.last_login = datetime(2026, 1, 16, 14, 0, 0)
-        mock_row.is_banned = False
-        
+        mock_row.updated_at = datetime(2026, 1, 16, 14, 0, 0)  # DB column is updated_at
+        mock_row.status = "active"  # DB column is status
+
         list_result = MagicMock()
         list_result.fetchall.return_value = [mock_row]
-        
+
         mock_db.execute.side_effect = [count_result, list_result]
-        
+
         result = await service.search_users()
-        
+
         assert result["items"][0]["created_at"] == "2026-01-15T10:30:00"
-        assert result["items"][0]["last_login"] == "2026-01-16T14:00:00"
+        assert (
+            result["items"][0]["last_login"] == "2026-01-16T14:00:00"
+        )  # Service maps updated_at to last_login
 
 
 class TestUserServiceGetUserDetail:
     """get_user_detail 메서드 테스트"""
-    
+
     @pytest.fixture
     def mock_db(self):
         db = AsyncMock()
         return db
-    
+
     @pytest.fixture
     def service(self, mock_db):
         return UserService(mock_db)
-    
+
     @pytest.mark.asyncio
     async def test_get_user_detail_returns_user(self, service, mock_db):
         """사용자 상세 정보를 반환해야 함"""
         mock_row = MagicMock()
         mock_row.id = "user-123"
-        mock_row.username = "testuser"
+        mock_row.nickname = "testuser"  # DB column is nickname
         mock_row.email = "test@example.com"
         mock_row.balance = 1500.0
         mock_row.created_at = datetime(2026, 1, 1)
-        mock_row.last_login = datetime(2026, 1, 15)
-        mock_row.is_banned = False
-        mock_row.ban_reason = None
-        mock_row.ban_expires_at = None
-        
+        mock_row.updated_at = datetime(2026, 1, 15)  # DB column is updated_at
+        mock_row.status = "active"  # DB column is status
+
         result = MagicMock()
         result.fetchone.return_value = mock_row
         mock_db.execute.return_value = result
-        
+
         user = await service.get_user_detail("user-123")
-        
+
         assert user is not None
         assert user["id"] == "user-123"
-        assert user["username"] == "testuser"
+        assert user["username"] == "testuser"  # Service maps nickname to username
         assert user["balance"] == 1500.0
-    
+
     @pytest.mark.asyncio
     async def test_get_user_detail_not_found(self, service, mock_db):
         """존재하지 않는 사용자는 None을 반환해야 함"""
         result = MagicMock()
         result.fetchone.return_value = None
         mock_db.execute.return_value = result
-        
+
         user = await service.get_user_detail("nonexistent")
-        
+
         assert user is None
-    
+
     @pytest.mark.asyncio
     async def test_get_user_detail_banned_user(self, service, mock_db):
         """제재된 사용자의 제재 정보를 포함해야 함"""
         mock_row = MagicMock()
         mock_row.id = "banned-user"
-        mock_row.username = "banneduser"
+        mock_row.nickname = "banneduser"  # DB column is nickname
         mock_row.email = "banned@example.com"
         mock_row.balance = 0.0
         mock_row.created_at = datetime(2026, 1, 1)
-        mock_row.last_login = datetime(2026, 1, 10)
-        mock_row.is_banned = True
-        mock_row.ban_reason = "Cheating"
-        mock_row.ban_expires_at = datetime(2026, 2, 1)
-        
+        mock_row.updated_at = datetime(2026, 1, 10)  # DB column is updated_at
+        mock_row.status = "banned"  # DB column is status
+
         result = MagicMock()
         result.fetchone.return_value = mock_row
         mock_db.execute.return_value = result
-        
+
         user = await service.get_user_detail("banned-user")
-        
-        assert user["is_banned"] is True
-        assert user["ban_reason"] == "Cheating"
-        assert user["ban_expires_at"] == "2026-02-01T00:00:00"
-    
+
+        assert user["is_banned"] is True  # Service calculates from status == 'banned'
+        assert user["ban_reason"] is None  # Currently not in DB schema
+        assert user["ban_expires_at"] is None  # Currently not in DB schema
+
     @pytest.mark.asyncio
     async def test_get_user_detail_handles_exception(self, service, mock_db):
         """예외 발생 시 UserServiceError가 발생해야 함"""
@@ -260,22 +259,22 @@ class TestUserServiceGetUserDetail:
 
 class TestUserServiceGetUserTransactions:
     """get_user_transactions 메서드 테스트"""
-    
+
     @pytest.fixture
     def mock_db(self):
         db = AsyncMock()
         return db
-    
+
     @pytest.fixture
     def service(self, mock_db):
         return UserService(mock_db)
-    
+
     @pytest.mark.asyncio
     async def test_get_user_transactions_returns_list(self, service, mock_db):
         """거래 내역 목록을 반환해야 함"""
         count_result = MagicMock()
         count_result.scalar.return_value = 5
-        
+
         mock_row = MagicMock()
         mock_row.id = "tx-123"
         mock_row.type = "deposit"
@@ -284,35 +283,35 @@ class TestUserServiceGetUserTransactions:
         mock_row.balance_after = 1000.0
         mock_row.description = "USDT Deposit"
         mock_row.created_at = datetime(2026, 1, 15)
-        
+
         list_result = MagicMock()
         list_result.fetchall.return_value = [mock_row]
-        
+
         mock_db.execute.side_effect = [count_result, list_result]
-        
+
         result = await service.get_user_transactions("user-123")
-        
+
         assert "items" in result
         assert "total" in result
         assert result["total"] == 5
         assert len(result["items"]) == 1
         assert result["items"][0]["type"] == "deposit"
-    
+
     @pytest.mark.asyncio
     async def test_get_user_transactions_with_type_filter(self, service, mock_db):
         """거래 유형으로 필터링되어야 함"""
         count_result = MagicMock()
         count_result.scalar.return_value = 2
-        
+
         list_result = MagicMock()
         list_result.fetchall.return_value = []
-        
+
         mock_db.execute.side_effect = [count_result, list_result]
-        
+
         result = await service.get_user_transactions("user-123", tx_type="withdrawal")
-        
+
         assert result["total"] == 2
-    
+
     @pytest.mark.asyncio
     async def test_get_user_transactions_handles_exception(self, service, mock_db):
         """예외 발생 시 UserServiceError가 발생해야 함"""
@@ -324,41 +323,41 @@ class TestUserServiceGetUserTransactions:
 
 class TestUserServiceGetUserLoginHistory:
     """get_user_login_history 메서드 테스트"""
-    
+
     @pytest.fixture
     def mock_db(self):
         db = AsyncMock()
         return db
-    
+
     @pytest.fixture
     def service(self, mock_db):
         return UserService(mock_db)
-    
+
     @pytest.mark.asyncio
     async def test_get_user_login_history_returns_list(self, service, mock_db):
         """로그인 기록 목록을 반환해야 함"""
         count_result = MagicMock()
         count_result.scalar.return_value = 10
-        
+
         mock_row = MagicMock()
         mock_row.id = "login-123"
         mock_row.ip_address = "192.168.1.1"
         mock_row.user_agent = "Mozilla/5.0"
         mock_row.success = True
         mock_row.created_at = datetime(2026, 1, 15)
-        
+
         list_result = MagicMock()
         list_result.fetchall.return_value = [mock_row]
-        
+
         mock_db.execute.side_effect = [count_result, list_result]
-        
+
         result = await service.get_user_login_history("user-123")
-        
+
         assert result["total"] == 10
         assert len(result["items"]) == 1
         assert result["items"][0]["ip_address"] == "192.168.1.1"
         assert result["items"][0]["success"] is True
-    
+
     @pytest.mark.asyncio
     async def test_get_user_login_history_handles_exception(self, service, mock_db):
         """예외 발생 시 UserServiceError가 발생해야 함"""
@@ -370,22 +369,22 @@ class TestUserServiceGetUserLoginHistory:
 
 class TestUserServiceGetUserHands:
     """get_user_hands 메서드 테스트"""
-    
+
     @pytest.fixture
     def mock_db(self):
         db = AsyncMock()
         return db
-    
+
     @pytest.fixture
     def service(self, mock_db):
         return UserService(mock_db)
-    
+
     @pytest.mark.asyncio
     async def test_get_user_hands_returns_list(self, service, mock_db):
         """핸드 기록 목록을 반환해야 함"""
         count_result = MagicMock()
         count_result.scalar.return_value = 100
-        
+
         mock_row = MagicMock()
         mock_row.id = "hp-123"
         mock_row.hand_id = "hand-456"
@@ -396,19 +395,19 @@ class TestUserServiceGetUserHands:
         mock_row.won_amount = 120.0
         mock_row.pot_size = 200.0
         mock_row.created_at = datetime(2026, 1, 15)
-        
+
         list_result = MagicMock()
         list_result.fetchall.return_value = [mock_row]
-        
+
         mock_db.execute.side_effect = [count_result, list_result]
-        
+
         result = await service.get_user_hands("user-123")
-        
+
         assert result["total"] == 100
         assert len(result["items"]) == 1
         assert result["items"][0]["cards"] == "As Kh"
         assert result["items"][0]["won_amount"] == 120.0
-    
+
     @pytest.mark.asyncio
     async def test_get_user_hands_handles_exception(self, service, mock_db):
         """예외 발생 시 UserServiceError가 발생해야 함"""
@@ -447,7 +446,7 @@ class TestUserServiceCreditChips:
             amount=500.0,
             reason="이벤트 보상",
             admin_user_id="admin-1",
-            admin_username="admin"
+            admin_username="admin",
         )
 
         assert result["user_id"] == "user-123"
@@ -472,7 +471,7 @@ class TestUserServiceCreditChips:
                 amount=100.0,
                 reason="테스트",
                 admin_user_id="admin-1",
-                admin_username="admin"
+                admin_username="admin",
             )
 
         mock_db.rollback.assert_called_once()
@@ -486,7 +485,7 @@ class TestUserServiceCreditChips:
                 amount=0,
                 reason="테스트",
                 admin_user_id="admin-1",
-                admin_username="admin"
+                admin_username="admin",
             )
 
         with pytest.raises(ValueError, match="지급 금액은 양수여야 합니다"):
@@ -495,7 +494,7 @@ class TestUserServiceCreditChips:
                 amount=-100,
                 reason="테스트",
                 admin_user_id="admin-1",
-                admin_username="admin"
+                admin_username="admin",
             )
 
     @pytest.mark.asyncio
@@ -515,7 +514,7 @@ class TestUserServiceCreditChips:
             amount=1000.0,
             reason="신규 가입 보너스",
             admin_user_id="admin-1",
-            admin_username="admin"
+            admin_username="admin",
         )
 
         assert result["balance_before"] == 0.0
@@ -551,7 +550,7 @@ class TestUserServiceDebitChips:
             amount=300.0,
             reason="부정 행위 발견",
             admin_user_id="admin-1",
-            admin_username="admin"
+            admin_username="admin",
         )
 
         assert result["user_id"] == "user-123"
@@ -576,7 +575,7 @@ class TestUserServiceDebitChips:
                 amount=100.0,
                 reason="테스트",
                 admin_user_id="admin-1",
-                admin_username="admin"
+                admin_username="admin",
             )
 
         mock_db.rollback.assert_called_once()
@@ -599,7 +598,7 @@ class TestUserServiceDebitChips:
                 amount=500.0,
                 reason="테스트",
                 admin_user_id="admin-1",
-                admin_username="admin"
+                admin_username="admin",
             )
 
         mock_db.rollback.assert_called_once()
@@ -613,7 +612,7 @@ class TestUserServiceDebitChips:
                 amount=0,
                 reason="테스트",
                 admin_user_id="admin-1",
-                admin_username="admin"
+                admin_username="admin",
             )
 
         with pytest.raises(ValueError, match="회수 금액은 양수여야 합니다"):
@@ -622,7 +621,7 @@ class TestUserServiceDebitChips:
                 amount=-100,
                 reason="테스트",
                 admin_user_id="admin-1",
-                admin_username="admin"
+                admin_username="admin",
             )
 
     @pytest.mark.asyncio
@@ -642,7 +641,7 @@ class TestUserServiceDebitChips:
             amount=500.0,
             reason="전액 회수",
             admin_user_id="admin-1",
-            admin_username="admin"
+            admin_username="admin",
         )
 
         assert result["balance_before"] == 500.0
@@ -667,7 +666,7 @@ class TestUserServiceDebitChips:
                 amount=100.0,
                 reason="테스트",
                 admin_user_id="admin-1",
-                admin_username="admin"
+                admin_username="admin",
             )
 
         mock_db.rollback.assert_called_once()
@@ -769,9 +768,7 @@ class TestUserServiceGetUserActivity:
         end_date = datetime(2026, 1, 31)
 
         result = await service.get_user_activity(
-            "user-123",
-            start_date=start_date,
-            end_date=end_date
+            "user-123", start_date=start_date, end_date=end_date
         )
 
         assert result["total"] == 3  # 1 + 1 + 1

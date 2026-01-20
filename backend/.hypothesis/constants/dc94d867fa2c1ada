@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/utils/redis_client.py
+# hypothesis_version: 6.150.2
+
+[1.0, -1001, 300, 1000, 1800, 3600, 86400, 604800, '1', ':', 'Redis client closed', 'already_waiting', 'buy_in', 'joined_at', 'position', 'redis_client', 'total', 'user_id', 'utf-8']

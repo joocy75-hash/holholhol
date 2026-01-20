@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo, memo, useEffect, useRef } from 'react';
+import { useState, useCallback, useMemo, memo, useLayoutEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { floatingNumber, CHIP_CONSTANTS } from '@/lib/animations';
 
@@ -194,19 +194,24 @@ export function BettingChips({
   // 이전 상태 추적 (렌더링 중 상태 변경 방지)
   const prevBetStateRef = useRef({ showBetAnimation, amount });
 
-  // 상태 리셋 - useEffect로 이동하여 렌더링 중 상태 변경 방지 (안티패턴 제거)
-  useEffect(() => {
+  // 상태 리셋 - useLayoutEffect로 DOM 커밋 전에 동기적으로 실행
+  // 새 베팅 애니메이션 시작 시 이전 애니메이션 상태를 즉시 리셋
+  // 의도적 state 리셋: 새 베팅 시작 시 이전 애니메이션 상태 초기화 필요
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useLayoutEffect(() => {
     const prevState = prevBetStateRef.current;
     const hasChanged = showBetAnimation !== prevState.showBetAnimation || amount !== prevState.amount;
 
     if (hasChanged) {
       prevBetStateRef.current = { showBetAnimation, amount };
+      // 새 베팅 애니메이션 시작 시에만 상태 리셋
       if (showBetAnimation && (animationComplete || showFloatingNumber)) {
         setAnimationComplete(false);
         setShowFloatingNumber(false);
       }
     }
   }, [showBetAnimation, amount, animationComplete, showFloatingNumber]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (amount <= 0) return null;
 

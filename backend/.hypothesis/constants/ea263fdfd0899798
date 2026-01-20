@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/config.py
+# hypothesis_version: 6.150.2
+
+[0.01, 0.05, 0.5, 0.8, 1.2, 2.5, 3.0, 5.0, 100, 600, 1800, 8000, 86400, '*', ',', '.env', '0.0.0.0', '12345', 'AWS region for S3', 'DEBUG', 'HS256', 'Settings', 'admin', 'after', 'ap-northeast-2', 'change-this', 'cors_origins', 'dev-key', 'dev_api_enabled', 'development', 'env_file', 'extra', 'ignore', 'jwt_secret_key', 'password', 'production', 'qwerty', 'secret']

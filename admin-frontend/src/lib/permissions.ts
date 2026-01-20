@@ -17,6 +17,9 @@ type Permission =
   | 'approve_large_adjustment'
   // Rooms
   | 'view_rooms'
+  | 'create_room'      // 방 생성 권한 추가
+  | 'update_room'      // 방 수정 권한 추가
+  | 'delete_room'      // 방 삭제 권한 추가
   | 'force_close_room'
   | 'send_room_message'
   // Hands
@@ -107,6 +110,8 @@ const rolePermissions: Record<AdminRole, Permission[]> = {
     // Supervisor-specific
     'adjust_balance',
     'approve_large_withdrawal',
+    'create_room',        // 방 생성 권한
+    'update_room',        // 방 수정 권한
     'force_close_room',
     'broadcast_announcement',
     'schedule_maintenance',
@@ -121,6 +126,9 @@ const rolePermissions: Record<AdminRole, Permission[]> = {
     'adjust_balance',
     'approve_large_adjustment',
     'view_rooms',
+    'create_room',        // 방 생성 권한
+    'update_room',        // 방 수정 권한
+    'delete_room',        // 방 삭제 권한
     'force_close_room',
     'send_room_message',
     'view_hands',

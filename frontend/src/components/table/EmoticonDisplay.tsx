@@ -61,12 +61,15 @@ export default function EmoticonDisplay({
   }, []);
 
   // 새 이모티콘 사운드 재생
+  // NOTE: displayedEmoticons.length만 의존하는 것은 의도적 설계
+  // 전체 배열을 의존성으로 추가하면 이모티콘마다 중복 재생됨
   useEffect(() => {
     displayedEmoticons.forEach((emoticon) => {
       if (emoticon.soundUrl) {
         playSound(emoticon.soundUrl);
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayedEmoticons.length, playSound]);
 
   return (

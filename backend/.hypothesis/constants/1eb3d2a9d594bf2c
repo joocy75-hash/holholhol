@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/services/avatar.py
+# hypothesis_version: 6.150.2
+
+['1', '10', '2', '3', '4', '5', '6', '7', '8', '9', 'category', 'default', 'description', 'event', 'id', 'imageUrl', 'isAvailable', 'name', 'premium', 'requiredLevel', '기본 아바타', '다이아', '스페이드', '에이스', '잭', '조커', '칩스', '퀸', '클로버', '킹', '하트']

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useLayoutEffect, useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { feedbackManager } from '@/lib/sounds';
 
@@ -80,6 +80,23 @@ export default function BigWinEffect({
     setCoins(newCoins);
   }, [isBigWin, isSuperBigWin]);
 
+  // 파티클/코인 생성 - useLayoutEffect로 DOM 커밋 전에 동기적으로 실행
+  // show 상태 변경 시 깜빡임 없이 즉시 렌더링되도록 함
+  // 의도적 state 리셋: 이펙트 표시/숨김 시 파티클 초기화 필요
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useLayoutEffect(() => {
+    if (show) {
+      generateParticles();
+      generateCoins();
+    } else {
+      // show가 false가 되면 파티클과 코인 초기화
+      setParticles([]);
+      setCoins([]);
+    }
+  }, [show, generateParticles, generateCoins]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // 피드백 및 타이머 - 일반 useEffect 사용 (부수 효과)
   useEffect(() => {
     // 기존 타이머 정리
     if (timerRef.current) {
@@ -88,10 +105,7 @@ export default function BigWinEffect({
     }
 
     if (show) {
-      generateParticles();
-      generateCoins();
-
-      // 피드백 재생
+      // 피드백 재생 (사운드/진동은 비동기로 OK)
       feedbackManager.playWin(isSuperBigWin);
 
       // 애니메이션 완료 후 콜백
@@ -99,15 +113,15 @@ export default function BigWinEffect({
         onComplete?.();
         timerRef.current = null;
       }, 3000);
-
-      return () => {
-        if (timerRef.current) {
-          clearTimeout(timerRef.current);
-          timerRef.current = null;
-        }
-      };
     }
-  }, [show, generateParticles, generateCoins, isSuperBigWin, onComplete]);
+
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [show, isSuperBigWin, onComplete]);
 
   return (
     <AnimatePresence>

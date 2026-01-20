@@ -4,9 +4,8 @@ import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useSettingsStore } from "@/stores/settings";
 
+// BGM 볼륨 설정
 const TARGET_VOLUME = 0.3;
-const FADE_DURATION = 3000;
-const FADE_INTERVAL = 50;
 
 export default function LobbyBGM() {
   const audioRef = useRef<HTMLAudioElement | null>(null);

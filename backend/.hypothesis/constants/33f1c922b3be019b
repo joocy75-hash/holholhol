@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/services/login_limiter.py
+# hypothesis_version: 6.150.2
+
+[900, 'account_locked', 'email', 'failed_attempts', 'is_locked', 'login_attempts', 'login_attempts_reset', 'login_failed_attempt', 'login_lockout', 'max_attempts', 'retry_after_seconds']

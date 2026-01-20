@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/ws/handlers/chat.py
+# hypothesis_version: 6.150.2
+
+[500, 3600, 'CHAT_MUTED', 'CHAT_NOT_ALLOWED', 'ConnectionManager', 'INVALID_EMOTICON', '[플레이어 전용 채팅]', 'chatType', 'code', 'emoji', 'emoticonId', 'emoticonName', 'imageUrl', 'isPlayer', 'masked', 'message', 'messageId', 'messages', 'nickname', 'players_only', 'public', 'soundUrl', 'tableId', 'targetUserId', 'timestamp', 'userId', '유효하지 않은 이모티콘입니다.', '채팅이 제한되어 있습니다.']

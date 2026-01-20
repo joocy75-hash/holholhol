@@ -227,7 +227,7 @@ class VibrationManager {
 
     try {
       navigator.vibrate(adjustedPattern);
-    } catch (e) {
+    } catch {
       // 진동 실패 무시
     }
   }
@@ -239,7 +239,7 @@ class VibrationManager {
     if (!this.isSupported()) return;
     try {
       navigator.vibrate(0);
-    } catch (e) {
+    } catch {
       // 무시
     }
   }

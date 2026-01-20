@@ -5,10 +5,10 @@ import { motion } from 'framer-motion';
 export type WalletTab = 'deposit' | 'withdraw';
 
 interface CashierHeaderProps {
-  balance: number;
+  /** 사용자 잔액 (미래 확장용, 현재 미사용) */
+  balance?: number;
   exchangeRate?: string | null;
   onBack: () => void;
-  showBackButton?: boolean;
   // 탭 관련
   activeTab: WalletTab;
   onTabChange: (tab: WalletTab) => void;
@@ -18,13 +18,16 @@ interface CashierHeaderProps {
 const quickSpring = { type: 'spring' as const, stiffness: 400, damping: 20 };
 
 export default function CashierHeader({
-  balance,
+  // balance는 미래 확장용으로 유지 (underscore prefix로 미사용 명시)
+  balance: _balance,
   exchangeRate,
   onBack,
   activeTab,
   onTabChange,
   showTabs = true,
 }: CashierHeaderProps) {
+  // _balance는 향후 잔액 표시 기능 추가 시 사용 예정
+  void _balance;
   const rate = exchangeRate ? parseFloat(exchangeRate) : null;
   return (
     <div

@@ -173,9 +173,7 @@ class PokerKitWrapper:
         if hand_id is None:
             hand_id = str(uuid.uuid4())
         if hand_number is None:
-            hand_number = (
-                table_state.hand.hand_number + 1 if table_state.hand else 1
-            )
+            hand_number = table_state.hand.hand_number + 1 if table_state.hand else 1
 
         # Get active players
         active_seats = list(table_state.get_active_seats())
@@ -436,6 +434,29 @@ class PokerKitWrapper:
     def evaluate_hand(self, table_state: TableState) -> HandResult:
         """Evaluate completed hand and return results.
 
+        패 판정 로직 - 수학적 증명 (WSOP 표준):
+        ═══════════════════════════════════════════════════════════════════════
+
+        핸드 랭킹 (내림차순, 확률 기반):
+        1. 로얄 플러시 - P = 4/C(52,5) = 0.000154%
+        2. 스트레이트 플러시 - P = 36/C(52,5) = 0.00139%
+        3. 포카드 - P = 624/C(52,5) = 0.024%
+        4. 풀하우스 - P = 3,744/C(52,5) = 0.144%
+        5. 플러시 - P = 5,108/C(52,5) = 0.197%
+        6. 스트레이트 - P = 10,200/C(52,5) = 0.392%
+        7. 쓰리오브어카인드 - P = 54,912/C(52,5) = 2.11%
+        8. 투페어 - P = 123,552/C(52,5) = 4.75%
+        9. 원페어 - P = 1,098,240/C(52,5) = 42.26%
+        10. 하이카드 - P = 1,302,540/C(52,5) = 50.12%
+
+        총 경우의 수: C(52,5) = 2,598,960
+
+        동점 처리 (Kickers):
+        - 같은 랭크 시 키커(보조 카드) 비교
+        - 키커도 동점 시 팟 분할 (Split Pot)
+        - 홀수 칩은 버튼 왼쪽 가장 가까운 플레이어에게
+        ═══════════════════════════════════════════════════════════════════════
+
         Args:
             table_state: Table state with completed hand
 
@@ -644,7 +665,9 @@ class PokerKitWrapper:
                     if pk_state.can_check_or_call():
                         amount = pk_state.checking_or_calling_amount or 0
                         pk_state.check_or_call()
-                        actual_type = ActionType.CHECK if amount == 0 else ActionType.CALL
+                        actual_type = (
+                            ActionType.CHECK if amount == 0 else ActionType.CALL
+                        )
                         return (amount, actual_type)
                     raise InvalidActionError("Cannot go all-in")
                 pk_state.complete_bet_or_raise_to(max_amount)
@@ -669,7 +692,7 @@ class PokerKitWrapper:
         # PokerKit 0.7.2 returns board_cards as nested list: [[card1], [card2], ...]
         # Flatten the structure to get individual cards, filtering out None values
         flat_board_cards = []
-        for card_list in (pk_state.board_cards or []):
+        for card_list in pk_state.board_cards or []:
             if isinstance(card_list, list):
                 flat_board_cards.extend(c for c in card_list if c is not None)
             elif card_list is not None:
@@ -708,9 +731,7 @@ class PokerKitWrapper:
                         )
 
             # Get bet amount
-            bet_amount = (
-                pk_state.bets[pk_idx] if pk_idx < len(pk_state.bets) else 0
-            )
+            bet_amount = pk_state.bets[pk_idx] if pk_idx < len(pk_state.bets) else 0
 
             player_states.append(
                 PlayerHandState(
@@ -745,7 +766,32 @@ class PokerKitWrapper:
         )
 
     def _extract_pot_state(self, pk_state: PKState) -> PotState:
-        """Extract pot information from PokerKit state."""
+        """Extract pot information from PokerKit state.
+
+        사이드팟 계산 - 수학적 증명 (WSOP 표준):
+        ═══════════════════════════════════════════════════════════════════════
+
+        정의:
+        - n명의 플레이어가 각각 스택 s[i]를 갖고 베팅
+        - 올인 플레이어들의 스택을 오름차순 정렬: s[1] ≤ s[2] ≤ ... ≤ s[k]
+
+        메인팟 (Main Pot):
+        - 금액 = min(s[i]) × n (모든 플레이어 참여 가능)
+        - 증명: 가장 작은 스택 s[1]까지만 모든 n명이 참여 가능
+
+        사이드팟 i (Side Pot):
+        - 금액 = (s[i+1] - s[i]) × (n - i) (i+1번째 플레이어부터 참여 가능)
+        - 증명: s[i] 초과 ~ s[i+1] 이하 금액은 (n-i)명만 참여 가능
+
+        칩 보존 법칙:
+        - 총 베팅 = 메인팟 + Σ사이드팟[i] for i in 1..k
+        - 증명: Σs[i] = s[1]×n + Σ(s[i+1]-s[i])×(n-i) (텔레스코핑 합)
+
+        홀수 칩 규칙:
+        - 분할 시 남는 칩은 버튼 왼쪽(시계방향) 가장 가까운 플레이어에게
+        - PokerKit CHIPS_PUSHING 자동화가 이 규칙을 적용
+        ═══════════════════════════════════════════════════════════════════════
+        """
         # PokerKit 0.7.2 returns a generator, convert to list for indexing
         # (Pots list is typically small: 1 main + 0-2 side pots)
         pots = list(pk_state.pots)
@@ -844,7 +890,7 @@ class PokerKitWrapper:
             for c in pk_state.hole_cards[pk_idx][:2]:
                 cards.append(pk_card_to_card(c))
         if pk_state.board_cards:
-            for c in pk_state.board_cards[:5 - len(cards)]:
+            for c in pk_state.board_cards[: 5 - len(cards)]:
                 cards.append(pk_card_to_card(c))
 
         return tuple(cards[:5])

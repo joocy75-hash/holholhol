@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/stores/auth';
 import { useDepositStore } from '@/stores/deposit';
-import { useWithdrawStore, WithdrawStep } from '@/stores/withdraw';
+// WithdrawStep 타입은 store 내부에서만 사용되므로 import 제거
+import { useWithdrawStore } from '@/stores/withdraw';
 import CashierHeader, { WalletTab } from '@/components/cashier/CashierHeader';
 import AmountSelector from '@/components/cashier/AmountSelector';
 import DepositQRView from '@/components/cashier/DepositQRView';
@@ -54,7 +55,18 @@ export default function WalletPage() {
     clearDeposit,
     clearError: clearDepositError,
   } = useDepositStore();
-  const [depositStep, setDepositStep] = useState<DepositStep>('select');
+
+  // 충전 단계 상태 (내부 관리용)
+  const [depositStepState, setDepositStep] = useState<DepositStep>('select');
+
+  // 입금 상태가 confirmed일 때 자동으로 complete 단계로 전환 (파생 상태)
+  // useEffect 내 setState 대신 useMemo로 파생하여 cascading render 방지
+  const depositStep: DepositStep = useMemo(() => {
+    if (currentDeposit?.status === 'confirmed') {
+      return 'complete';
+    }
+    return depositStepState;
+  }, [currentDeposit?.status, depositStepState]);
 
   // 환전 관련 상태
   const {
@@ -88,12 +100,7 @@ export default function WalletPage() {
     fetchWithdrawRate();
   }, [fetchDepositRate, fetchWithdrawRate]);
 
-  // 입금 상태 변경 감지
-  useEffect(() => {
-    if (currentDeposit?.status === 'confirmed') {
-      setDepositStep('complete');
-    }
-  }, [currentDeposit?.status]);
+  // 입금 상태 변경 감지 - useMemo 파생 상태로 이동 (위 depositStep 참조)
 
   // 페이지 이탈 시 정리
   useEffect(() => {
@@ -266,7 +273,8 @@ export default function WalletPage() {
                     exit="exit"
                     transition={springTransition}
                   >
-                    <DepositQRView deposit={currentDeposit} />
+                    {/* key prop으로 deposit 변경 시 컴포넌트 리마운트하여 state 초기화 */}
+                    <DepositQRView key={currentDeposit.id} deposit={currentDeposit} />
                   </motion.div>
                 )}
 

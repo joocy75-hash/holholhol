@@ -3,6 +3,7 @@ Room API Tests - 방 관리 API 테스트
 
 **Validates: Phase 3.3 - 방 강제 종료 기능**
 """
+
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -18,6 +19,7 @@ from app.utils.dependencies import get_current_user, require_supervisor
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def client():
@@ -94,6 +96,7 @@ def sample_force_close_response():
 # POST /api/rooms/{room_id}/force-close Tests
 # ============================================================================
 
+
 class TestForceCloseRoom:
     """POST /api/rooms/{room_id}/force-close 테스트."""
 
@@ -118,9 +121,9 @@ class TestForceCloseRoom:
             assert response.status_code == 200
             data = response.json()
             assert data["success"] is True
-            assert data["room_id"] == room_id
-            assert data["total_refunded"] == 8000
-            assert data["players_affected"] == 2
+            assert data["roomId"] == room_id
+            assert data["totalRefunded"] == 8000
+            assert data["playersAffected"] == 2
             assert len(data["refunds"]) == 2
         finally:
             app.dependency_overrides.clear()
@@ -175,8 +178,8 @@ class TestForceCloseRoom:
 
             assert response.status_code == 200
             data = response.json()
-            assert data["total_refunded"] == 0
-            assert data["players_affected"] == 0
+            assert data["totalRefunded"] == 0
+            assert data["playersAffected"] == 0
             assert len(data["refunds"]) == 0
         finally:
             app.dependency_overrides.clear()
@@ -211,6 +214,7 @@ class TestForceCloseRoom:
 # Permission Tests
 # ============================================================================
 
+
 class TestForceClosePermissions:
     """방 강제 종료 권한 테스트."""
 
@@ -227,9 +231,7 @@ class TestForceClosePermissions:
         # 인증 토큰이 없으므로 401 또는 403
         assert response.status_code in [401, 403]
 
-    def test_operator_cannot_force_close_via_permission_check(
-        self, client, mock_operator_user
-    ):
+    def test_operator_cannot_force_close_via_permission_check(self, client, mock_operator_user):
         """Operator는 FORCE_CLOSE_ROOM 권한이 없음."""
         room_id = "room-123"
 
@@ -256,6 +258,7 @@ class TestForceClosePermissions:
 # Error Handling Tests
 # ============================================================================
 
+
 class TestForceCloseErrorHandling:
     """방 강제 종료 에러 처리 테스트."""
 
@@ -268,9 +271,10 @@ class TestForceCloseErrorHandling:
         try:
             with patch("app.api.rooms._call_game_backend") as mock_call:
                 from fastapi import HTTPException
+
                 mock_call.side_effect = HTTPException(
                     status_code=404,
-                    detail={"error": {"code": "ROOM_NOT_FOUND", "message": "Room not found"}}
+                    detail={"error": {"code": "ROOM_NOT_FOUND", "message": "Room not found"}},
                 )
 
                 response = client.post(
@@ -292,9 +296,15 @@ class TestForceCloseErrorHandling:
         try:
             with patch("app.api.rooms._call_game_backend") as mock_call:
                 from fastapi import HTTPException
+
                 mock_call.side_effect = HTTPException(
                     status_code=400,
-                    detail={"error": {"code": "ROOM_ALREADY_CLOSED", "message": "Room is already closed"}}
+                    detail={
+                        "error": {
+                            "code": "ROOM_ALREADY_CLOSED",
+                            "message": "Room is already closed",
+                        }
+                    },
                 )
 
                 response = client.post(
@@ -316,9 +326,9 @@ class TestForceCloseErrorHandling:
         try:
             with patch("app.api.rooms._call_game_backend") as mock_call:
                 from fastapi import HTTPException
+
                 mock_call.side_effect = HTTPException(
-                    status_code=502,
-                    detail="Game server connection failed"
+                    status_code=502, detail="Game server connection failed"
                 )
 
                 response = client.post(
@@ -340,10 +350,8 @@ class TestForceCloseErrorHandling:
         try:
             with patch("app.api.rooms._call_game_backend") as mock_call:
                 from fastapi import HTTPException
-                mock_call.side_effect = HTTPException(
-                    status_code=504,
-                    detail="Game server timeout"
-                )
+
+                mock_call.side_effect = HTTPException(status_code=504, detail="Game server timeout")
 
                 response = client.post(
                     f"/api/rooms/{room_id}/force-close",
@@ -359,6 +367,7 @@ class TestForceCloseErrorHandling:
 # ============================================================================
 # _call_game_backend Unit Tests
 # ============================================================================
+
 
 class TestCallGameBackend:
     """_call_game_backend 헬퍼 함수 단위 테스트."""
@@ -379,11 +388,7 @@ class TestCallGameBackend:
             mock_client.__aexit__.return_value = None
             mock_client_class.return_value = mock_client
 
-            result = await _call_game_backend(
-                method="POST",
-                path="/test",
-                data={"key": "value"}
-            )
+            result = await _call_game_backend(method="POST", path="/test", data={"key": "value"})
 
         assert result == {"success": True}
 
@@ -401,11 +406,7 @@ class TestCallGameBackend:
             mock_client_class.return_value = mock_client
 
             with pytest.raises(HTTPException) as exc_info:
-                await _call_game_backend(
-                    method="POST",
-                    path="/test",
-                    data={"key": "value"}
-                )
+                await _call_game_backend(method="POST", path="/test", data={"key": "value"})
 
         assert exc_info.value.status_code == 504
 
@@ -423,11 +424,7 @@ class TestCallGameBackend:
             mock_client_class.return_value = mock_client
 
             with pytest.raises(HTTPException) as exc_info:
-                await _call_game_backend(
-                    method="POST",
-                    path="/test",
-                    data={"key": "value"}
-                )
+                await _call_game_backend(method="POST", path="/test", data={"key": "value"})
 
         assert exc_info.value.status_code == 502
 
@@ -448,11 +445,7 @@ class TestCallGameBackend:
             mock_client_class.return_value = mock_client
 
             with pytest.raises(HTTPException) as exc_info:
-                await _call_game_backend(
-                    method="POST",
-                    path="/test",
-                    data={"key": "value"}
-                )
+                await _call_game_backend(method="POST", path="/test", data={"key": "value"})
 
         assert exc_info.value.status_code == 502
         assert "authentication failed" in exc_info.value.detail
@@ -462,6 +455,7 @@ class TestCallGameBackend:
 # GET /api/rooms Tests
 # ============================================================================
 
+
 class TestListRooms:
     """GET /api/rooms 테스트."""
 
@@ -470,10 +464,19 @@ class TestListRooms:
         app.dependency_overrides[get_current_user] = lambda: mock_viewer_user
 
         try:
-            response = client.get(
-                "/api/rooms",
-                headers={"Authorization": "Bearer test-token"},
-            )
+            with patch("app.api.rooms._call_game_backend") as mock_call:
+                mock_call.return_value = {
+                    "items": [],
+                    "total": 0,
+                    "page": 1,
+                    "pageSize": 20,
+                    "totalPages": 0,
+                }
+
+                response = client.get(
+                    "/api/rooms",
+                    headers={"Authorization": "Bearer test-token"},
+                )
 
             assert response.status_code == 200
             data = response.json()
@@ -488,15 +491,24 @@ class TestListRooms:
         app.dependency_overrides[get_current_user] = lambda: mock_viewer_user
 
         try:
-            response = client.get(
-                "/api/rooms?page=2&page_size=10",
-                headers={"Authorization": "Bearer test-token"},
-            )
+            with patch("app.api.rooms._call_game_backend") as mock_call:
+                mock_call.return_value = {
+                    "items": [],
+                    "total": 0,
+                    "page": 2,
+                    "pageSize": 10,
+                    "totalPages": 0,
+                }
+
+                response = client.get(
+                    "/api/rooms?page=2&page_size=10",
+                    headers={"Authorization": "Bearer test-token"},
+                )
 
             assert response.status_code == 200
             data = response.json()
             assert data["page"] == 2
-            assert data["page_size"] == 10
+            assert data["pageSize"] == 10
         finally:
             app.dependency_overrides.clear()
 
@@ -504,6 +516,7 @@ class TestListRooms:
 # ============================================================================
 # GET /api/rooms/{room_id} Tests
 # ============================================================================
+
 
 class TestGetRoom:
     """GET /api/rooms/{room_id} 테스트."""
@@ -530,6 +543,7 @@ class TestGetRoom:
 # POST /api/rooms/{room_id}/message Tests
 # ============================================================================
 
+
 class TestSendSystemMessage:
     """POST /api/rooms/{room_id}/message 테스트."""
 
@@ -549,7 +563,7 @@ class TestSendSystemMessage:
             assert response.status_code == 200
             data = response.json()
             assert data["success"] is True
-            assert data["room_id"] == room_id
+            assert data["roomId"] == room_id
         finally:
             app.dependency_overrides.clear()
 

@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/services/wallet.py
+# hypothesis_version: 6.150.2
+
+[300, 'INSUFFICIENT_BALANCE', 'INVALID_AMOUNT', 'INVALID_USER_ID', 'LOCK_CONTENTION', 'REDIS_UNAVAILABLE', 'USER_NOT_FOUND', 'User ID is required', 'WALLET_ERROR', 'amount', 'balance_after', 'balance_before', 'krw_transfer.lua', 'lua_scripts', 'tx_type', 'user_id', 'utils', 'wallet:balance:', 'wallet:lock:', 'wallet_transfer']

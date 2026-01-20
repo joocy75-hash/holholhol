@@ -54,7 +54,8 @@ export function CreateRoomDialog({ open, onOpenChange, onSuccess }: CreateRoomDi
       return;
     }
 
-    if (formData.smallBlind >= formData.bigBlind!) {
+    // 값 검증 (초기값이 있으므로 non-null assertion 사용)
+    if (formData.smallBlind! >= formData.bigBlind!) {
       toast.error('스몰 블라인드는 빅 블라인드보다 작아야 합니다.');
       return;
     }

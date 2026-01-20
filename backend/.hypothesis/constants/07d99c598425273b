@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/ws/gateway.py
+# hypothesis_version: 6.150.2
+
+[5.0, 30.0, 60.0, 300.0, 1013, 4001, 4002, 4003, '/ws', '/ws/stats', 'AUTH', 'Authentication error', 'HANDLER_ERROR', 'INVALID_MESSAGE', 'PING', 'REAUTH_REQUIRED', 'UNKNOWN_EVENT', 'WebSocket', 'connections', 'disconnected_at', 'error', 'last_seen_versions', 'message', 'payload', 'reason', 'running', 'sid', 'status', 'sub', 'subscribed_channels', 'timestamp', 'token', 'token_expired', 'type', '서버 점검 중입니다.']

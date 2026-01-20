@@ -1,10 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useRef, useLayoutEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserProfile } from '@/lib/api';
 import { AvatarSelector } from '@/components/common';
 import { DEFAULT_AVATAR_ID } from '@/constants/avatars';
+
+// 아바타 ID 파싱 헬퍼 함수 (방어적 프로그래밍)
+function parseAvatarId(avatarUrl: string | null | undefined): number {
+  if (!avatarUrl) return DEFAULT_AVATAR_ID;
+  const parsed = parseInt(avatarUrl, 10);
+  return isNaN(parsed) || parsed < 1 || parsed > 10 ? DEFAULT_AVATAR_ID : parsed;
+}
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -25,14 +32,25 @@ export default function EditProfileModal({
   const [selectedAvatarId, setSelectedAvatarId] = useState<number>(DEFAULT_AVATAR_ID);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    if (user) {
+  // 이전 isOpen 상태 추적 (모달 열림 감지용)
+  const prevIsOpenRef = useRef(false);
+
+  // useLayoutEffect로 모달 열릴 때만 state 초기화 (cascading render 방지)
+  // DOM 커밋 전에 동기적으로 실행되어 깜빡임 없이 초기화됨
+  // 의도적 state 리셋: 모달 열림 시 사용자 정보로 폼 초기화 필요
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useLayoutEffect(() => {
+    const isOpening = isOpen && !prevIsOpenRef.current;
+    prevIsOpenRef.current = isOpen;
+
+    // 모달이 닫힌 상태에서 열릴 때만 초기화
+    if (isOpening && user) {
       setNickname(user.nickname || '');
-      // avatar_url이 숫자 문자열이면 파싱, 아니면 기본값
-      const avatarId = parseInt(user.avatar_url || '', 10);
-      setSelectedAvatarId(isNaN(avatarId) || avatarId < 1 || avatarId > 10 ? DEFAULT_AVATAR_ID : avatarId);
+      setSelectedAvatarId(parseAvatarId(user.avatar_url));
+      setError('');
     }
-  }, [user]);
+  }, [isOpen, user]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleSubmit = async () => {
     setError('');

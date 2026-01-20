@@ -103,9 +103,13 @@ export default function FoldOptions({
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // timerSeconds를 ref로 추적하여 클로저 문제 방지
   const timerSecondsRef = useRef(timerSeconds);
-  timerSecondsRef.current = timerSeconds;
   // 이전 isVisible 추적 (렌더링 중 상태 변경 방지)
   const prevIsVisibleRef = useRef(isVisible);
+
+  // timerSecondsRef 업데이트 - 렌더링 중 ref 변경 방지를 위해 useEffect로 이동
+  useEffect(() => {
+    timerSecondsRef.current = timerSeconds;
+  }, [timerSeconds]);
 
   // 리셋 - useEffect로 이동하여 렌더링 중 상태 변경 방지
   useEffect(() => {

@@ -9,13 +9,12 @@ interface DepositQRViewProps {
 }
 
 export default function DepositQRView({ deposit }: DepositQRViewProps) {
+  // 초기값으로 deposit.remaining_seconds 사용
+  // 부모에서 key={deposit.id}를 전달하므로 deposit 변경 시 컴포넌트가 리마운트됨
+  // 따라서 props 동기화 useEffect 불필요 (cascading render 방지)
   const [remainingSeconds, setRemainingSeconds] = useState(deposit.remaining_seconds);
 
-  // 카운트다운 타이머
-  useEffect(() => {
-    setRemainingSeconds(deposit.remaining_seconds);
-  }, [deposit.remaining_seconds]);
-
+  // 1초마다 카운트다운 감소
   useEffect(() => {
     const timer = setInterval(() => {
       setRemainingSeconds((prev) => Math.max(0, prev - 1));

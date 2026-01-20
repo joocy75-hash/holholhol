@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/services/statistics.py
+# hypothesis_version: 6.150.2
+
+[0.0, 100, 'Calling Station', 'LAG', 'Nit', 'TAG', 'af', 'aggFreq', 'agg_freq', 'bbPer100', 'biggestPot', 'biggest_pot', 'characteristics', 'description', 'emoji', 'handsWon', 'hands_won', 'pfr', 'playStyle', 'style', 'threeBet', 'three_bet', 'totalHands', 'totalWinnings', 'total_hands', 'total_winnings', 'unknown', 'user_id', 'vpip', 'winRate', 'wsd', 'wtsd', '❓', '공격적 베팅', '다양한 핸드 플레이', '루즈-어그레시브 (공격적 스타일)', '루즈-패시브 (콜링 스테이션)', '많은 핸드 참여', '블러프 많음', '블러프 적음', '선별적 핸드 선택', '수익성 낮음', '적극적 베팅', '좋은 수익성', '체크/콜 위주', '콜 위주', '타이트-어그레시브 (정석 스타일)', '타이트-패시브 (보수적 스타일)', '프리미엄 핸드만 플레이', '🐟', '🐢', '🔥', '🦈']

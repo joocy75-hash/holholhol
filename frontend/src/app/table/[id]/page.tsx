@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
 import { useAuthStore } from '@/stores/auth';
 import { wsClient } from '@/lib/websocket';
 import { analyzeHand } from '@/lib/handEvaluator';

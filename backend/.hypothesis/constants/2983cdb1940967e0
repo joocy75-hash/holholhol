@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/backend/app/services/emoticon.py
+# hypothesis_version: 6.150.2
+
+['/sounds/all_in.webm', '/sounds/clap.webm', '/sounds/winner.webm', 'GG', 'all_in', 'angry', 'basic', 'bluff', 'category', 'celebration', 'clap', 'cool', 'cry', 'emoji', 'emotion', 'fire', 'good_game', 'id', 'imageUrl', 'isPremium', 'laugh', 'money_bag', 'name', 'nice_hand', 'party', 'poker', 'shocked', 'slow', 'smile', 'soundUrl', 'taunt', 'thinking', 'thumbs_down', 'thumbs_up', 'trophy', 'wave', '나이스 핸드', '놀람', '돈주머니', '박수', '별로', '불꽃', '블러프', '빨리빨리', '생각중', '올인!', '울음', '웃김', '웃음', '인사', '좋아요', '쿨', '트로피', '파티', '화남', '🃏', '🎉', '🎭', '🎰', '🏆', '🐢', '👋', '👍', '👎', '👏', '💰', '💵', '🔥', '😊', '😎', '😠', '😢', '😱', '🤔', '🤣']
