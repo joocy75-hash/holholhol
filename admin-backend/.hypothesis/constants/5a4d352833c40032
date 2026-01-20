@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/api/export.py
+# hypothesis_version: 6.150.2
+
+[365, 1000, 10000, '%Y%m%d_%H%M%S', '%Y-%m-%d', '%Y-%m-%d %H:%M:%S', ',', ', ', '...', '/audit-logs', '/custom', '/revenue', '/transactions', '/users', ':days', 'Content-Disposition', 'N', 'Y', 'action', 'admin_user_id', 'admin_username', 'amount', 'application/pdf', 'avg_rake_per_hand', 'chips', 'created_at', 'date', 'email', 'excel', 'hand_results', 'header', 'id', 'ip_address', 'is_active', 'key', 'landscape', 'last_login', 'limit', 'nickname', 'pdf', 'rooms', 'status', 'target_id', 'target_type', 'total_hands', 'total_rake', 'transactions', 'type', 'unique_players', 'user_id', 'users', 'xlsx', '거래 유형 필터', '관리자 ID 필터', '내보내기 형식', '상태 필터', '액션 필터', '조회 기간 (일)', '최대 행 수', '컬럼 목록 (콤마 구분)', '테이블명', '활성 상태 필터']

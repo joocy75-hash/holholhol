@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/services/crypto/wallet_balance_service.py
+# hypothesis_version: 6.150.2
+
+[100, '0', '1380', 'address', 'available_krw', 'available_usdt', 'balance_krw', 'balance_usdt', 'current_usdt', 'deficit_usdt', 'exchange_rate', 'is_below_threshold', 'last_updated', 'not_configured', 'recorded_at', 'threshold_usdt']

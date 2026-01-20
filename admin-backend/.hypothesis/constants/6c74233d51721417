@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/middleware/rate_limit.py
+# hypothesis_version: 6.150.2
+
+[429, ',', '/', '10/minute', '120/minute', '20/minute', '3/minute', '30/minute', '5/minute', '60', '60/minute', 'Authorization', 'Bearer ', 'Retry-After', 'X-Forwarded-For', 'X-RateLimit-Limit', 'X-Real-IP', 'application/json', 'fixed-window']

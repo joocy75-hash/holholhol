@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/tasks/exchange_rate_history.py
+# hypothesis_version: 6.150.2
+
+[300, 'coingecko']

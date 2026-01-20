@@ -36,6 +36,11 @@ class NotificationType(str, Enum):
     DEPOSIT_PENDING = "deposit_pending"
     WITHDRAWAL_PENDING = "withdrawal_pending"
 
+    # 지갑 관련 (Phase 9)
+    WALLET_LOW_BALANCE = "wallet_low_balance"
+    WALLET_CRITICAL_BALANCE = "wallet_critical_balance"
+    WALLET_BALANCE_RESTORED = "wallet_balance_restored"
+
 
 class NotificationPriority(str, Enum):
     """알림 우선순위."""
@@ -375,4 +380,66 @@ class NotificationService:
             title=f"⚠️ 시스템 오류: {error_type}",
             message=message,
             data=details or {},
+        )
+
+    async def notify_wallet_low_balance(
+        self,
+        available_usdt: float,
+        threshold_usdt: float,
+        deficit_usdt: float,
+        balance_usdt: float,
+        pending_usdt: float,
+    ) -> AdminNotification:
+        """지갑 잔액 부족 알림."""
+        return await self.create_notification(
+            notification_type=NotificationType.WALLET_LOW_BALANCE,
+            priority=NotificationPriority.HIGH,
+            title="💰 지갑 잔액 부족 경고",
+            message=f"사용 가능 잔액: {available_usdt:,.2f} USDT (임계값: {threshold_usdt:,.2f} USDT, "
+                    f"부족분: {deficit_usdt:,.2f} USDT)",
+            data={
+                "availableUsdt": available_usdt,
+                "thresholdUsdt": threshold_usdt,
+                "deficitUsdt": deficit_usdt,
+                "balanceUsdt": balance_usdt,
+                "pendingUsdt": pending_usdt,
+            },
+        )
+
+    async def notify_wallet_critical_balance(
+        self,
+        available_usdt: float,
+        threshold_usdt: float,
+    ) -> AdminNotification:
+        """지갑 잔액 위험 수준 알림 (출금 불가 임박)."""
+        return await self.create_notification(
+            notification_type=NotificationType.WALLET_CRITICAL_BALANCE,
+            priority=NotificationPriority.CRITICAL,
+            title="🚨 지갑 잔액 위험 - 출금 불가 임박",
+            message=f"잔액이 매우 낮습니다: {available_usdt:,.2f} USDT "
+                    f"(위험 임계값: {threshold_usdt:,.2f} USDT). 즉시 충전이 필요합니다!",
+            data={
+                "availableUsdt": available_usdt,
+                "criticalThresholdUsdt": threshold_usdt,
+            },
+        )
+
+    async def notify_wallet_balance_restored(
+        self,
+        previous_usdt: float,
+        current_usdt: float,
+        threshold_usdt: float,
+    ) -> AdminNotification:
+        """지갑 잔액 정상화 알림."""
+        return await self.create_notification(
+            notification_type=NotificationType.WALLET_BALANCE_RESTORED,
+            priority=NotificationPriority.LOW,
+            title="✅ 지갑 잔액 정상화",
+            message=f"잔액이 정상 수준으로 복구되었습니다: {current_usdt:,.2f} USDT "
+                    f"(이전: {previous_usdt:,.2f} USDT)",
+            data={
+                "previousUsdt": previous_usdt,
+                "currentUsdt": current_usdt,
+                "thresholdUsdt": threshold_usdt,
+            },
         )

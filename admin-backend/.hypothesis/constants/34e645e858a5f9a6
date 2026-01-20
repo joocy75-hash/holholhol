@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/services/crypto/withdrawal_service.py
+# hypothesis_version: 6.150.2
+
+[30.0, 200, 404, 409, 'POST', 'X-API-Key', 'admin_id', 'amount_krw', 'amount_usdt', 'api_response', 'approved_at', 'approved_by', 'created_at', 'crypto_withdrawal', 'detail', 'exchange_rate', 'id', 'idempotency_key', 'items', 'net_amount_krw', 'net_amount_usdt', 'network_fee_krw', 'network_fee_usdt', 'note', 'page', 'page_size', 'pending_amount_krw', 'pending_count', 'processed_at', 'processing_count', 'reason', 'rejection_reason', 'requested_at', 'status', 'to_address', 'today_rejected_count', 'total', 'total_pages', 'tx_hash', 'unknown', 'updated_at', 'user_id', 'withdrawal_approved', 'withdrawal_id', 'withdrawal_rejected', '거부 사유를 입력해주세요.', '알 수 없는 오류', '이미 처리된 요청입니다.']

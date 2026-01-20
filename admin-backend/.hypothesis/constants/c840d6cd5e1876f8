@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/api/bans.py
+# hypothesis_version: 6.150.2
+
+[100, 500, 720, 8760, '+00:00', '/mute', '/mute/{user_id}', '/user/{user_id}', '/{ban_id}', 'Ban not found', 'Reason for mute', 'Reason for the ban', 'User ID to ban', 'User ID to mute', 'Z', 'ban', 'ban_id', 'ban_type', 'chat_only', 'create_ban', 'duration_hours', 'expires_at', 'id', 'is_muted', 'items', 'lift_ban', 'lifted_at', 'message', 'mute_info', 'mute_user', 'permanent', 'reason', 'temporary', 'total', 'user', 'user_id', '채팅 금지', '채팅 금지 상태 확인']

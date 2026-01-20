@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/tasks/hot_wallet_balance.py
+# hypothesis_version: 6.150.2
+
+[3600, 'address', 'available_usdt', 'balance_krw', 'balance_usdt', 'deficit_usdt', 'exchange_rate', 'pending_usdt', 'threshold_usdt', 'timestamp']

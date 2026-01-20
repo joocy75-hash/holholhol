@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/api/audit.py
+# hypothesis_version: 6.150.2
+
+[100, '/actions', '/dashboard', '/my-activity', 'Filter by admin user', 'action', 'actions', 'admin_id', 'approve_deposit', 'approve_withdrawal', 'close_room', 'count', 'create_ban', 'create_room', 'items', 'label', 'lift_ban', 'login', 'logout', 'mute_user', 'reject_deposit', 'reject_withdrawal', 'send_announcement', 'today_start', 'total', 'update_user', 'value', 'week_start', '공지 발송', '로그아웃', '로그인', '방 생성', '방 종료', '사용자 수정', '입금 거부', '입금 승인', '제재 생성', '제재 해제', '채팅 금지', '출금 거부', '출금 승인']

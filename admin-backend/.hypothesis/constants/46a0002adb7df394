@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/api/auth.py
+# hypothesis_version: 6.150.2
+
+['/2fa/disable', '/2fa/enable', '/2fa/setup', '/2fa/verify', '/login', '/logout', '/me', '/refresh', '2FA is not enabled', 'Bearer ', 'Invalid 2FA code', 'Session refreshed', 'authorization', 'bearer', 'message', 'unknown', 'user-agent']

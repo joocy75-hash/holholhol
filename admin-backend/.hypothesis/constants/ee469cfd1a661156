@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/api/notifications.py
+# hypothesis_version: 6.150.2
+
+['/read-all', '/test', '/unread-count', '/{notification_id}', 'Marked as read', 'Notification deleted', 'count', 'createdAt', 'message', 'notificationId', 'readAt', 'readBy', 'success', 'test', 'unreadCount', '이것은 테스트 알림입니다.', '🔔 테스트 알림']

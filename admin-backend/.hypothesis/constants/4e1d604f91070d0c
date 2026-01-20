@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/models/crypto.py
+# hypothesis_version: 6.150.2
+
+['completed', 'confirmed', 'confirming', 'crypto_deposits', 'crypto_withdrawals', 'failed', 'hot_wallet_balances', 'pending', 'processing', 'rejected']

@@ -6,9 +6,9 @@
 
 ---
 
-## 현재 구현 상황 (2026-01-18 기준)
+## 현재 구현 상황 (2026-01-19 기준)
 
-### 입금 (Deposit) - 95% 완료 ✅
+### 입금 (Deposit) - 100% 완료 ✅
 | 항목 | 상태 | 파일 |
 |------|------|------|
 | Admin API | ✅ 완료 | `admin-backend/app/api/admin_ton_deposit.py` |
@@ -17,14 +17,14 @@
 | Admin Frontend | ✅ 완료 | `admin-frontend/src/app/(dashboard)/deposits/page.tsx` |
 | Frontend API | ✅ 완료 | `admin-frontend/src/lib/deposits-api.ts` |
 
-### 출금 (Withdrawal) - 30% 완료 🟡
+### 출금 (Withdrawal) - 100% 완료 ✅
 | 항목 | 상태 | 파일 |
 |------|------|------|
-| Admin API | ❌ TODO 스켈레톤 | `admin-backend/app/api/crypto.py:172-221` |
-| Admin Service | ❌ 미구현 | 새로 생성 필요 |
+| Admin API | ✅ 완료 | `admin-backend/app/api/crypto.py` |
+| Admin Service | ✅ 완료 | `admin-backend/app/services/crypto/withdrawal_service.py` |
 | Admin Model | ✅ 완료 | `admin-backend/app/models/crypto.py` |
-| Admin Frontend | ❌ 미구현 | 새로 생성 필요 |
-| Frontend API | ❌ 미구현 | 새로 생성 필요 |
+| Admin Frontend | ✅ 완료 | `admin-frontend/src/app/(dashboard)/withdrawals/page.tsx` |
+| Frontend API | ✅ 완료 | `admin-frontend/src/lib/withdrawals-api.ts` |
 | Main Backend | ✅ 완료 | `backend/app/services/crypto_withdrawal.py` |
 
 ---

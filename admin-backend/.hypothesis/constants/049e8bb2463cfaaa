@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/services/crypto/wallet_alert_service.py
+# hypothesis_version: 6.150.2
+
+[b'1', b'is_critical', b'is_low', b'last_critical', b'last_warning', 3600, 86400, '0', '1', '1000.0', '200.0', '500.0', 'available_usdt', 'balance_usdt', 'cooldown_seconds', 'critical', 'critical_usdt', 'deficit_usdt', 'is_critical', 'is_critical_balance', 'is_low', 'is_low_balance', 'last_alerts', 'last_critical', 'last_recovery', 'last_warning', 'pending_usdt', 'recovery', 'recovery_margin_usdt', 'threshold_usdt', 'thresholds', 'wallet:alert:state', 'warning', 'warning_usdt']

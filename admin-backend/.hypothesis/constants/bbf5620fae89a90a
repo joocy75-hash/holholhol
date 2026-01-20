@@ -1,0 +1,4 @@
+# file: /Users/mr.joo/Desktop/holdem/admin-backend/app/services/notification_service.py
+# hypothesis_version: 6.150.2
+
+[100, 86400, 'admin:notifications', 'amount', 'availableUsdt', 'balanceUsdt', 'confidence', 'count', 'createdAt', 'critical', 'currentUsdt', 'data', 'deficitUsdt', 'deposit_pending', 'fraud_bot_detected', 'fraud_chip_dumping', 'fraud_collusion', 'high', 'id', 'indicators', 'low', 'medium', 'message', 'pendingUsdt', 'previousUsdt', 'priority', 'read', 'readAt', 'readBy', 'system_error', 'system_high_load', 'targetUserId', 'thresholdUsdt', 'title', 'totalAmount', 'type', 'userId', 'wallet_low_balance', 'withdrawalId', 'withdrawal_pending', '⏳ 출금 승인 대기', '✅ 지갑 잔액 정상화', '💰 대규모 출금 요청', '💰 지갑 잔액 부족 경고', '🚨 칩 밀어주기 의심', '🤖 봇 의심 사용자']

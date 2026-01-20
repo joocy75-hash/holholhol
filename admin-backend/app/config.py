@@ -73,6 +73,26 @@ class Settings(BaseSettings):
     ton_usdt_master_address: str = "EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs"
     tonapi_key: str = ""
     ton_center_api_key: str = ""
+
+    # KMS (Key Management Service) - Phase 8
+    kms_provider: str = ""  # "local", "vault", "secrets" (auto-detect if empty)
+    ton_hot_wallet_private_key: str = ""  # Base64 encoded (LocalKmsProvider only)
+
+    # HashiCorp Vault (for VaultKmsProvider)
+    vault_addr: str = ""  # e.g., "https://vault.example.com:8200"
+    vault_token: str = ""
+    vault_transit_mount: str = "transit"
+
+    # AWS (for SecretsKmsProvider)
+    aws_region: str = ""
+    use_secrets_manager: bool = False
+
+    # Withdrawal Automation - Phase 8
+    withdrawal_auto_enabled: bool = False  # 출금 자동화 활성화
+    withdrawal_auto_threshold_usdt: float = 100.0  # 이 금액 이하는 자동 처리
+    withdrawal_monitor_interval: int = 30  # TX 모니터링 간격 (초)
+    withdrawal_tx_timeout_minutes: int = 30  # TX 타임아웃 (분)
+    withdrawal_max_retry: int = 3  # 최대 재시도 횟수
     
     # Telegram Bot
     telegram_bot_token: str = ""
@@ -85,6 +105,7 @@ class Settings(BaseSettings):
     deposit_expiry_minutes: int = 30
     deposit_amount_tolerance: float = 0.005  # 0.5%
     deposit_polling_interval: int = 10  # seconds
+    deposit_monitor_enabled: bool = True  # Enable TonDepositMonitor for automatic deposit detection
     hot_wallet_min_balance: float = 1000.0  # USDT
     
     # Security
