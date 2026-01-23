@@ -87,3 +87,67 @@ GameManager ──▶ Redis (주 저장소) ──▶ DB (영구 백업)
 ### 권장 사항
 - PostgreSQL 12+ 사용
 - 개발/테스트/프로덕션 모두 PostgreSQL 사용 권장
+
+---
+
+## 어드민 프론트엔드 세션 관리
+
+### 세션 만료 문제 방지
+어드민 로그인 후 세션이 자꾸 끊기는 문제가 발생하면:
+
+1. **브라우저 localStorage 확인**
+   - `admin-auth` 키에 `tokenExpiry` 값이 있는지 확인
+   - 없으면 로그아웃 후 다시 로그인
+
+2. **JWT 만료 시간 설정**
+   - `admin-backend/.env`: `JWT_ACCESS_TOKEN_EXPIRE_MINUTES=1440` (24시간)
+   - 프론트엔드 로그인 시 `tokenExpiry` 저장 필수
+
+3. **asyncpg UUID 캐스팅**
+   - 잘못된 예: `:partner_id::uuid` (파라미터 충돌)
+   - 올바른 예: `CAST(:partner_id AS uuid)`
+
+### 개발 중 체크리스트
+- [ ] 백엔드 서버 실행 중인지 확인 (`localhost:8001`)
+- [ ] 로그인 후 `tokenExpiry`가 localStorage에 저장되는지 확인
+- [ ] 401 에러 발생 시 콘솔 로그 확인
+
+---
+
+## 라우트 구조
+
+### 어드민 (`:3001`)
+| 라우트 | 설명 |
+|--------|------|
+| `/login` | 어드민 로그인 |
+| `/` | 대시보드 |
+| `/users`, `/users/[id]` | 사용자 관리 |
+| `/rooms`, `/rooms/[id]` | 방 관리 |
+| `/hands`, `/hands/[id]` | 핸드 기록 |
+| `/bans` | 제재 관리 |
+| `/deposits` | 입금 관리 |
+| `/withdrawals` | 출금 관리 |
+| `/partners`, `/partners/[id]` | 파트너 관리 |
+| `/settlements` | 정산 관리 |
+| `/announcements` | 이벤트/공지 |
+| `/crypto`, `/crypto/approvals` | 암호화폐 |
+
+### 파트너 포털 (`:3001`)
+| 라우트 | 설명 |
+|--------|------|
+| `/partner-login` | 파트너 로그인 |
+| `/partner/dashboard` | 대시보드 |
+| `/partner/referrals` | 추천 회원 |
+| `/partner/settlements` | 정산 내역 |
+
+### 유저 (`:3000`)
+| 라우트 | 설명 |
+|--------|------|
+| `/login` | 로그인/회원가입 |
+| `/`, `/lobby` | 로비 |
+| `/table/[id]` | 게임 테이블 |
+| `/profile` | 프로필 |
+| `/wallet` | 지갑 |
+| `/history` | 핸드 기록 |
+| `/events` | 이벤트 |
+| `/settings` | 설정 |

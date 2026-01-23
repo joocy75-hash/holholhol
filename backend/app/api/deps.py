@@ -7,7 +7,10 @@ from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import select
+
 from app.config import get_settings
+from app.models.partner import Partner, PartnerStatus
 from app.models.user import User
 from app.services.auth import AuthService
 from app.utils.db import get_db
@@ -184,8 +187,51 @@ def get_client_info(request: Request) -> dict[str, str | None]:
     }
 
 
+async def get_current_partner(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> Partner:
+    """Get current user's partner account (required).
+
+    현재 유저가 활성 파트너인지 확인합니다.
+    파트너 API에서 사용합니다.
+
+    Args:
+        current_user: Current authenticated user
+        db: Database session
+
+    Returns:
+        Partner object
+
+    Raises:
+        HTTPException: If user is not an active partner
+    """
+    result = await db.execute(
+        select(Partner).where(
+            Partner.user_id == current_user.id,
+            Partner.status == PartnerStatus.ACTIVE,
+        )
+    )
+    partner = result.scalar_one_or_none()
+
+    if not partner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": {
+                    "code": "PARTNER_NOT_FOUND",
+                    "message": "파트너 권한이 없습니다",
+                    "details": {},
+                }
+            },
+        )
+
+    return partner
+
+
 # Type aliases for cleaner annotations
 CurrentUser = Annotated[User, Depends(get_current_user)]
 OptionalUser = Annotated[User | None, Depends(get_current_user_optional)]
+CurrentPartner = Annotated[Partner, Depends(get_current_partner)]
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 TraceId = Annotated[str, Depends(get_trace_id)]

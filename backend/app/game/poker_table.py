@@ -167,6 +167,10 @@ class PokerTable:
             if existing_player and existing_player.user_id == player.user_id:
                 return False
 
+        # 중간 입장: 기본값은 sitting_out (BB 대기)
+        # 플레이어가 "바로 참여"를 선택하면 sit_in() 호출
+        player.status = "sitting_out"
+
         self.players[seat] = player
         return True
 
@@ -240,6 +244,17 @@ class PokerTable:
         return [(seat, p) for seat, p in self.players.items()
                 if p is not None and p.status != "sitting_out"]
 
+    def get_all_seated_players(self) -> List[Tuple[int, Player]]:
+        """Get list of (seat, player) for ALL seated players including sitting_out."""
+        return [(seat, p) for seat, p in self.players.items() if p is not None]
+
+    def get_all_seated_players_clockwise(self) -> List[Tuple[int, Player]]:
+        """Get all seated players (including sitting_out) in clockwise order."""
+        seated = self.get_all_seated_players()
+        seat_to_idx = get_seat_to_clockwise_index(self.max_players)
+        seated.sort(key=lambda x: seat_to_idx.get(x[0], x[0]))
+        return seated
+
     def get_active_players(self) -> List[Player]:
         """Get players eligible to play (not sitting out)."""
         return [p for _, p in self.get_seated_players()]
@@ -284,6 +299,102 @@ class PokerTable:
     def can_start_hand(self) -> bool:
         """Check if a new hand can be started."""
         return len(self.get_active_players()) >= 2 and self.phase == GamePhase.WAITING
+
+    def try_activate_bb_waiter_for_next_hand(self) -> List[int]:
+        """다음 핸드 시작 전에 BB 위치 대기자를 활성화합니다.
+
+        can_start_hand() 호출 전에 이 메서드를 호출하여, sitting_out 플레이어가
+        BB 위치에 있다면 미리 활성화합니다. 이렇게 하면 active 플레이어가 1명뿐이어도
+        BB 대기자를 활성화하여 게임을 시작할 수 있습니다.
+
+        Returns:
+            활성화된 좌석 번호 리스트
+        """
+        if self.phase != GamePhase.WAITING:
+            return []
+
+        # 모든 착석 플레이어 (sitting_out 포함)
+        all_seated = self.get_all_seated_players_clockwise()
+        all_seats = [s for s, _ in all_seated]
+
+        if len(all_seats) < 2:
+            return []
+
+        # 다음 딜러 위치 계산 (active 플레이어 기준)
+        active_seated = self.get_seated_players_clockwise()
+        active_seats = [s for s, _ in active_seated]
+
+        if not active_seats:
+            # active 플레이어가 없으면, 모든 플레이어 중 첫 번째를 딜러로 가정
+            next_dealer = all_seats[0]
+        elif self.dealer_seat == -1 or self.dealer_seat not in active_seats:
+            # 첫 핸드 또는 딜러가 활성 좌석에 없으면
+            next_dealer = active_seats[0]
+        else:
+            # 시계방향으로 다음 활성 플레이어
+            next_dealer = self.get_next_clockwise_seat(self.dealer_seat, active_seats)
+
+        # BB 위치 계산 (모든 플레이어 기준, 다음 딜러 기준)
+        if len(all_seats) == 2:
+            # 헤즈업: 딜러가 아닌 쪽이 BB
+            bb_seat = self.get_next_clockwise_seat(next_dealer, all_seats)
+        else:
+            # 3인+: 딜러 → SB → BB
+            sb_seat = self.get_next_clockwise_seat(next_dealer, all_seats)
+            bb_seat = self.get_next_clockwise_seat(sb_seat, all_seats)
+
+        activated = []
+
+        # BB 위치에 sitting_out 플레이어가 있으면 활성화
+        player = self.players.get(bb_seat)
+        if player and player.status == "sitting_out":
+            player.status = "active"
+            activated.append(bb_seat)
+            logger.info(
+                f"[PRE_HAND_ACTIVATE] BB 위치 도달 예정으로 자동 활성화: "
+                f"seat={bb_seat}, user={player.username}, next_dealer={next_dealer}"
+            )
+
+        return activated
+
+    def _activate_bb_waiters(self) -> List[int]:
+        """BB 위치의 sitting_out 플레이어를 자동 활성화합니다.
+
+        "BB 대기" 옵션을 선택한 플레이어가 BB 위치에 도달하면
+        자동으로 active 상태로 전환하여 게임에 참여시킵니다.
+
+        Returns:
+            활성화된 좌석 번호 리스트
+        """
+        activated = []
+
+        # 모든 플레이어 (sitting_out 포함) 시계방향 순서로 가져옴
+        all_seated = self.get_all_seated_players_clockwise()
+        all_seats = [s for s, _ in all_seated]
+
+        if len(all_seats) < 2 or self.dealer_seat is None:
+            return activated
+
+        # BB 위치 계산 (모든 플레이어 기준)
+        if len(all_seats) == 2:
+            # 헤즈업: 딜러가 아닌 쪽이 BB
+            bb_seat = self.get_next_clockwise_seat(self.dealer_seat, all_seats)
+        else:
+            # 3인+: 딜러 → SB → BB
+            sb_seat = self.get_next_clockwise_seat(self.dealer_seat, all_seats)
+            bb_seat = self.get_next_clockwise_seat(sb_seat, all_seats)
+
+        # BB 위치에 sitting_out 플레이어가 있으면 활성화
+        player = self.players.get(bb_seat)
+        if player and player.status == "sitting_out":
+            player.status = "active"
+            activated.append(bb_seat)
+            logger.info(
+                f"[AUTO_SIT_IN] BB 위치 도달로 자동 활성화: "
+                f"seat={bb_seat}, user={player.username}"
+            )
+
+        return activated
 
     def _is_heads_up(self) -> bool:
         """헤즈업(2인) 게임인지 확인합니다.
@@ -332,7 +443,10 @@ class PokerTable:
         # 먼저 딜러 이동 (플레이어 순서 결정 전에 필요)
         self._move_dealer()
 
-        # 시계방향 순서로 플레이어 정렬
+        # BB 위치 대기자 자동 활성화 (get_seated_players_clockwise 전에 호출)
+        auto_activated = self._activate_bb_waiters()
+
+        # 시계방향 순서로 플레이어 정렬 (auto_activated된 플레이어 포함)
         seated = self.get_seated_players_clockwise()
 
         # PokerKit은 [SB, BB, ..., BTN] 순서를 기대함
@@ -439,6 +553,7 @@ class PokerTable:
             "success": True,
             "hand_number": self.hand_number,
             "dealer": self.dealer_seat,
+            "auto_activated": auto_activated,  # BB 위치 도달로 자동 활성화된 좌석
         }
 
     def process_action(self, user_id: str, action: str, amount: int = 0) -> ActionResult:

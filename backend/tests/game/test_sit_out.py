@@ -20,7 +20,7 @@ def table():
 
 @pytest.fixture
 def seated_table(table):
-    """Create a table with 3 players seated."""
+    """Create a table with 3 players seated and active."""
     players = [
         Player(user_id="user1", username="Player1", seat=0, stack=500),
         Player(user_id="user2", username="Player2", seat=1, stack=500),
@@ -28,6 +28,7 @@ def seated_table(table):
     ]
     for p in players:
         table.seat_player(p.seat, p)
+        table.sit_in(p.seat)
     return table
 
 
@@ -126,12 +127,21 @@ class TestSitOutGameInteraction:
         assert seated_table.can_start_hand() is True
 
     def test_sitting_out_player_not_dealt_cards(self, seated_table):
-        """Test that sitting out player is not dealt cards in new hand."""
-        seated_table.sit_out(0)
+        """Test that sitting out player is not dealt cards in new hand.
+
+        Note: BB 위치의 sitting_out 플레이어는 자동 활성화되므로,
+        BB가 아닌 위치의 플레이어를 테스트합니다.
+        """
+        # 좌석 0, 1, 2 중 딜러가 1이면 SB=2, BB=0
+        # 그러므로 1을 sit_out하면 BB가 아니므로 카드를 받지 않음
+        seated_table.sit_out(1)
         result = seated_table.start_new_hand()
         assert result["success"] is True
-        # Player 0 should not have hole cards
-        assert seated_table.players[0].hole_cards is None
-        # Players 1 and 2 should have hole cards
-        assert seated_table.players[1].hole_cards is not None
+
+        # Player 1 is sitting out and NOT at BB, should not have hole cards
+        assert seated_table.players[1].hole_cards is None
+        assert seated_table.players[1].status == "sitting_out"
+
+        # Players 0 and 2 should have hole cards (they are active)
+        assert seated_table.players[0].hole_cards is not None
         assert seated_table.players[2].hole_cards is not None

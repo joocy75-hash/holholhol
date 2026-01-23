@@ -14,6 +14,7 @@ class TokenData(BaseModel):
     role: str
     exp: datetime
     type: str = "access"  # access, 2fa_pending
+    partner_id: str | None = None  # 파트너 역할인 경우 파트너 ID
 
 
 class TokenPayload(BaseModel):
@@ -21,6 +22,7 @@ class TokenPayload(BaseModel):
     email: str
     role: str
     type: str = "access"
+    partner_id: str | None = None
 
 
 def create_access_token(
@@ -29,6 +31,7 @@ def create_access_token(
     role: str,
     expires_delta: timedelta | None = None,
     token_type: str = "access",
+    partner_id: str | None = None,
 ) -> str:
     """Create a JWT access token"""
     if expires_delta:
@@ -45,6 +48,10 @@ def create_access_token(
         "type": token_type,
         "exp": expire,
     }
+
+    # 파트너 역할인 경우 partner_id 포함
+    if partner_id:
+        to_encode["partner_id"] = partner_id
 
     encoded_jwt = jwt.encode(
         to_encode,
@@ -79,6 +86,7 @@ def decode_token(token: str) -> TokenData | None:
             role=payload["role"],
             exp=datetime.fromtimestamp(payload["exp"]),
             type=payload.get("type", "access"),
+            partner_id=payload.get("partner_id"),
         )
     except JWTError:
         return None

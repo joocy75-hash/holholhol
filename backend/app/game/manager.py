@@ -17,6 +17,7 @@ import sys
 from datetime import datetime, timedelta
 
 from app.game.poker_table import PokerTable, GamePhase
+from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -205,18 +206,25 @@ class GameManager:
         community_cards: list[str] | None = None,
     ) -> dict:
         """Force phase change for a table.
-        
+
+        ⚠️ DEV API: 프로덕션에서 비활성화됨
+
         Args:
             room_id: Table ID
             target_phase: Target phase (preflop, flop, turn, river, showdown)
             community_cards: Optional community cards to set
-            
+
         Returns:
             Result dict with success status and data
         """
+        # 프로덕션 환경에서 차단
+        if get_settings().app_env == "production":
+            logger.warning(f"[DEV_API] force_phase_change blocked in production (room: {room_id})")
+            return {"success": False, "error": "Not available in production environment"}
+
         from app.game.poker_table import GamePhase
         import random
-        
+
         table = self._tables.get(room_id)
         if not table:
             return {"success": False, "error": "Table not found"}
@@ -295,15 +303,22 @@ class GameManager:
         community_cards: list[str] | None = None,
     ) -> dict:
         """Inject specific cards for testing.
-        
+
+        ⚠️ DEV API: 프로덕션에서 비활성화됨
+
         Args:
             room_id: Table ID
             hole_cards: Dict of seat -> [card1, card2]
             community_cards: List of community cards
-            
+
         Returns:
             Result dict with success status
         """
+        # 프로덕션 환경에서 차단
+        if get_settings().app_env == "production":
+            logger.warning(f"[DEV_API] inject_cards blocked in production (room: {room_id})")
+            return {"success": False, "error": "Not available in production environment"}
+
         table = self._tables.get(room_id)
         if not table:
             return {"success": False, "error": "Table not found"}
@@ -341,15 +356,22 @@ class GameManager:
         side_pots: list[dict] | None = None,
     ) -> dict:
         """Force pot amount for testing.
-        
+
+        ⚠️ DEV API: 프로덕션에서 비활성화됨
+
         Args:
             room_id: Table ID
             main_pot: Main pot amount
             side_pots: Optional list of side pots
-            
+
         Returns:
             Result dict with success status
         """
+        # 프로덕션 환경에서 차단
+        if get_settings().app_env == "production":
+            logger.warning(f"[DEV_API] force_pot blocked in production (room: {room_id})")
+            return {"success": False, "error": "Not available in production environment"}
+
         table = self._tables.get(room_id)
         if not table:
             return {"success": False, "error": "Table not found"}
@@ -370,13 +392,20 @@ class GameManager:
 
     def start_hand_immediately(self, room_id: str) -> dict:
         """Start a new hand immediately.
-        
+
+        ⚠️ DEV API: 프로덕션에서 비활성화됨
+
         Args:
             room_id: Table ID
-            
+
         Returns:
             Result dict with hand info
         """
+        # 프로덕션 환경에서 차단
+        if get_settings().app_env == "production":
+            logger.warning(f"[DEV_API] start_hand_immediately blocked in production (room: {room_id})")
+            return {"success": False, "error": "Not available in production environment"}
+
         table = self._tables.get(room_id)
         if not table:
             return {"success": False, "error": "Table not found"}
@@ -427,20 +456,27 @@ class GameManager:
         username: str | None = None,
     ) -> dict:
         """Add a bot player to the table.
-        
+
+        ⚠️ DEV API: 프로덕션에서 비활성화됨
+
         Args:
             room_id: Table ID
             position: Seat position (None for auto)
             stack: Initial stack
             strategy: Bot strategy (random, tight, loose)
             username: Bot username (auto-generated if None)
-            
+
         Returns:
             Result dict with bot info
         """
+        # 프로덕션 환경에서 차단
+        if get_settings().app_env == "production":
+            logger.warning(f"[DEV_API] add_bot_player blocked in production (room: {room_id})")
+            return {"success": False, "error": "Not available in production environment"}
+
         from app.game.poker_table import Player
         import uuid
-        
+
         table = self._tables.get(room_id)
         if not table:
             return {"success": False, "error": "Table not found"}
@@ -484,7 +520,10 @@ class GameManager:
         success = table.seat_player(position, bot_player)
         if not success:
             return {"success": False, "error": "Failed to seat bot"}
-        
+
+        # 봇은 즉시 참여 (sitting_out 기본값 해제)
+        table.sit_in(position)
+
         return {
             "success": True,
             "bot_id": bot_id,
@@ -579,14 +618,21 @@ class GameManager:
         position: int | None = None,
     ) -> dict:
         """Force timeout for current player (triggers auto-fold).
-        
+
+        ⚠️ DEV API: 프로덕션에서 비활성화됨
+
         Args:
             room_id: Table ID
             position: Specific position to timeout (None for current turn)
-            
+
         Returns:
             Result dict with action result
         """
+        # 프로덕션 환경에서 차단
+        if get_settings().app_env == "production":
+            logger.warning(f"[DEV_API] force_timeout blocked in production (room: {room_id})")
+            return {"success": False, "error": "Not available in production environment"}
+
         table = self._tables.get(room_id)
         if not table:
             return {"success": False, "error": "Table not found"}
@@ -624,17 +670,24 @@ class GameManager:
         paused: bool | None = None,
     ) -> dict:
         """Set timer value for current turn.
-        
+
+        ⚠️ DEV API: 프로덕션에서 비활성화됨
+
         Args:
             room_id: Table ID
             remaining_seconds: Remaining time in seconds
             paused: Whether to pause the timer
-            
+
         Returns:
             Result dict with timer info
         """
+        # 프로덕션 환경에서 차단
+        if get_settings().app_env == "production":
+            logger.warning(f"[DEV_API] set_timer blocked in production (room: {room_id})")
+            return {"success": False, "error": "Not available in production environment"}
+
         from datetime import datetime, timedelta
-        
+
         table = self._tables.get(room_id)
         if not table:
             return {"success": False, "error": "Table not found"}

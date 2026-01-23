@@ -3,6 +3,14 @@
 from app.models.audit import AuditLog
 from app.models.base import Base, TimestampMixin
 from app.models.hand import Hand, HandEvent, HandParticipant
+from app.models.partner import (
+    CommissionType,
+    Partner,
+    PartnerSettlement,
+    PartnerStatus,
+    SettlementPeriod,
+    SettlementStatus,
+)
 from app.models.rake import RakeConfig
 from app.models.room import Room
 from app.models.table import Table
@@ -39,4 +47,11 @@ __all__ = [
     "TransactionStatus",
     # Rake (Phase P1-1)
     "RakeConfig",
+    # Partner (총판)
+    "Partner",
+    "PartnerSettlement",
+    "PartnerStatus",
+    "CommissionType",
+    "SettlementStatus",
+    "SettlementPeriod",
 ]

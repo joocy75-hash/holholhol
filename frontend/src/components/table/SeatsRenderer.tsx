@@ -28,6 +28,9 @@ interface SeatsRendererProps {
   onAutoFold: () => void;
   onSeatClick: (position: number) => void;
   onRevealCards: () => void;
+  // 중간 입장 옵션
+  sittingOutPositions?: Set<number>;
+  onJoinModeToggle?: (wantActive: boolean) => void;
 }
 
 export function SeatsRenderer({
@@ -52,6 +55,9 @@ export function SeatsRenderer({
   onAutoFold,
   onSeatClick,
   onRevealCards,
+  // 중간 입장 옵션
+  sittingOutPositions,
+  onJoinModeToggle,
 }: SeatsRendererProps) {
   // 동적 좌표 선택 (6인 또는 9인)
   const tableConfig = useMemo(() => getTableConstants(maxSeats), [maxSeats]);
@@ -112,6 +118,11 @@ export function SeatsRenderer({
           console.log(`🪑 [Seat ${actualPosition}] canClick=${canClickEmptySeat}, isSpectator=${isSpectator}, hasPlayer=${!!seat?.player}`);
         }
 
+        // 본인 좌석에서 sitting_out 여부 확인 (seat.status 또는 sittingOutPositions 사용)
+        const isSittingOut = isMe && (seat?.status === 'sitting_out' || sittingOutPositions?.has(actualPosition));
+        // 본인이 착석했고 게임 중이 아닐 때만 토글 표시 (게임 중에는 숨김)
+        const showToggle = isMe && player && !isSpectator && !gameInProgress;
+
         return (
           <PlayerSeat
             key={visualIndex}
@@ -132,6 +143,10 @@ export function SeatsRenderer({
             isDealingComplete={dealingComplete}
             isShowdownRevealed={isRevealed}
             gameInProgress={gameInProgress}
+            // 중간 입장 옵션
+            isSittingOut={isSittingOut}
+            onJoinModeToggle={isMe ? onJoinModeToggle : undefined}
+            showJoinModeToggle={showToggle}
           />
         );
       })}

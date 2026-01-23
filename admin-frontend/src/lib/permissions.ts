@@ -47,7 +47,17 @@ type Permission =
   // Admin Management
   | 'view_admins'
   | 'create_admin'
-  | 'modify_admin';
+  | 'modify_admin'
+  // Partners
+  | 'view_partners'
+  | 'create_partner'
+  | 'update_partner'
+  | 'delete_partner'
+  // Settlements
+  | 'view_settlements'
+  | 'generate_settlement'
+  | 'approve_settlement'
+  | 'pay_settlement';
 
 const rolePermissions: Record<AdminRole, Permission[]> = {
   [AdminRole.VIEWER]: [
@@ -62,6 +72,8 @@ const rolePermissions: Record<AdminRole, Permission[]> = {
     'view_announcements',
     'view_maintenance',
     'view_suspicious',
+    'view_partners',
+    'view_settlements',
   ],
   [AdminRole.OPERATOR]: [
     // All viewer permissions
@@ -78,6 +90,8 @@ const rolePermissions: Record<AdminRole, Permission[]> = {
     'view_announcements',
     'view_maintenance',
     'view_suspicious',
+    'view_partners',
+    'view_settlements',
     // Operator-specific
     'ban_users',
     'send_room_message',
@@ -107,6 +121,8 @@ const rolePermissions: Record<AdminRole, Permission[]> = {
     'view_suspicious',
     'resolve_suspicious',
     'view_audit_logs',
+    'view_partners',
+    'view_settlements',
     // Supervisor-specific
     'adjust_balance',
     'approve_large_withdrawal',
@@ -115,6 +131,10 @@ const rolePermissions: Record<AdminRole, Permission[]> = {
     'force_close_room',
     'broadcast_announcement',
     'schedule_maintenance',
+    'create_partner',
+    'update_partner',
+    'generate_settlement',
+    'approve_settlement',
   ],
   [AdminRole.ADMIN]: [
     // All permissions
@@ -150,6 +170,21 @@ const rolePermissions: Record<AdminRole, Permission[]> = {
     'view_admins',
     'create_admin',
     'modify_admin',
+    // Partners
+    'view_partners',
+    'create_partner',
+    'update_partner',
+    'delete_partner',
+    // Settlements
+    'view_settlements',
+    'generate_settlement',
+    'approve_settlement',
+    'pay_settlement',
+  ],
+  // Partner role - 자신의 데이터만 조회 가능 (파트너 포털 전용)
+  [AdminRole.PARTNER]: [
+    'view_dashboard',
+    'view_settlements',
   ],
 };
 
@@ -171,6 +206,8 @@ export function canAccessRoute(role: AdminRole, route: string): boolean {
     '/maintenance': 'view_maintenance',
     '/audit': 'view_audit_logs',
     '/settings': 'view_admins',
+    '/partners': 'view_partners',
+    '/settlements': 'view_settlements',
   };
 
   const permission = routePermissions[route];

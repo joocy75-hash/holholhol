@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/stores/auth';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login, signup, isLoading, error, clearError } = useAuthStore();
 
   const [isSignup, setIsSignup] = useState(false);
@@ -16,7 +17,17 @@ export default function LoginPage() {
     password: '',
     nickname: '',
     confirmPassword: '',
+    partnerCode: '',
   });
+
+  // URL 쿼리 파라미터에서 추천 코드 읽기 (예: /login?ref=ABC123)
+  useEffect(() => {
+    const refCode = searchParams.get('ref');
+    if (refCode) {
+      setFormData(prev => ({ ...prev, partnerCode: refCode }));
+      setIsSignup(true); // 추천 코드가 있으면 자동으로 회원가입 모드로 전환
+    }
+  }, [searchParams]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     clearError();
@@ -38,7 +49,7 @@ export default function LoginPage() {
           setLocalError('비밀번호는 8자 이상이어야 합니다.');
           return;
         }
-        await signup(formData.email, formData.password, formData.nickname);
+        await signup(formData.email, formData.password, formData.nickname, formData.partnerCode || undefined);
         router.push('/lobby');
       } else {
         await login(formData.email, formData.password);
@@ -224,6 +235,29 @@ export default function LoginPage() {
               )}
             </AnimatePresence>
 
+            {/* 추천 코드 (회원가입 시에만 표시) */}
+            <AnimatePresence>
+              {isSignup && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                >
+                  <label className="block text-xs font-medium mb-2 text-gray-400">
+                    추천 코드 (선택)
+                  </label>
+                  <input
+                    type="text"
+                    name="partnerCode"
+                    value={formData.partnerCode}
+                    onChange={handleChange}
+                    className="glass-input w-full px-4 py-3 text-base"
+                    placeholder="추천 코드가 있다면 입력하세요"
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <motion.button
               type="submit"
               disabled={isLoading}
@@ -277,5 +311,22 @@ export default function LoginPage() {
         </p>
       </motion.div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="page-bg-gradient min-h-screen flex items-center justify-center">
+        <div className="noise-overlay" />
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+          className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full"
+        />
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }

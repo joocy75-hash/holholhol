@@ -2,9 +2,8 @@
 
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { authApi } from '@/lib/auth-api';
 import { logger } from '@/lib/logger';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -16,7 +15,7 @@ export default function LoginPage() {
   const handleLogin = async () => {
     logger.log('[Login] Button clicked');
     setStatus('Logging in...');
-    
+
     if (!email || !password) {
       setError('이메일과 비밀번호를 입력하세요');
       setStatus('Validation failed');
@@ -28,46 +27,39 @@ export default function LoginPage() {
 
     try {
       setStatus('Calling API...');
-      
-      // Direct fetch call
-      const response = await fetch(`${API_URL}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
 
-      setStatus(`API response: ${response.status}`);
-
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.detail || 'Login failed');
-      }
-
-      const data = await response.json();
+      // authApi를 사용하여 로그인
+      const loginResponse = await authApi.login({ email, password });
       setStatus('Login successful, getting user...');
 
-      // Get user info
-      const userResponse = await fetch(`${API_URL}/api/auth/me`, {
-        headers: { 'Authorization': `Bearer ${data.access_token}` },
-      });
-
-      if (!userResponse.ok) {
-        throw new Error('Failed to get user info');
+      // 2FA 필요 시 처리 (향후 구현)
+      if (loginResponse.requiresTwoFactor) {
+        setError('2FA 인증이 필요합니다. (미구현)');
+        setStatus('2FA required');
+        return;
       }
 
-      const user = await userResponse.json();
+      const accessToken = loginResponse.accessToken;
+
+      // authApi를 사용하여 사용자 정보 조회
+      const user = await authApi.getCurrentUser(accessToken);
       setStatus('Saving to localStorage...');
 
       // Save to localStorage
+      // JWT 토큰 만료 시간: 24시간 (밀리초)
+      const tokenExpiryMs = 24 * 60 * 60 * 1000;
+      const tokenExpiry = Date.now() + tokenExpiryMs;
+
       const authData = {
         state: {
           user: {
             id: user.id,
             username: user.username,
             email: user.email,
-            role: user.role,
+            role: user.role || 'admin',
           },
-          accessToken: data.access_token,
+          accessToken: accessToken,
+          tokenExpiry: tokenExpiry,
           isAuthenticated: true,
         },
         version: 0,
@@ -75,7 +67,7 @@ export default function LoginPage() {
       localStorage.setItem('admin-auth', JSON.stringify(authData));
 
       setStatus('Redirecting...');
-      
+
       // Redirect
       setTimeout(() => {
         window.location.href = '/';
@@ -94,7 +86,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">🎰 Admin Login</CardTitle>
+          <CardTitle className="text-2xl">Admin Login</CardTitle>
           <p className="text-sm text-gray-500">Status: {status}</p>
         </CardHeader>
         <CardContent>

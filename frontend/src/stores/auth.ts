@@ -16,7 +16,7 @@ interface AuthState {
   error: string | null;
 
   login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, nickname: string) => Promise<void>;
+  signup: (email: string, password: string, nickname: string, partnerCode?: string) => Promise<void>;
   logout: () => Promise<void>;
   fetchUser: () => Promise<void>;
   clearError: () => void;
@@ -51,10 +51,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  signup: async (email: string, password: string, nickname: string) => {
+  signup: async (email: string, password: string, nickname: string, partnerCode?: string) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await authApi.signup({ email, password, nickname });
+      const response = await authApi.signup({ email, password, nickname, partnerCode });
       const { user, tokens } = response.data;
 
       localStorage.setItem('access_token', tokens.accessToken);

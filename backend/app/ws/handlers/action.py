@@ -441,6 +441,27 @@ class ActionHandler(BaseHandler):
                 f"(room={room_id}, dealer={result.get('dealer')}, requester={conn.user_id})"
             )
 
+            # BB 위치 도달로 자동 활성화된 플레이어 브로드캐스트
+            auto_activated = result.get("auto_activated", [])
+            for seat in auto_activated:
+                player = table.players.get(seat)
+                if player:
+                    sit_in_msg = MessageEnvelope.create(
+                        event_type=EventType.PLAYER_SIT_IN,
+                        payload={
+                            "tableId": room_id,
+                            "position": seat,
+                            "userId": player.user_id,
+                            "auto": True,
+                            "reason": "bb_reached",
+                        },
+                    )
+                    channel = f"table:{room_id}"
+                    await self.manager.broadcast_to_channel(channel, sit_in_msg.to_dict())
+                    logger.info(
+                        f"[AUTO_SIT_IN] 브로드캐스트: seat={seat}, user={player.user_id}, room={room_id}"
+                    )
+
             # Broadcast hand started (with seats/blinds data)
             await self._broadcast_hand_started(room_id, result, table)
 
@@ -1188,128 +1209,166 @@ class ActionHandler(BaseHandler):
             await send_rebuy_error("MISSING_TABLE_ID", "테이블 ID가 누락되었습니다.")
             return None
 
-        # Get table from game manager
-        table = game_manager.get_table(room_id)
-        if not table:
-            logger.warning(f"[REBUY] Table not found: {room_id}")
-            await send_rebuy_error("TABLE_NOT_FOUND", "테이블을 찾을 수 없습니다.")
-            return None
+        # ============================================================
+        # 테이블 락 획득 - Race Condition 방지
+        # 모든 테이블 상태 변경 및 DB 트랜잭션을 원자적으로 처리
+        # ============================================================
+        table_lock = self._get_table_lock(room_id)
+        async with table_lock:
+            # Get table from game manager (락 내부에서)
+            table = game_manager.get_table(room_id)
+            if not table:
+                logger.warning(f"[REBUY] Table not found: {room_id}")
+                await send_rebuy_error("TABLE_NOT_FOUND", "테이블을 찾을 수 없습니다.")
+                return None
 
-        # Find player's seat
-        player_seat = None
-        for seat, player in table.players.items():
-            if player and player.user_id == user_id:
-                player_seat = seat
-                break
+            # Find player's seat (락 내부에서)
+            player_seat = None
+            for seat, player in table.players.items():
+                if player and player.user_id == user_id:
+                    player_seat = seat
+                    break
 
-        if player_seat is None:
-            logger.warning(f"[REBUY] Player {user_id} not found at table {room_id}")
-            await send_rebuy_error("PLAYER_NOT_FOUND", "플레이어를 찾을 수 없습니다.")
-            return None
+            if player_seat is None:
+                logger.warning(f"[REBUY] Player {user_id} not found at table {room_id}")
+                await send_rebuy_error("PLAYER_NOT_FOUND", "플레이어를 찾을 수 없습니다.")
+                return None
 
-        player = table.players.get(player_seat)
-        if not player:
-            await send_rebuy_error("PLAYER_NOT_FOUND", "플레이어를 찾을 수 없습니다.")
-            return None
+            player = table.players.get(player_seat)
+            if not player:
+                await send_rebuy_error("PLAYER_NOT_FOUND", "플레이어를 찾을 수 없습니다.")
+                return None
 
-        # Validate rebuy amount
-        min_buy_in = table.min_buy_in
-        max_buy_in = table.max_buy_in
+            # 상태 스냅샷 저장 (락 내부에서 - 재검증용)
+            old_stack = player.stack
+            old_status = player.status
 
-        if amount < min_buy_in or amount > max_buy_in:
-            logger.warning(f"[REBUY] Invalid amount {amount} (min: {min_buy_in}, max: {max_buy_in})")
-            await send_rebuy_error(
-                "INVALID_AMOUNT",
-                f"리바이 금액은 {min_buy_in:,}에서 {max_buy_in:,} 사이여야 합니다.",
-            )
-            return None
+            # Validate rebuy amount
+            min_buy_in = table.min_buy_in
+            max_buy_in = table.max_buy_in
 
-        # DB transaction: deduct balance and update table seats
-        try:
-            from app.models.user import User
-            from app.models.table import Table as DBTable
-            from sqlalchemy import select
-            from sqlalchemy.orm import attributes
-
-            async with get_db_session() as db:
-                # Get user and check balance
-                user = await db.get(User, user_id)
-                if not user:
-                    logger.warning(f"[REBUY] User not found in DB: {user_id}")
-                    await send_rebuy_error("USER_NOT_FOUND", "사용자를 찾을 수 없습니다.")
-                    return None
-
-                if user.balance < amount:
-                    logger.warning(f"[REBUY] Insufficient balance: {user.balance} < {amount}")
-                    await send_rebuy_error(
-                        "INSUFFICIENT_BALANCE",
-                        f"잔액이 부족합니다. 필요: {amount:,}, 보유: {user.balance:,}",
-                    )
-                    return None
-
-                # Get DB table to update seats
-                result = await db.execute(
-                    select(DBTable).where(DBTable.room_id == room_id)
+            if amount < min_buy_in or amount > max_buy_in:
+                logger.warning(f"[REBUY] Invalid amount {amount} (min: {min_buy_in}, max: {max_buy_in})")
+                await send_rebuy_error(
+                    "INVALID_AMOUNT",
+                    f"리바이 금액은 {min_buy_in:,}에서 {max_buy_in:,} 사이여야 합니다.",
                 )
-                db_table = result.scalar_one_or_none()
+                return None
 
-                if db_table:
-                    # Update seats in DB
-                    seats = db_table.seats or {}
-                    if str(player_seat) in seats:
-                        seats[str(player_seat)]["stack"] = amount
-                        seats[str(player_seat)]["status"] = "active"
-                        db_table.seats = seats
-                        attributes.flag_modified(db_table, "seats")
+            # DB transaction: deduct balance and update table seats (락 내부에서)
+            try:
+                from app.models.user import User
+                from app.models.table import Table as DBTable
+                from sqlalchemy import select
+                from sqlalchemy.orm import attributes
 
-                # Deduct from user balance
-                user.balance -= amount
+                async with get_db_session() as db:
+                    # Get user and check balance
+                    user = await db.get(User, user_id)
+                    if not user:
+                        logger.warning(f"[REBUY] User not found in DB: {user_id}")
+                        await send_rebuy_error("USER_NOT_FOUND", "사용자를 찾을 수 없습니다.")
+                        return None
 
-                await db.commit()
-                logger.info(f"[REBUY] DB updated: user {user_id} balance deducted {amount}")
+                    if user.balance < amount:
+                        logger.warning(f"[REBUY] Insufficient balance: {user.balance} < {amount}")
+                        await send_rebuy_error(
+                            "INSUFFICIENT_BALANCE",
+                            f"잔액이 부족합니다. 필요: {amount:,}, 보유: {user.balance:,}",
+                        )
+                        return None
 
-        except Exception as db_error:
-            logger.error(f"[REBUY] DB error: {db_error}")
-            await send_rebuy_error("DB_ERROR", "리바이 처리 중 오류가 발생했습니다.")
-            return None
+                    # DB 커밋 전 게임 상태 재검증 (동시성 보호)
+                    if player.stack != old_stack or player.status != old_status:
+                        logger.warning(
+                            f"[REBUY] State changed during validation: "
+                            f"stack {old_stack}→{player.stack}, status {old_status}→{player.status}"
+                        )
+                        await send_rebuy_error(
+                            "STATE_CHANGED",
+                            "게임 상태가 변경되었습니다. 다시 시도해주세요.",
+                        )
+                        return None
 
-        # Update player stack in GameManager (after DB success)
-        player.stack = amount
-        player.status = "active"  # sitting_out → active
+                    # Get DB table to update seats
+                    result = await db.execute(
+                        select(DBTable).where(DBTable.room_id == room_id)
+                    )
+                    db_table = result.scalar_one_or_none()
 
-        logger.info(f"[REBUY] Player {user_id} rebuyed {amount} at seat {player_seat}")
+                    if db_table:
+                        # Update seats in DB
+                        seats = db_table.seats or {}
+                        if str(player_seat) in seats:
+                            seats[str(player_seat)]["stack"] = amount
+                            # sitting_out 상태 유지 (BB 대기 기능)
+                            # 기존 상태를 유지하여 플레이어의 참여 모드 선택을 존중
+                            seats[str(player_seat)]["status"] = old_status
+                            db_table.seats = seats
+                            attributes.flag_modified(db_table, "seats")
 
-        # Broadcast TABLE_STATE_UPDATE with player's new stack and status
-        update_message = MessageEnvelope.create(
-            event_type=EventType.TABLE_STATE_UPDATE,
-            payload={
-                "tableId": room_id,
-                "updateType": "rebuy",
-                "changes": {
-                    "players": [{
-                        "position": player_seat,
-                        "stack": amount,
-                        "status": "active",
-                    }],
+                    # Deduct from user balance
+                    user.balance -= amount
+
+                    await db.commit()
+                    logger.info(f"[REBUY] DB updated: user {user_id} balance deducted {amount}")
+
+            except Exception as db_error:
+                logger.error(f"[REBUY] DB error: {db_error}")
+                await send_rebuy_error("DB_ERROR", "리바이 처리 중 오류가 발생했습니다.")
+                return None
+
+            # Update player stack in GameManager (락 내부, DB 성공 후)
+            # DB 커밋 후 최종 상태 재검증
+            if player.stack != old_stack or player.status != old_status:
+                logger.error(
+                    f"[REBUY] CRITICAL: State mismatch after DB commit! "
+                    f"stack {old_stack}→{player.stack}, status {old_status}→{player.status}. "
+                    f"DB already committed {amount}. Manual reconciliation may be needed."
+                )
+                # DB는 이미 커밋되었으므로 계속 진행하되 경고 로그 남김
+
+            player.stack = amount
+            # sitting_out 상태는 유지 (BB 대기 기능 지원)
+            # active 상태인 경우만 active 유지
+            # Note: old_status를 유지하여 BB 대기/바로 참여 선택을 존중
+
+            logger.info(f"[REBUY] Player {user_id} rebuyed {amount} at seat {player_seat}")
+
+            # Broadcast TABLE_STATE_UPDATE (락 내부에서 - 일관성 보장)
+            update_message = MessageEnvelope.create(
+                event_type=EventType.TABLE_STATE_UPDATE,
+                payload={
+                    "tableId": room_id,
+                    "updateType": "rebuy",
+                    "changes": {
+                        "players": [{
+                            "position": player_seat,
+                            "stack": amount,
+                            "status": old_status,  # 기존 상태 유지 (BB 대기 지원)
+                        }],
+                    },
                 },
-            },
-        )
-        channel = f"table:{room_id}"
-        await self.manager.broadcast_to_channel(channel, update_message.to_dict())
+            )
+            channel = f"table:{room_id}"
+            await self.manager.broadcast_to_channel(channel, update_message.to_dict())
 
-        # Send rebuy result to the player
-        result_message = MessageEnvelope.create(
-            event_type=EventType.REBUY_RESULT,
-            payload={
-                "success": True,
-                "tableId": room_id,
-                "stack": amount,
-                "seat": player_seat,
-            },
-        )
-        await self.manager.send_to_user(user_id, result_message.to_dict())
+            # Send rebuy result to the player (락 내부에서)
+            result_message = MessageEnvelope.create(
+                event_type=EventType.REBUY_RESULT,
+                payload={
+                    "success": True,
+                    "tableId": room_id,
+                    "stack": amount,
+                    "seat": player_seat,
+                },
+            )
+            await self.manager.send_to_user(user_id, result_message.to_dict())
 
-        return None
+            return None
+        # ============================================================
+        # 테이블 락 해제 (자동)
+        # ============================================================
 
     async def _broadcast_hand_started(self, room_id: str, result: dict[str, Any], table: PokerTable) -> None:
         """Broadcast hand started with seats data (including blinds)."""
@@ -1386,8 +1445,40 @@ class ActionHandler(BaseHandler):
         # Lock per table to prevent concurrent operations
         table_lock = self._get_table_lock(room_id)
         async with table_lock:
+            # 먼저 BB 위치 대기자 활성화 시도 (can_start_hand() 전에!)
+            # 이렇게 해야 active 플레이어가 1명뿐이어도 BB 대기자가 활성화되어 게임 시작 가능
+            pre_activated = table.try_activate_bb_waiter_for_next_hand()
+            if pre_activated:
+                for seat in pre_activated:
+                    player = table.players.get(seat)
+                    if player:
+                        sit_in_msg = MessageEnvelope.create(
+                            event_type=EventType.PLAYER_SIT_IN,
+                            payload={
+                                "tableId": room_id,
+                                "position": seat,
+                                "userId": player.user_id,
+                                "auto": True,
+                                "reason": "bb_reached",
+                            },
+                        )
+                        channel = f"table:{room_id}"
+                        await self.manager.broadcast_to_channel(channel, sit_in_msg.to_dict())
+                        logger.info(
+                            f"[PRE_HAND_ACTIVATE] 브로드캐스트: seat={seat}, user={player.user_id}, room={room_id}"
+                        )
+
             if not table.can_start_hand():
-                logger.info(f"[GAME] Cannot auto-start next hand (not enough players)")
+                # 상세 디버그 로그
+                active_players = table.get_active_players()
+                all_players = table.get_all_seated_players()
+                logger.info(
+                    f"[GAME] Cannot auto-start next hand: "
+                    f"active_players={len(active_players)}, "
+                    f"all_seated={len(all_players)}, "
+                    f"phase={table.phase.value}, "
+                    f"players_status={[(s, p.status if p else None) for s, p in all_players]}"
+                )
                 return
 
             result = table.start_new_hand()
@@ -1396,6 +1487,27 @@ class ActionHandler(BaseHandler):
                 return
 
             logger.info(f"[GAME] Auto-started hand #{result.get('hand_number')}")
+
+            # BB 위치 도달로 자동 활성화된 플레이어 브로드캐스트
+            auto_activated = result.get("auto_activated", [])
+            for seat in auto_activated:
+                player = table.players.get(seat)
+                if player:
+                    sit_in_msg = MessageEnvelope.create(
+                        event_type=EventType.PLAYER_SIT_IN,
+                        payload={
+                            "tableId": room_id,
+                            "position": seat,
+                            "userId": player.user_id,
+                            "auto": True,
+                            "reason": "bb_reached",
+                        },
+                    )
+                    channel = f"table:{room_id}"
+                    await self.manager.broadcast_to_channel(channel, sit_in_msg.to_dict())
+                    logger.info(
+                        f"[AUTO_SIT_IN] 브로드캐스트 (자동시작): seat={seat}, user={player.user_id}, room={room_id}"
+                    )
 
             await self._broadcast_hand_started(room_id, result, table)
             await self._broadcast_personalized_states(room_id, table)
@@ -1620,6 +1732,27 @@ class ActionHandler(BaseHandler):
             except Exception as db_error:
                 # DB 저장 실패는 게임 진행에 영향을 주지 않음
                 logger.error(f"핸드 히스토리 DB 저장 실패: {db_error}")
+
+            # 파트너 정산용 유저 통계 업데이트 (total_bet_amount_krw, total_net_profit_krw)
+            try:
+                from app.services.user_stats import UserStatsService
+
+                async with get_db_session() as db:
+                    user_stats_service = UserStatsService(db)
+                    for p in participants:
+                        user_id = p.get("user_id", "")
+                        # 봇 플레이어는 통계에서 제외
+                        if user_id.startswith("bot_") or user_id.startswith("test_player_"):
+                            continue
+                        await user_stats_service.update_hand_stats(
+                            user_id=user_id,
+                            bet_amount=p.get("bet_amount", 0),
+                            won_amount=p.get("won_amount", 0),
+                        )
+                    await db.commit()
+                    logger.debug(f"유저 통계 업데이트 완료: hand_id={hand_id}")
+            except Exception as stats_error:
+                logger.error(f"유저 통계 업데이트 실패: {stats_error}")
 
         except Exception as e:
             logger.error(f"Failed to publish hand_completed event: {e}")

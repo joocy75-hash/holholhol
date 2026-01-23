@@ -87,7 +87,9 @@ class TestHeadsUp:
         p2 = Player(user_id="user2", username="Player2", seat=1, stack=1000)
 
         table.seat_player(0, p1)
+        table.sit_in(0)
         table.seat_player(1, p2)
+        table.sit_in(1)
 
         result = table.start_new_hand()
         assert result["success"], f"핸드 시작 실패: {result.get('error')}"
@@ -115,7 +117,9 @@ class TestHeadsUp:
             p2 = Player(user_id="user2", username="P2", seat=seat_b, stack=1000)
 
             table.seat_player(seat_a, p1)
+            table.sit_in(seat_a)
             table.seat_player(seat_b, p2)
+            table.sit_in(seat_b)
 
             result = table.start_new_hand()
             assert result["success"], f"핸드 시작 실패 (seats: {seat_a}, {seat_b})"
@@ -138,6 +142,7 @@ class TestThreePlayers:
         for i, seat in enumerate(seats):
             p = Player(user_id=f"user{i}", username=f"P{i}", seat=seat, stack=1000)
             table.seat_player(seat, p)
+            table.sit_in(seat)
 
         result = table.start_new_hand()
         assert result["success"]
@@ -158,6 +163,7 @@ class TestThreePlayers:
         for i, seat in enumerate(seats):
             p = Player(user_id=f"user{i}", username=f"P{i}", seat=seat, stack=1000)
             table.seat_player(seat, p)
+            table.sit_in(seat)
 
         result = table.start_new_hand()
         assert result["success"]
@@ -182,6 +188,7 @@ class TestFourPlayers:
         for i, seat in enumerate(seats):
             p = Player(user_id=f"user{i}", username=f"P{i}", seat=seat, stack=1000)
             table.seat_player(seat, p)
+            table.sit_in(seat)
 
         result = table.start_new_hand()
         assert result["success"]
@@ -202,6 +209,7 @@ class TestFourPlayers:
         for i, seat in enumerate(seats):
             p = Player(user_id=f"user{i}", username=f"P{i}", seat=seat, stack=1000)
             table.seat_player(seat, p)
+            table.sit_in(seat)
 
         result = table.start_new_hand()
         assert result["success"]
@@ -224,6 +232,7 @@ class TestFivePlayers:
         for i, seat in enumerate(seats):
             p = Player(user_id=f"user{i}", username=f"P{i}", seat=seat, stack=1000)
             table.seat_player(seat, p)
+            table.sit_in(seat)
 
         result = table.start_new_hand()
         assert result["success"]
@@ -248,6 +257,7 @@ class TestSixPlayers:
         for i, seat in enumerate(seats):
             p = Player(user_id=f"user{i}", username=f"P{i}", seat=seat, stack=1000)
             table.seat_player(seat, p)
+            table.sit_in(seat)
 
         result = table.start_new_hand()
         assert result["success"]
@@ -270,6 +280,7 @@ class TestNinePlayers:
         for i, seat in enumerate(seats):
             p = Player(user_id=f"user{i}", username=f"P{i}", seat=seat, stack=1000)
             table.seat_player(seat, p)
+            table.sit_in(seat)
 
         result = table.start_new_hand()
         assert result["success"]
@@ -294,6 +305,7 @@ class TestMultipleHands:
         for i, seat in enumerate(seats):
             p = Player(user_id=f"user{i}", username=f"P{i}", seat=seat, stack=1000)
             table.seat_player(seat, p)
+            table.sit_in(seat)
 
         dealer_sequence = []
 
@@ -334,6 +346,7 @@ class TestBetAmounts:
         for i in range(4):
             p = Player(user_id=f"user{i}", username=f"P{i}", seat=i, stack=1000)
             table.seat_player(i, p)
+            table.sit_in(i)
 
         result = table.start_new_hand()
         assert result["success"]
@@ -362,7 +375,9 @@ class TestFirstActionPlayer:
         p2 = Player(user_id="user2", username="P2", seat=1, stack=1000)
 
         table.seat_player(0, p1)
+        table.sit_in(0)
         table.seat_player(1, p2)
+        table.sit_in(1)
 
         result = table.start_new_hand()
         assert result["success"]
@@ -381,6 +396,7 @@ class TestFirstActionPlayer:
         for i, seat in enumerate(seats):
             p = Player(user_id=f"user{i}", username=f"P{i}", seat=seat, stack=1000)
             table.seat_player(seat, p)
+            table.sit_in(seat)
 
         result = table.start_new_hand()
         assert result["success"]
@@ -408,7 +424,9 @@ class TestPostflopActionOrder:
         p2 = Player(user_id="user2", username="P2", seat=1, stack=1000)
 
         table.seat_player(0, p1)
+        table.sit_in(0)
         table.seat_player(1, p2)
+        table.sit_in(1)
 
         result = table.start_new_hand()
         assert result["success"]
@@ -445,7 +463,9 @@ class TestPostflopActionOrder:
         p2 = Player(user_id="user2", username="P2", seat=5, stack=1000)
 
         table.seat_player(2, p1)
+        table.sit_in(2)
         table.seat_player(5, p2)
+        table.sit_in(5)
 
         result = table.start_new_hand()
         assert result["success"]
@@ -498,6 +518,7 @@ class TestPostflopActionOrder:
         for i, seat in enumerate(seats):
             p = Player(user_id=f"user{i}", username=f"P{i}", seat=seat, stack=1000)
             table.seat_player(seat, p)
+            table.sit_in(seat)
 
         result = table.start_new_hand()
         assert result["success"]
@@ -543,8 +564,11 @@ class TestPlayerCountTransition:
         p3 = Player(user_id="user3", username="P3", seat=2, stack=1000)
 
         table.seat_player(0, p1)
+        table.sit_in(0)
         table.seat_player(1, p2)
+        table.sit_in(1)
         table.seat_player(2, p3)
+        table.sit_in(2)
 
         # 3인 게임 시작
         result = table.start_new_hand()
@@ -598,7 +622,9 @@ class TestPlayerCountTransition:
         p2 = Player(user_id="user2", username="P2", seat=3, stack=1000)
 
         table.seat_player(0, p1)
+        table.sit_in(0)
         table.seat_player(3, p2)
+        table.sit_in(3)
 
         # 2인 게임 시작
         result = table.start_new_hand()
@@ -621,6 +647,7 @@ class TestPlayerCountTransition:
         # 새로운 플레이어 합류 (3인으로 전환)
         p3 = Player(user_id="user3", username="P3", seat=5, stack=1000)
         table.seat_player(5, p3)
+        table.sit_in(5)
 
         # 3인 게임 시작
         result = table.start_new_hand()
@@ -654,8 +681,11 @@ class TestPlayerCountTransition:
         p3 = Player(user_id="user3", username="P3", seat=7, stack=1000)
 
         table.seat_player(1, p1)
+        table.sit_in(1)
         table.seat_player(4, p2)
+        table.sit_in(4)
         table.seat_player(7, p3)
+        table.sit_in(7)
 
         # 첫 핸드: 3인
         result = table.start_new_hand()

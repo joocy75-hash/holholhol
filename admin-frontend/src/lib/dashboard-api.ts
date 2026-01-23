@@ -2,6 +2,7 @@
  * Dashboard API Client
  */
 import { api } from './api';
+import { API_ROUTES } from './api-routes';
 import { useAuthStore } from '@/stores/authStore';
 
 export interface ServerHealth {
@@ -94,92 +95,92 @@ function getToken(): string | undefined {
 
 export const dashboardApi = {
   async getSummary(): Promise<DashboardSummary> {
-    return api.get<DashboardSummary>('/api/dashboard/summary', { token: getToken() });
+    return api.get<DashboardSummary>(API_ROUTES.DASHBOARD.SUMMARY, { token: getToken() });
   },
 
   async getCCU(): Promise<{ ccu: number; timestamp: string }> {
-    return api.get('/api/dashboard/ccu', { token: getToken() });
+    return api.get(API_ROUTES.DASHBOARD.CCU, { token: getToken() });
   },
 
   async getDAU(date?: string): Promise<{ dau: number; date: string }> {
     const params = date ? `?date=${date}` : '';
-    return api.get(`/api/dashboard/dau${params}`, { token: getToken() });
+    return api.get(`${API_ROUTES.DASHBOARD.DAU}${params}`, { token: getToken() });
   },
 
   async getCCUHistory(hours: number = 24): Promise<CCUHistoryItem[]> {
-    return api.get<CCUHistoryItem[]>(`/api/dashboard/ccu/history?hours=${hours}`, { token: getToken() });
+    return api.get<CCUHistoryItem[]>(`${API_ROUTES.DASHBOARD.CCU_HISTORY}?hours=${hours}`, { token: getToken() });
   },
 
   async getDAUHistory(days: number = 30): Promise<DAUHistoryItem[]> {
-    return api.get<DAUHistoryItem[]>(`/api/dashboard/dau/history?days=${days}`, { token: getToken() });
+    return api.get<DAUHistoryItem[]>(`${API_ROUTES.DASHBOARD.DAU_HISTORY}?days=${days}`, { token: getToken() });
   },
 
   async getRoomStats(): Promise<RoomStats> {
-    return api.get<RoomStats>('/api/dashboard/rooms', { token: getToken() });
+    return api.get<RoomStats>(API_ROUTES.DASHBOARD.ROOMS, { token: getToken() });
   },
 
   async getRoomDistribution(): Promise<RoomDistribution[]> {
-    return api.get<RoomDistribution[]>('/api/dashboard/rooms/distribution', { token: getToken() });
+    return api.get<RoomDistribution[]>(API_ROUTES.DASHBOARD.ROOMS_DISTRIBUTION, { token: getToken() });
   },
 
   async getServerHealth(): Promise<ServerHealth> {
-    return api.get<ServerHealth>('/api/dashboard/server/health', { token: getToken() });
+    return api.get<ServerHealth>(API_ROUTES.DASHBOARD.SERVER_HEALTH, { token: getToken() });
   },
 
   // Phase 5.2: MAU APIs
   async getMAU(month?: string): Promise<{ mau: number; month: string }> {
     const params = month ? `?month=${month}` : '';
-    return api.get(`/api/dashboard/mau${params}`, { token: getToken() });
+    return api.get(`${API_ROUTES.DASHBOARD.MAU}${params}`, { token: getToken() });
   },
 
   async getMAUHistory(months: number = 12): Promise<MAUHistoryItem[]> {
-    return api.get<MAUHistoryItem[]>(`/api/dashboard/mau/history?months=${months}`, { token: getToken() });
+    return api.get<MAUHistoryItem[]>(`${API_ROUTES.DASHBOARD.MAU_HISTORY}?months=${months}`, { token: getToken() });
   },
 
   async getUserStatisticsSummary(): Promise<UserStatisticsSummary> {
-    return api.get<UserStatisticsSummary>('/api/dashboard/users/summary', { token: getToken() });
+    return api.get<UserStatisticsSummary>(API_ROUTES.DASHBOARD.USERS_SUMMARY, { token: getToken() });
   },
 
   // Phase 5.3: Revenue APIs
   async getRevenueSummary(days: number = 30): Promise<RevenueSummary> {
-    return api.get<RevenueSummary>(`/api/dashboard/revenue/summary?days=${days}`, { token: getToken() });
+    return api.get<RevenueSummary>(`${API_ROUTES.DASHBOARD.REVENUE_SUMMARY}?days=${days}`, { token: getToken() });
   },
 
   async getDailyRevenue(days: number = 30): Promise<DailyRevenue[]> {
-    return api.get<DailyRevenue[]>(`/api/dashboard/revenue/daily?days=${days}`, { token: getToken() });
+    return api.get<DailyRevenue[]>(`${API_ROUTES.DASHBOARD.REVENUE_DAILY}?days=${days}`, { token: getToken() });
   },
 
   async getWeeklyRevenue(weeks: number = 12): Promise<DailyRevenue[]> {
-    return api.get<DailyRevenue[]>(`/api/dashboard/revenue/weekly?weeks=${weeks}`, { token: getToken() });
+    return api.get<DailyRevenue[]>(`${API_ROUTES.DASHBOARD.REVENUE_WEEKLY}?weeks=${weeks}`, { token: getToken() });
   },
 
   async getMonthlyRevenue(months: number = 12): Promise<DailyRevenue[]> {
-    return api.get<DailyRevenue[]>(`/api/dashboard/revenue/monthly?months=${months}`, { token: getToken() });
+    return api.get<DailyRevenue[]>(`${API_ROUTES.DASHBOARD.REVENUE_MONTHLY}?months=${months}`, { token: getToken() });
   },
 
   async getGameStatistics(): Promise<GameStatistics> {
-    return api.get<GameStatistics>('/api/dashboard/game/statistics', { token: getToken() });
+    return api.get<GameStatistics>(API_ROUTES.DASHBOARD.GAME_STATISTICS, { token: getToken() });
   },
 
-  async getTopPlayersByRake(limit: number = 10): Promise<{ players: any[] }> {
-    return api.get(`/api/dashboard/revenue/top-players?limit=${limit}`, { token: getToken() });
+  async getTopPlayersByRake(limit: number = 10): Promise<{ players: unknown[] }> {
+    return api.get(`${API_ROUTES.DASHBOARD.REVENUE_TOP_PLAYERS}?limit=${limit}`, { token: getToken() });
   },
 
-  async getPlayerActivitySummary(): Promise<any> {
-    return api.get('/api/dashboard/players/activity', { token: getToken() });
+  async getPlayerActivitySummary(): Promise<unknown> {
+    return api.get(API_ROUTES.DASHBOARD.PLAYERS_ACTIVITY, { token: getToken() });
   },
 
-  async getHourlyPlayerActivity(hours: number = 24): Promise<{ activity: any[] }> {
-    return api.get(`/api/dashboard/players/hourly-activity?hours=${hours}`, { token: getToken() });
+  async getHourlyPlayerActivity(hours: number = 24): Promise<{ activity: unknown[] }> {
+    return api.get(`${API_ROUTES.DASHBOARD.PLAYERS_HOURLY_ACTIVITY}?hours=${hours}`, { token: getToken() });
   },
 
-  async getStakeLevelStatistics(): Promise<{ stake_levels: any[] }> {
-    return api.get('/api/dashboard/stake-levels', { token: getToken() });
+  async getStakeLevelStatistics(): Promise<{ stake_levels: unknown[] }> {
+    return api.get(API_ROUTES.DASHBOARD.STAKE_LEVELS, { token: getToken() });
   },
 
   // Exchange Rate API
   async getExchangeRate(): Promise<ExchangeRateResponse> {
-    return api.get<ExchangeRateResponse>('/api/crypto/exchange-rate', { token: getToken() });
+    return api.get<ExchangeRateResponse>(API_ROUTES.CRYPTO.EXCHANGE_RATE, { token: getToken() });
   },
 };
 
@@ -190,22 +191,22 @@ export const statisticsApi = {
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
     const query = params.toString() ? `?${params.toString()}` : '';
-    return api.get<RevenueSummary>(`/api/statistics/revenue/summary${query}`, { token: getToken() });
+    return api.get<RevenueSummary>(`${API_ROUTES.STATISTICS.REVENUE_SUMMARY}${query}`, { token: getToken() });
   },
 
   async getDailyRevenue(days: number = 30): Promise<DailyRevenue[]> {
-    return api.get<DailyRevenue[]>(`/api/statistics/revenue/daily?days=${days}`, { token: getToken() });
+    return api.get<DailyRevenue[]>(`${API_ROUTES.STATISTICS.REVENUE_DAILY}?days=${days}`, { token: getToken() });
   },
 
   async getWeeklyRevenue(weeks: number = 12): Promise<DailyRevenue[]> {
-    return api.get<DailyRevenue[]>(`/api/statistics/revenue/weekly?weeks=${weeks}`, { token: getToken() });
+    return api.get<DailyRevenue[]>(`${API_ROUTES.STATISTICS.REVENUE_WEEKLY}?weeks=${weeks}`, { token: getToken() });
   },
 
   async getMonthlyRevenue(months: number = 12): Promise<DailyRevenue[]> {
-    return api.get<DailyRevenue[]>(`/api/statistics/revenue/monthly?months=${months}`, { token: getToken() });
+    return api.get<DailyRevenue[]>(`${API_ROUTES.STATISTICS.REVENUE_MONTHLY}?months=${months}`, { token: getToken() });
   },
 
   async getGameStatistics(): Promise<GameStatistics> {
-    return api.get<GameStatistics>('/api/statistics/game', { token: getToken() });
+    return api.get<GameStatistics>(API_ROUTES.STATISTICS.GAME, { token: getToken() });
   },
 };

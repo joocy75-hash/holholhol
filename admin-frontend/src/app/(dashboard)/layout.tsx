@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
+import { onAuthError } from '@/lib/api';
+import { toast } from 'sonner';
 
 const navItems = [
   { href: '/', label: '대시보드', icon: '📊' },
@@ -20,6 +22,8 @@ const navItems = [
   { href: '/hands', label: '핸드 기록', icon: '🃏' },
   { href: '/bans', label: '제재 관리', icon: '🚫' },
   { href: '/deposits', label: '입금 관리', icon: '📥' },
+  { href: '/partners', label: '파트너 관리', icon: '🤝' },
+  { href: '/settlements', label: '정산 관리', icon: '💰' },
   { href: '/suspicious', label: '의심 사용자', icon: '⚠️' },
   { href: '/announcements', label: '이벤트/공지', icon: '📢' },
 ];
@@ -32,6 +36,7 @@ interface AuthState {
     role: string;
   } | null;
   accessToken: string | null;
+  tokenExpiry: number | null;
   isAuthenticated: boolean;
 }
 
@@ -43,6 +48,20 @@ export default function DashboardLayout({
   const router = useRouter();
   const [authState, setAuthState] = useState<AuthState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Handle auth errors (401) globally
+  const handleAuthError = useCallback(() => {
+    console.log('[DashboardLayout] Auth error received, logging out');
+    localStorage.removeItem('admin-auth');
+    toast.error('세션이 만료되었습니다. 다시 로그인해주세요.');
+    router.replace('/login');
+  }, [router]);
+
+  // Subscribe to auth errors
+  useEffect(() => {
+    const unsubscribe = onAuthError(handleAuthError);
+    return () => unsubscribe();
+  }, [handleAuthError]);
 
   useEffect(() => {
     // Read auth state directly from localStorage
@@ -56,6 +75,14 @@ export default function DashboardLayout({
           console.log('[DashboardLayout] Parsed:', JSON.stringify(parsed.state, null, 2));
           
           if (parsed.state?.isAuthenticated && parsed.state?.accessToken) {
+            // tokenExpiry 검증 (있는 경우에만)
+            if (parsed.state.tokenExpiry && Date.now() > parsed.state.tokenExpiry) {
+              console.log('[DashboardLayout] Token expired, redirecting to login');
+              localStorage.removeItem('admin-auth');
+              router.replace('/login');
+              return;
+            }
+
             console.log('[DashboardLayout] Auth valid, showing dashboard');
             setAuthState(parsed.state);
             setIsLoading(false);

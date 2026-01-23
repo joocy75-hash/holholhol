@@ -7,10 +7,11 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional, Literal
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
+from sqlalchemy import text, select
 from passlib.context import CryptContext
 
 from app.config import get_settings
+from app.models.main_db import User
 
 logger = logging.getLogger(__name__)
 
@@ -769,50 +770,44 @@ class UserService:
         """
         try:
             # 이메일 중복 확인
-            check_email = text("SELECT id FROM users WHERE email = :email")
-            result = await self.db.execute(check_email, {"email": email})
-            if result.fetchone():
+            result = await self.db.execute(
+                select(User).where(User.email == email)
+            )
+            if result.scalar_one_or_none():
                 raise DuplicateEmailError(f"이미 사용 중인 이메일입니다: {email}")
 
             # 닉네임 중복 확인
-            check_nickname = text("SELECT id FROM users WHERE nickname = :nickname")
-            result = await self.db.execute(check_nickname, {"nickname": nickname})
-            if result.fetchone():
+            result = await self.db.execute(
+                select(User).where(User.nickname == nickname)
+            )
+            if result.scalar_one_or_none():
                 raise DuplicateNicknameError(f"이미 사용 중인 닉네임입니다: {nickname}")
 
             # 비밀번호 해시
             password_hash = pwd_context.hash(password)
 
-            # 사용자 생성
-            user_id = str(uuid.uuid4())
-            now = datetime.now(timezone.utc)
-
-            insert_query = text("""
-                INSERT INTO users (id, nickname, email, password_hash, balance, status, created_at, updated_at)
-                VALUES (:id, :nickname, :email, :password_hash, :balance, :status, :created_at, :updated_at)
-            """)
-            await self.db.execute(insert_query, {
-                "id": user_id,
-                "nickname": nickname,
-                "email": email,
-                "password_hash": password_hash,
-                "balance": balance,
-                "status": "active",
-                "created_at": now,
-                "updated_at": now
-            })
-
+            # 사용자 생성 (ORM 사용)
+            user = User(
+                id=str(uuid.uuid4()),
+                nickname=nickname,
+                email=email,
+                password_hash=password_hash,
+                balance=balance,
+                status="active",
+            )
+            self.db.add(user)
             await self.db.commit()
+            await self.db.refresh(user)
 
-            logger.info(f"사용자 생성 완료: user_id={user_id}, nickname={nickname}, email={email}")
+            logger.info(f"사용자 생성 완료: user_id={user.id}, nickname={nickname}, email={email}")
 
             return {
-                "id": user_id,
-                "username": nickname,
-                "email": email,
-                "balance": balance,
-                "status": "active",
-                "created_at": now.isoformat()
+                "id": user.id,
+                "username": user.nickname,
+                "email": user.email,
+                "balance": user.balance,
+                "status": user.status,
+                "created_at": user.created_at.isoformat() if user.created_at else datetime.now(timezone.utc).isoformat()
             }
 
         except (DuplicateEmailError, DuplicateNicknameError):

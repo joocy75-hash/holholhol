@@ -39,10 +39,13 @@ def two_player_table(basic_table: PokerTable) -> PokerTable:
     """Create a table with 2 seated players."""
     player1 = Player(user_id="user1", username="Player1", seat=0, stack=1000)
     player2 = Player(user_id="user2", username="Player2", seat=1, stack=1000)
-    
+
     basic_table.seat_player(0, player1)
     basic_table.seat_player(1, player2)
-    
+    # 착석 후 기본 상태가 sitting_out이므로 active로 전환
+    basic_table.sit_in(0)
+    basic_table.sit_in(1)
+
     return basic_table
 
 
@@ -52,18 +55,23 @@ def three_player_table(basic_table: PokerTable) -> PokerTable:
     player1 = Player(user_id="user1", username="Player1", seat=0, stack=1000)
     player2 = Player(user_id="user2", username="Player2", seat=1, stack=1000)
     player3 = Player(user_id="user3", username="Player3", seat=3, stack=1000)
-    
+
     basic_table.seat_player(0, player1)
     basic_table.seat_player(1, player2)
     basic_table.seat_player(3, player3)
-    
+    # 착석 후 기본 상태가 sitting_out이므로 active로 전환
+    basic_table.sit_in(0)
+    basic_table.sit_in(1)
+    basic_table.sit_in(3)
+
     return basic_table
 
 
 @pytest.fixture
 def six_player_table(basic_table: PokerTable) -> PokerTable:
     """Create a table with 6 seated players."""
-    for i, seat in enumerate([0, 1, 2, 3, 4, 5]):
+    seats = [0, 1, 2, 3, 4, 5]
+    for i, seat in enumerate(seats):
         player = Player(
             user_id=f"user{i}",
             username=f"Player{i}",
@@ -71,7 +79,10 @@ def six_player_table(basic_table: PokerTable) -> PokerTable:
             stack=1000,
         )
         basic_table.seat_player(seat, player)
-    
+    # 착석 후 기본 상태가 sitting_out이므로 active로 전환
+    for seat in seats:
+        basic_table.sit_in(seat)
+
     return basic_table
 
 

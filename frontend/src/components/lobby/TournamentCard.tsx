@@ -18,9 +18,9 @@ export default function TournamentCard({
   buyIn = 100000,
   onJoin
 }: TournamentCardProps) {
-  const imgTn1 = "https://www.figma.com/api/mcp/asset/6f235878-1fe6-4456-8604-6adbf7ca8a8e";
-  const imgTrophyIcon = "https://www.figma.com/api/mcp/asset/9534f92a-8ad2-4604-b8db-7660475f7bd4";
-  const imgArrowIcon = "https://www.figma.com/api/mcp/asset/6e981a85-711f-46da-8435-7e9e56531fcd";
+  const imgTn1 = "/assets/lobby/tournament-thumb.png";
+  const imgTrophyIcon = "/assets/icons/trophy.svg";
+  const imgArrowIcon = "/assets/icons/arrow-right.svg";
 
   return (
     <motion.div

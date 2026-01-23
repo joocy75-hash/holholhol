@@ -215,31 +215,36 @@ class StatisticsService:
     
     async def get_game_statistics(self) -> dict:
         """게임 통계 요약"""
+        default_stats = {
+            "today": {"hands": 0, "rake": 0.0, "rooms": 0},
+            "total": {"hands": 0, "rake": 0.0}
+        }
+
         try:
             # 오늘 통계
             today_query = text("""
-                SELECT 
+                SELECT
                     COUNT(*) as hands_today,
                     COALESCE(SUM(rake_amount), 0) as rake_today,
                     COUNT(DISTINCT room_id) as rooms_today
                 FROM hand_history
                 WHERE DATE(created_at) = CURRENT_DATE
             """)
-            
+
             today_result = await self.db.execute(today_query)
             today = today_result.fetchone()
-            
+
             # 전체 통계
             total_query = text("""
-                SELECT 
+                SELECT
                     COUNT(*) as total_hands,
                     COALESCE(SUM(rake_amount), 0) as total_rake
                 FROM hand_history
             """)
-            
+
             total_result = await self.db.execute(total_query)
             total = total_result.fetchone()
-            
+
             return {
                 "today": {
                     "hands": today.hands_today if today else 0,
@@ -252,6 +257,10 @@ class StatisticsService:
                 }
             }
         except Exception as e:
+            # 테이블이 없는 경우 기본값 반환 (hand_history 테이블 미생성 시)
+            if "UndefinedTableError" in str(type(e).__name__) or "does not exist" in str(e):
+                logger.warning("hand_history 테이블이 없습니다. 기본값 반환.")
+                return default_stats
             logger.error(f"Failed to get game statistics: {e}", exc_info=True)
             raise StatisticsError(f"Failed to get game statistics: {e}") from e
     

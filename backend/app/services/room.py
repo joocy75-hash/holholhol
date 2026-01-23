@@ -291,11 +291,12 @@ class RoomService:
         user.balance -= buy_in
 
         # Add player to seat
+        # 중간 입장: 기본 상태는 sitting_out (BB 대기)
         seats[str(position)] = {
             "user_id": user_id,
             "nickname": user.nickname,
             "stack": buy_in,
-            "status": "active",
+            "status": "sitting_out",
             "bet_amount": 0,
         }
         table.seats = seats
@@ -742,11 +743,12 @@ class RoomService:
         user.balance -= buy_in
 
         # Add player to seat
+        # 중간 입장: 기본 상태는 sitting_out (BB 대기)
         seats[seat_key] = {
             "user_id": user_id,
             "nickname": user.nickname,
             "stack": buy_in,
-            "status": "active",
+            "status": "sitting_out",
             "bet_amount": 0,
         }
         table.seats = seats

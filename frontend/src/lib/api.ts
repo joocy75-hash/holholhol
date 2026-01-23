@@ -113,7 +113,7 @@ api.interceptors.response.use(
 
 // Auth API
 export const authApi = {
-  signup: (data: { email: string; password: string; nickname: string }) =>
+  signup: (data: { email: string; password: string; nickname: string; partnerCode?: string }) =>
     api.post('/api/v1/auth/register', data),
 
   login: (data: { email: string; password: string }) =>

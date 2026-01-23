@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 388 687" fill="none">
+  <defs>
+    <radialGradient id="bgGlow1" cx="30%" cy="20%" r="50%">
+      <stop offset="0%" style="stop-color:#1a3a5c;stop-opacity:0.4"/>
+      <stop offset="100%" style="stop-color:transparent"/>
+    </radialGradient>
+    <radialGradient id="bgGlow2" cx="70%" cy="60%" r="40%">
+      <stop offset="0%" style="stop-color:#4a2a6c;stop-opacity:0.3"/>
+      <stop offset="100%" style="stop-color:transparent"/>
+    </radialGradient>
+    <radialGradient id="bgGlow3" cx="50%" cy="80%" r="35%">
+      <stop offset="0%" style="stop-color:#2a4a3c;stop-opacity:0.25"/>
+      <stop offset="100%" style="stop-color:transparent"/>
+    </radialGradient>
+  </defs>
+  <rect width="388" height="687" fill="#0a0a0a"/>
+  <rect width="388" height="687" fill="url(#bgGlow1)"/>
+  <rect width="388" height="687" fill="url(#bgGlow2)"/>
+  <rect width="388" height="687" fill="url(#bgGlow3)"/>
+  <!-- Subtle pattern -->
+  <circle cx="100" cy="150" r="80" fill="#1a2a3a" opacity="0.15"/>
+  <circle cx="300" cy="400" r="100" fill="#2a1a3a" opacity="0.12"/>
+  <circle cx="50" cy="550" r="60" fill="#1a3a2a" opacity="0.1"/>
+</svg>

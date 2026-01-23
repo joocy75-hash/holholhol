@@ -54,6 +54,7 @@ async def register(
             email=request_body.email,
             password=request_body.password,
             nickname=request_body.nickname,
+            partner_code=request_body.partner_code,
             user_agent=client_info["user_agent"],
             ip_address=client_info["ip_address"],
         )

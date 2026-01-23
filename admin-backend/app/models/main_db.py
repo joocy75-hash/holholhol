@@ -123,13 +123,52 @@ class HandParticipant(MainBase, MainUUIDMixin):
 
 
 class User(MainBase, MainUUIDMixin):
-    """User model (read-only from main DB) - minimal fields for joins."""
+    """User model - full schema matching main backend."""
 
     __tablename__ = "users"
 
-    nickname: Mapped[str] = mapped_column(String(50), nullable=False)
-    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    is_banned: Mapped[bool] = mapped_column(nullable=False, default=False)
+    # Profile
+    nickname: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    # Status
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+
+    # Balance
+    balance: Mapped[int] = mapped_column(nullable=False, default=10000)
+    krw_balance: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    pending_withdrawal_krw: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+
+    # Stats
+    total_hands: Mapped[int] = mapped_column(nullable=False, default=0)
+    total_winnings: Mapped[int] = mapped_column(nullable=False, default=0)
+    total_rake_paid_krw: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+
+    # Partner (no FK constraint - partners table is managed separately)
+    partner_id: Mapped[str | None] = mapped_column(
+        UUID(as_uuid=False),
+        nullable=True,
+        index=True,
+    )
+
+    # Partner settlement stats
+    total_bet_amount_krw: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    total_net_profit_krw: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
 
 
 class Table(MainBase, MainUUIDMixin):

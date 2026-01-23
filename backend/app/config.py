@@ -28,12 +28,12 @@ class Settings(BaseSettings):
     )
     # Database Connection Pool Settings (300-500명 동시 접속 대응)
     db_pool_size: int = Field(
-        default=50,
-        description="DB connection pool size (기본: 50)",
+        default=100,
+        description="DB connection pool size (기본: 100, 300명 동시접속 대응)",
     )
     db_max_overflow: int = Field(
-        default=30,
-        description="Max overflow connections (기본: 30)",
+        default=50,
+        description="Max overflow connections (기본: 50)",
     )
     db_pool_timeout: int = Field(
         default=30,
@@ -162,8 +162,8 @@ class Settings(BaseSettings):
 
     # Internal Admin API Settings (admin-backend 연동)
     internal_api_key: str = Field(
-        default="dev_api_key_for_local",
-        description="API key for internal admin endpoints (X-API-Key header)",
+        ...,
+        description="API key for internal admin endpoints (X-API-Key header, required)",
     )
 
     # Dev/Test API Settings (E2E 테스트용 치트 API)
@@ -174,6 +174,12 @@ class Settings(BaseSettings):
     dev_api_key: str = Field(
         default="dev-key",
         description="API key for dev endpoints (X-Dev-Key header)",
+    )
+
+    # Partner System Settings (파트너/총판 시스템)
+    default_partner_code: str | None = Field(
+        default=None,
+        description="기본 파트너 코드 (코드 없이 가입 시 이 파트너에 연결)",
     )
 
     # S3 Cold Storage (Phase 10 - optional)
@@ -222,6 +228,35 @@ class Settings(BaseSettings):
                 raise ValueError(
                     f"jwt_secret_key contains weak pattern '{pattern}'. "
                     "Use a strong, random secret key."
+                )
+
+        return v
+
+    @field_validator("internal_api_key")
+    @classmethod
+    def validate_internal_api_key(cls, v: str) -> str:
+        """Validate internal API key strength."""
+        if len(v) < 16:
+            raise ValueError(
+                "internal_api_key must be at least 16 characters long"
+            )
+
+        # 약한 키 패턴 검사
+        weak_patterns = [
+            "dev_api_key",
+            "dev-key",
+            "dev-api",
+            "test-key",
+            "local",
+            "12345",
+            "admin",
+        ]
+        lower_v = v.lower()
+        for pattern in weak_patterns:
+            if pattern in lower_v:
+                raise ValueError(
+                    f"internal_api_key contains weak pattern '{pattern}'. "
+                    "Use a strong, random API key."
                 )
 
         return v

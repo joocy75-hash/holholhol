@@ -56,6 +56,18 @@ class Permission(str, Enum):
     CREATE_ADMIN = "create_admin"
     MODIFY_ADMIN = "modify_admin"
 
+    # Partners (총판 관리)
+    VIEW_PARTNERS = "view_partners"
+    CREATE_PARTNER = "create_partner"
+    UPDATE_PARTNER = "update_partner"
+    DELETE_PARTNER = "delete_partner"
+
+    # Settlements (정산)
+    VIEW_SETTLEMENTS = "view_settlements"
+    GENERATE_SETTLEMENT = "generate_settlement"
+    APPROVE_SETTLEMENT = "approve_settlement"
+    PAY_SETTLEMENT = "pay_settlement"
+
 
 # Role to permissions mapping
 ROLE_PERMISSIONS: dict[AdminRole, Set[Permission]] = {
@@ -163,6 +175,21 @@ ROLE_PERMISSIONS: dict[AdminRole, Set[Permission]] = {
         Permission.VIEW_ADMINS,
         Permission.CREATE_ADMIN,
         Permission.MODIFY_ADMIN,
+        # Partner management
+        Permission.VIEW_PARTNERS,
+        Permission.CREATE_PARTNER,
+        Permission.UPDATE_PARTNER,
+        Permission.DELETE_PARTNER,
+        # Settlement management
+        Permission.VIEW_SETTLEMENTS,
+        Permission.GENERATE_SETTLEMENT,
+        Permission.APPROVE_SETTLEMENT,
+        Permission.PAY_SETTLEMENT,
+    },
+    # 파트너 역할 - 자신의 데이터만 조회 가능
+    AdminRole.partner: {
+        Permission.VIEW_DASHBOARD,
+        Permission.VIEW_SETTLEMENTS,  # 자신의 정산 내역만
     },
 }
 

@@ -233,6 +233,17 @@ class BanService:
                 "total_pages": (total + page_size - 1) // page_size
             }
         except Exception as e:
+            # bans 테이블이 없는 경우 빈 목록 반환
+            error_str = str(e).lower()
+            if "does not exist" in error_str or "undefined" in error_str or "relation" in error_str:
+                logger.warning("bans 테이블이 없습니다. 빈 목록 반환.")
+                return {
+                    "items": [],
+                    "total": 0,
+                    "page": page,
+                    "page_size": page_size,
+                    "total_pages": 0
+                }
             logger.error(f"Failed to list bans: {e}", exc_info=True)
             raise BanServiceError(f"Failed to list bans: {e}") from e
     
@@ -261,5 +272,10 @@ class BanService:
                 for row in rows
             ]
         except Exception as e:
+            # bans 테이블이 없는 경우 빈 목록 반환
+            error_str = str(e).lower()
+            if "does not exist" in error_str or "undefined" in error_str or "relation" in error_str:
+                logger.warning(f"bans 테이블이 없습니다. 사용자 {user_id}의 빈 목록 반환.")
+                return []
             logger.error(f"Failed to get user bans for user {user_id}: {e}", exc_info=True)
             raise BanServiceError(f"Failed to get user bans: {e}") from e

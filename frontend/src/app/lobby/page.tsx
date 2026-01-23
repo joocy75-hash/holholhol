@@ -253,7 +253,7 @@ export default function LobbyPage() {
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="https://www.figma.com/api/mcp/asset/8f7b90fa-8a33-4ede-997d-20831e008a85"
+          src="/assets/lobby/lobby-bg.svg"
           alt="background"
           style={{
             width: '100%',

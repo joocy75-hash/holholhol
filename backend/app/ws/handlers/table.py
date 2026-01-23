@@ -217,6 +217,7 @@ class TableHandler(BaseHandler):
                 logger.info(f"[SEAT] Player {real_username} ({conn.user_id}) seated at position {result_position} in GameManager")
 
             # Broadcast table update (use room_id for channel)
+            # 중간 입장: 기본 상태가 sitting_out이므로 status 포함
             await self._broadcast_table_update(
                 room_id,
                 "seat_taken",
@@ -225,6 +226,7 @@ class TableHandler(BaseHandler):
                     "userId": conn.user_id,
                     "nickname": real_username,
                     "stack": result_stack,
+                    "status": "sitting_out",  # 착석 시 기본 상태
                 },
             )
 
@@ -414,6 +416,8 @@ class TableHandler(BaseHandler):
                 is_bot=True,  # 봇임을 명시
             )
             game_table.seat_player(empty_position, bot_player)
+            # 봇은 즉시 참여 (sitting_out 기본값 해제)
+            game_table.sit_in(empty_position)
             logger.info(f"[BOT] Bot {bot_nickname} added at position {empty_position} in GameManager")
 
             # Also add to DB seats
@@ -554,6 +558,8 @@ class TableHandler(BaseHandler):
                     is_bot=True,
                 )
                 game_table.seat_player(empty_position, bot_player)
+                # 봇은 즉시 참여 (sitting_out 기본값 해제)
+                game_table.sit_in(empty_position)
 
                 # Add to DB seats
                 seats[str(empty_position)] = {
@@ -680,9 +686,17 @@ class TableHandler(BaseHandler):
                         username=seat_data.get("nickname") or f"Player_{seat}",
                         seat=seat,
                         stack=seat_data.get("stack", 0),
+                        is_bot=seat_data.get("is_bot", False),
                     )
                     game_table.seat_player(seat, player)
-                    logger.debug(f"[SYNC] Player {player.user_id} synced to seat {seat}")
+
+                    # DB에서 저장된 status 복원 (기본값: active)
+                    db_status = seat_data.get("status", "active")
+                    if db_status == "active":
+                        game_table.sit_in(seat)
+                        logger.debug(f"[SYNC] Player {player.user_id} synced to seat {seat} (active)")
+                    else:
+                        logger.debug(f"[SYNC] Player {player.user_id} synced to seat {seat} (sitting_out)")
 
         logger.info(f"[GAME] Created GameManager table for room {room_id} with {len(game_table.players)} players")
         return game_table
@@ -917,8 +931,38 @@ class TableHandler(BaseHandler):
 
     async def _try_auto_start_game(self, room_id: str, game_table) -> None:
         """Try to auto-start game if enough players (2+)."""
+        # 먼저 BB 위치 대기자 활성화 시도 (can_start_hand() 전에!)
+        pre_activated = game_table.try_activate_bb_waiter_for_next_hand()
+        if pre_activated:
+            for seat in pre_activated:
+                player = game_table.players.get(seat)
+                if player:
+                    sit_in_msg = MessageEnvelope.create(
+                        event_type=EventType.PLAYER_SIT_IN,
+                        payload={
+                            "tableId": room_id,
+                            "position": seat,
+                            "userId": player.user_id,
+                            "auto": True,
+                            "reason": "bb_reached",
+                        },
+                    )
+                    channel = f"table:{room_id}"
+                    await self.manager.broadcast_to_channel(channel, sit_in_msg.to_dict())
+                    logger.info(
+                        f"[PRE_HAND_ACTIVATE] 브로드캐스트: seat={seat}, user={player.user_id}, room={room_id}"
+                    )
+
         if not game_table.can_start_hand():
-            logger.debug(f"[AUTO-START] Cannot start - not enough players or game in progress")
+            # 상세 디버그 로그
+            active_players = game_table.get_active_players()
+            all_players = game_table.get_all_seated_players()
+            logger.info(
+                f"[AUTO-START] Cannot start: "
+                f"active={len(active_players)}, all_seated={len(all_players)}, "
+                f"phase={game_table.phase.value}, "
+                f"status={[(s, p.status if p else None) for s, p in all_players]}"
+            )
             return
 
         logger.info(f"[AUTO-START] Starting game for room {room_id}")

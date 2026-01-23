@@ -214,7 +214,39 @@ class DeleteUserResponse(BaseModel):
     message: str = "사용자가 삭제되었습니다"
 
 
+# Response Model for /me endpoint
+class AdminUserMeResponse(BaseModel):
+    """현재 로그인한 관리자 정보"""
+    id: str
+    username: str
+    email: str
+    role: str
+    is_active: bool
+    last_login: str | None
+    created_at: str | None
+
+
 # Endpoints
+@router.get("/me", response_model=AdminUserMeResponse)
+async def get_current_user(
+    current_user: AdminUser = Depends(require_viewer),
+):
+    """
+    현재 로그인한 관리자 정보 조회
+
+    JWT 토큰에서 추출한 현재 사용자 정보를 반환합니다.
+    """
+    return AdminUserMeResponse(
+        id=str(current_user.id),
+        username=current_user.username,
+        email=current_user.email,
+        role=current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role),
+        is_active=current_user.is_active,
+        last_login=current_user.last_login.isoformat() if current_user.last_login else None,
+        created_at=current_user.created_at.isoformat() if current_user.created_at else None,
+    )
+
+
 @router.get("", response_model=PaginatedUsers)
 async def list_users(
     search: Optional[str] = Query(None, description="Search by username, email, or ID"),

@@ -20,9 +20,9 @@ export default function HoldemCard({
   buyIn = 100000,
   onJoin
 }: HoldemCardProps) {
-  const imgHoldemLogo = "https://www.figma.com/api/mcp/asset/db214331-32fb-46bc-bb89-2776aa09bf39";
-  const imgUsersIcon = "https://www.figma.com/api/mcp/asset/97d5b03e-7258-44c8-8323-1ed5e70bedef";
-  const imgArrowIcon = "https://www.figma.com/api/mcp/asset/6e981a85-711f-46da-8435-7e9e56531fcd";
+  const imgHoldemLogo = "/assets/lobby/holdem-logo.svg";
+  const imgUsersIcon = "/assets/icons/users.svg";
+  const imgArrowIcon = "/assets/icons/arrow-right.svg";
 
   return (
     <motion.div
@@ -97,10 +97,10 @@ export default function HoldemCard({
         alt="users"
         style={{
           position: 'absolute',
-          left: '130px',
-          top: '13px',
-          width: '24px',
-          height: '24px',
+          left: '132px',
+          top: '16px',
+          width: '16px',
+          height: '16px',
         }}
       />
 

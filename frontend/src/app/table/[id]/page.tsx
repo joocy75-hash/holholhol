@@ -28,6 +28,7 @@ import { Emoticon } from '@/constants/emoticons';
 import { EmoticonReceivedPayload, WaitlistSeatReadyPayload } from '@/types/websocket';
 import WaitlistJoinModal from '@/components/table/WaitlistJoinModal';
 import WaitlistStatusCard from '@/components/table/WaitlistStatusCard';
+import { WaitingPlayersPanel } from '@/components/table/WaitingPlayersPanel';
 
 // 게임 컨테이너 스케일 계산 훅
 function useGameScale() {
@@ -69,6 +70,7 @@ export default function TablePage() {
   const [isStartingLoop, setIsStartingLoop] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [showRebuyModal, setShowRebuyModal] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'info' | 'warning' | 'error' } | null>(null);
 
   // 이모티콘 상태
   const [isEmoticonPanelOpen, setIsEmoticonPanelOpen] = useState(false);
@@ -81,6 +83,9 @@ export default function TablePage() {
   const [isJoiningWaitlist, setIsJoiningWaitlist] = useState(false);
   const [isCancellingWaitlist, setIsCancellingWaitlist] = useState(false);
   const [seatReadyInfo, setSeatReadyInfo] = useState<WaitlistSeatReadyPayload | null>(null);
+
+  // 중간 입장 옵션 상태 (sitting_out 좌석 추적)
+  const [sittingOutPositions, setSittingOutPositions] = useState<Set<number>>(new Set());
 
   // 테이블 컨테이너 ref
   const tableRef = useRef<HTMLDivElement>(null);
@@ -108,12 +113,36 @@ export default function TablePage() {
       setHasAutoFolded: actions.setHasAutoFolded,
     },
     fetchUser,
+    onStackZero: () => {
+      setToast({ message: '칩이 모두 소진되었습니다', type: 'warning' });
+      setShowRebuyModal(true);
+    },
   });
 
   // seatsRef 동기화
   useEffect(() => {
     gameState.seatsRef.current = gameState.seats;
   }, [gameState.seats, gameState.seatsRef]);
+
+  // sittingOutPositions 동기화 (초기 로드 및 좌석 상태 변경 시)
+  useEffect(() => {
+    const sittingOutSeats = gameState.seats
+      .filter(seat => seat.status === 'sitting_out')
+      .map(seat => seat.position);
+
+    // 함수형 업데이트로 현재 상태와 비교
+    setSittingOutPositions(prev => {
+      const prevArray = Array.from(prev).sort();
+      const newArray = [...sittingOutSeats].sort();
+
+      // 변경이 없으면 이전 Set 유지 (리렌더 방지)
+      if (prevArray.length === newArray.length &&
+          prevArray.every((pos, i) => pos === newArray[i])) {
+        return prev;
+      }
+      return new Set(sittingOutSeats);
+    });
+  }, [gameState.seats]);
 
   // 칩 스택 이미지 프리로딩 (테이블 진입 시 한 번)
   useEffect(() => {
@@ -230,6 +259,14 @@ export default function TablePage() {
     }
   }, [error, setError]);
 
+  // Toast 자동 해제 (4초 후)
+  useEffect(() => {
+    if (toast) {
+      const timeout = setTimeout(() => setToast(null), 4000);
+      return () => clearTimeout(timeout);
+    }
+  }, [toast]);
+
   // 딜링 완료 핸들러
   const handleDealingComplete = useCallback(() => {
     gameState.setIsDealing(false);
@@ -252,6 +289,16 @@ export default function TablePage() {
   const handleSpectate = useCallback(() => {
     setShowRebuyModal(false);
   }, []);
+
+  // 중간 입장 옵션: 참여 모드 토글 핸들러
+  const handleJoinModeToggle = useCallback((wantActive: boolean) => {
+    if (!tableId) return;
+    if (wantActive) {
+      wsClient.send('SIT_IN_REQUEST', { tableId });
+    } else {
+      wsClient.send('SIT_OUT_REQUEST', { tableId });
+    }
+  }, [tableId]);
 
   // 테이블 퇴장 핸들러
   const handleLeave = useCallback(() => {
@@ -359,10 +406,13 @@ export default function TablePage() {
     // SEAT_RESULT - UI 상태 관리 (게임 상태는 useTableWebSocket에서 처리)
     const unsubSeatResult = wsClient.on('SEAT_RESULT', (rawData) => {
       console.log('[DEV] SEAT_RESULT received (page.tsx):', rawData);
-      const data = rawData as { success: boolean; errorMessage?: string };
+      const data = rawData as { success: boolean; position?: number; errorMessage?: string };
       setIsJoining(false);
       setShowBuyInModal(false);
-      if (!data.success && data.errorMessage) {
+      if (data.success && data.position !== undefined) {
+        // 중간 입장: 착석 시 기본 상태가 sitting_out이므로 추가
+        setSittingOutPositions(prev => new Set([...prev, data.position!]));
+      } else if (!data.success && data.errorMessage) {
         setError(data.errorMessage);
       }
     });
@@ -514,13 +564,49 @@ export default function TablePage() {
       setSeatReadyInfo(data);
     });
 
+    // 중간 입장 옵션: PLAYER_SIT_OUT 이벤트
+    const unsubSitOut = wsClient.on('PLAYER_SIT_OUT', (rawData) => {
+      const data = rawData as { tableId: string; position: number; userId: string };
+      console.log('[SIT_OUT] Player sitting out:', data);
+      setSittingOutPositions(prev => new Set([...prev, data.position]));
+      // 좌석 상태도 업데이트
+      gameState.setSeats(prev => prev.map(seat =>
+        seat.position === data.position
+          ? { ...seat, status: 'sitting_out' }
+          : seat
+      ));
+    });
+
+    // 중간 입장 옵션: PLAYER_SIT_IN 이벤트
+    const unsubSitIn = wsClient.on('PLAYER_SIT_IN', (rawData) => {
+      const data = rawData as { tableId: string; position: number; userId: string; auto?: boolean; reason?: string };
+      console.log('[SIT_IN] Player sitting in:', data);
+      setSittingOutPositions(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(data.position);
+        return newSet;
+      });
+      // 좌석 상태도 업데이트
+      gameState.setSeats(prev => prev.map(seat =>
+        seat.position === data.position
+          ? { ...seat, status: 'active' }
+          : seat
+      ));
+      // 자동 sit_in (BB 도달) 시 토스트
+      if (data.auto && data.position === gameState.myPosition) {
+        setToast({ message: 'BB 위치 도달! 게임에 참여합니다.', type: 'info' });
+      }
+    });
+
     return () => {
       unsubWaitlistJoined();
       unsubWaitlistCancelled();
       unsubPositionChanged();
       unsubSeatReady();
+      unsubSitOut();
+      unsubSitIn();
     };
-  }, []);
+  }, [gameState.myPosition]);
 
   // userId -> seatPosition 매핑 생성
   const userSeatMap = useMemo(() => {
@@ -577,6 +663,16 @@ export default function TablePage() {
           </div>
         )}
 
+        {/* Toast 알림 - 4초 후 자동 해제 */}
+        {toast && (
+          <div className={`fixed top-20 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-lg shadow-lg text-white text-sm font-medium transition-all ${
+            toast.type === 'warning' ? 'bg-yellow-600/90' :
+            toast.type === 'error' ? 'bg-red-500/90' : 'bg-blue-500/90'
+          }`}>
+            {toast.message}
+          </div>
+        )}
+
           {/* 카운트다운 오버레이 */}
           {countdown !== null && (
             <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -599,6 +695,13 @@ export default function TablePage() {
           {/* tableConfig 로드 후에만 게임 UI 렌더링 */}
           {gameState.tableConfig && (
             <>
+              {/* 대기 중인 플레이어 패널 */}
+              <WaitingPlayersPanel
+                seats={gameState.seats}
+                sittingOutPositions={sittingOutPositions}
+                myPosition={gameState.myPosition}
+              />
+
               {/* 딜링 애니메이션 */}
               <DealingAnimation
                 isDealing={gameState.isDealing}
@@ -631,6 +734,9 @@ export default function TablePage() {
                 onAutoFold={actions.handleAutoFold}
                 onSeatClick={handleSeatClick}
                 onRevealCards={handleRevealCards}
+                // 중간 입장 옵션
+                sittingOutPositions={sittingOutPositions}
+                onJoinModeToggle={handleJoinModeToggle}
               />
 
               {/* 중앙 정보 (팟, 커뮤니티 카드) */}
@@ -734,7 +840,7 @@ export default function TablePage() {
             onConfirm={handleBuyInConfirm}
             onCancel={handleBuyInCancel}
             isLoading={isJoining}
-            tableName={gameState.gameState?.tableId || tableId}
+            tableName={gameState.tableName || tableId}
           />
         )}
 

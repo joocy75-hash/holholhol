@@ -3,6 +3,7 @@
 import { useState, useEffect, memo, useRef } from 'react';
 import { PlayingCard, FlippableCard, type Card } from './PlayingCard';
 import { TurnTimer, DEFAULT_TURN_TIME } from './TimerDisplay';
+import { JoinModeToggle } from './JoinModeToggle';
 import type { HandResult } from '@/lib/handEvaluator';
 import { TABLE } from '@/constants/tableCoordinates';
 import { Avatar } from '@/components/common';
@@ -71,6 +72,10 @@ interface PlayerSeatProps {
   isDealingComplete?: boolean;
   isShowdownRevealed?: boolean;
   gameInProgress?: boolean; // 게임 진행 중 여부 (스폿라이트 효과용)
+  // 중간 입장 옵션
+  isSittingOut?: boolean; // 플레이어가 sitting_out 상태인지
+  onJoinModeToggle?: (wantActive: boolean) => void; // 참여 모드 토글 콜백
+  showJoinModeToggle?: boolean; // 토글 버튼 표시 여부 (본인 좌석에서만)
 }
 
 // React.memo를 위한 비교 함수 - 중요한 props 변경시에만 리렌더
@@ -134,6 +139,10 @@ export const PlayerSeat = memo(function PlayerSeat({
   isDealingComplete,
   isShowdownRevealed,
   gameInProgress,
+  // 중간 입장 옵션
+  isSittingOut,
+  onJoinModeToggle,
+  showJoinModeToggle,
 }: PlayerSeatProps) {
   // 사용하지 않는 props (향후 기능 확장용)
   void _handResult;
@@ -251,15 +260,17 @@ export const PlayerSeat = memo(function PlayerSeat({
   const spotlightClass = gameInProgress && !player.folded && isActive
     ? 'spotlight-active'
     : '';
+  // sitting_out 상태 스타일 (대기 중인 플레이어)
+  const sittingOutClass = isSittingOut ? 'opacity-60' : '';
 
   return (
     <div
-      className={`player-seat ${foldedClass} ${actionZIndex} ${winnerClass} ${spotlightClass} transition-all duration-500 ease-out z-30`}
+      className={`player-seat ${foldedClass} ${actionZIndex} ${winnerClass} ${spotlightClass} ${sittingOutClass} transition-all duration-500 ease-out z-30`}
       style={{ top: position.y, left: position.x }}
       data-testid={`seat-${seatPosition}`}
       data-occupied="true"
       data-is-me={isCurrentUser ? 'true' : 'false'}
-      data-status={player.folded ? 'folded' : (player.isActive ? 'active' : 'waiting')}
+      data-status={isSittingOut ? 'sitting_out' : (player.folded ? 'folded' : (player.isActive ? 'active' : 'waiting'))}
     >
       {/* 메인 플레이어 카드 - 게임 진행 중일 때만 표시 */}
       {/* 폴드 시에는 isDealingComplete와 관계없이 표시 (폴드 어둡게 처리를 위해) */}
@@ -419,6 +430,15 @@ export const PlayerSeat = memo(function PlayerSeat({
             </span>
           </div>
         )}
+
+        {/* 대기중 배지 - sitting_out 플레이어 (본인 제외) */}
+        {!isCurrentUser && isSittingOut && !player.folded && (
+          <div className="absolute inset-0 flex items-center justify-center z-20">
+            <span className="px-1.5 py-0.5 bg-amber-500/80 text-black text-[10px] font-bold rounded animate-pulse">
+              대기중
+            </span>
+          </div>
+        )}
       </div>
 
       {/* 닉네임 + VIP 배지 → 보유금액 순서 */}
@@ -443,8 +463,18 @@ export const PlayerSeat = memo(function PlayerSeat({
         </div>
       )}
 
-      {/* 하단 여백 (레이아웃 유지용) */}
-      <div className="h-[28px] mt-1" />
+      {/* 하단 영역 - 본인 좌석이면 참여 모드 토글, 아니면 여백 */}
+      <div className="h-[28px] flex items-center justify-center mt-1">
+        {isCurrentUser && showJoinModeToggle && onJoinModeToggle && player && (
+          <JoinModeToggle
+            isActive={!isSittingOut}
+            onToggle={onJoinModeToggle}
+            // sitting_out 플레이어는 현재 핸드에 참여하지 않으므로 언제든 토글 가능
+            // 게임 중 + 폴드 안 함 + sitting_out 아님 = 비활성화 (현재 핸드 참여 중)
+            disabled={gameInProgress && !player.folded && !isSittingOut}
+          />
+        )}
+      </div>
     </div>
   );
 }, arePlayerSeatPropsEqual);

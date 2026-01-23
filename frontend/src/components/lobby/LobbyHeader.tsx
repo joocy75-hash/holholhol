@@ -33,7 +33,7 @@ export default function LobbyHeader() {
     }
   }, [isAuthenticated]);
 
-  const imgUsdtIcon = "https://www.figma.com/api/mcp/asset/c5c9cad3-b5b5-4668-b459-ba3d8e0c6cec";
+  const imgUsdtIcon = "/assets/icons/usdt.svg";
 
   return (
     <div

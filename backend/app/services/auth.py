@@ -44,6 +44,7 @@ class AuthService:
         email: str,
         password: str,
         nickname: str,
+        partner_code: str | None = None,
         user_agent: str | None = None,
         ip_address: str | None = None,
     ) -> dict[str, Any]:
@@ -53,6 +54,7 @@ class AuthService:
             email: User email
             password: Plain text password
             nickname: Display name
+            partner_code: Optional partner referral code
             user_agent: Client user agent
             ip_address: Client IP address
 
@@ -76,15 +78,35 @@ class AuthService:
         if existing.scalar_one_or_none():
             raise AuthError("AUTH_NICKNAME_EXISTS", "Nickname already taken")
 
+        # Validate partner code if provided, or use default partner code
+        partner = None
+        partner_id = None
+        effective_partner_code = partner_code or settings.default_partner_code
+
+        if effective_partner_code:
+            from app.models.partner import Partner, PartnerStatus
+
+            result = await self.db.execute(
+                select(Partner).where(Partner.partner_code == effective_partner_code)
+            )
+            partner = result.scalar_one_or_none()
+            if partner and partner.status == PartnerStatus.ACTIVE:
+                partner_id = partner.id
+
         # Create user
         user = User(
             email=email,
             password_hash=hash_password(password),
             nickname=nickname,
             status=UserStatus.ACTIVE.value,
+            partner_id=partner_id,
         )
         self.db.add(user)
         await self.db.flush()
+
+        # Update partner referral count if linked
+        if partner_id and partner:
+            partner.total_referrals += 1
 
         # Create session and tokens
         session_id = generate_session_id()

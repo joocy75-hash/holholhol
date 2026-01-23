@@ -34,6 +34,12 @@ class RegisterRequest(BaseModel):
         max_length=50,
         description="Display name",
     )
+    partner_code: str | None = Field(
+        None,
+        alias="partnerCode",
+        max_length=20,
+        description="Partner referral code (optional)",
+    )
 
     @field_validator("password")
     @classmethod

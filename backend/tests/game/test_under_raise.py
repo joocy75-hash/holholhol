@@ -36,8 +36,11 @@ class TestUnderRaiseDetection:
         p3 = Player(user_id="user3", username="P3", seat=2, stack=2000)
 
         table.seat_player(0, p1)
+        table.sit_in(0)
         table.seat_player(1, p2)
+        table.sit_in(1)
         table.seat_player(2, p3)
+        table.sit_in(2)
 
         result = table.start_new_hand()
         assert result["success"]
@@ -66,8 +69,11 @@ class TestUnderRaiseDetection:
         p3 = Player(user_id="user3", username="P3", seat=2, stack=2000)
 
         table.seat_player(0, p1)
+        table.sit_in(0)
         table.seat_player(1, p2)
+        table.sit_in(1)
         table.seat_player(2, p3)
+        table.sit_in(2)
 
         result = table.start_new_hand()
         assert result["success"]
@@ -119,8 +125,11 @@ class TestUnderRaiseRerestriction:
         p3 = Player(user_id="user3", username="P3", seat=2, stack=2000)
 
         table.seat_player(0, p1)
+        table.sit_in(0)
         table.seat_player(1, p2)
+        table.sit_in(1)
         table.seat_player(2, p3)
+        table.sit_in(2)
 
         result = table.start_new_hand()
         assert result["success"]
@@ -152,9 +161,13 @@ class TestUnderRaiseRerestriction:
         p4 = Player(user_id="user4", username="P4", seat=3, stack=2000)  # BTN
 
         table.seat_player(0, p1)
+        table.sit_in(0)
         table.seat_player(1, p2)
+        table.sit_in(1)
         table.seat_player(2, p3)
+        table.sit_in(2)
         table.seat_player(3, p4)
+        table.sit_in(3)
 
         result = table.start_new_hand()
         assert result["success"]
@@ -227,8 +240,11 @@ class TestUnderRaiseRerestriction:
         p3 = Player(user_id="user3", username="P3", seat=2, stack=350)  # 숏스택
 
         table.seat_player(0, p1)
+        table.sit_in(0)
         table.seat_player(1, p2)
+        table.sit_in(1)
         table.seat_player(2, p3)
+        table.sit_in(2)
 
         result = table.start_new_hand()
         assert result["success"]
@@ -282,9 +298,13 @@ class TestUnderRaiseEdgeCases:
         p4 = Player(user_id="user4", username="P4", seat=3, stack=500)   # BTN 숏스택
 
         table.seat_player(0, p1)
+        table.sit_in(0)
         table.seat_player(1, p2)
+        table.sit_in(1)
         table.seat_player(2, p3)
+        table.sit_in(2)
         table.seat_player(3, p4)
+        table.sit_in(3)
 
         result = table.start_new_hand()
         assert result["success"]
@@ -315,7 +335,9 @@ class TestUnderRaiseEdgeCases:
         p2 = Player(user_id="user2", username="P2", seat=1, stack=1000)
 
         table.seat_player(0, p1)
+        table.sit_in(0)
         table.seat_player(1, p2)
+        table.sit_in(1)
 
         result = table.start_new_hand()
         assert result["success"]
@@ -346,7 +368,9 @@ class TestUnderRaiseEdgeCases:
         p2 = Player(user_id="user2", username="P2", seat=1, stack=400)   # BB 숏스택
 
         table.seat_player(0, p1)
+        table.sit_in(0)
         table.seat_player(1, p2)
+        table.sit_in(1)
 
         result = table.start_new_hand()
         assert result["success"]
@@ -401,9 +425,13 @@ class TestUnderRaiseFullScenario:
         p4 = Player(user_id="user4", username="P4", seat=3, stack=2000)
 
         table.seat_player(0, p1)
+        table.sit_in(0)
         table.seat_player(1, p2)
+        table.sit_in(1)
         table.seat_player(2, p3)
+        table.sit_in(2)
         table.seat_player(3, p4)
+        table.sit_in(3)
 
         result = table.start_new_hand()
         assert result["success"]
@@ -470,8 +498,11 @@ class TestUnderRaiseStateTracking:
         p3 = Player(user_id="user3", username="P3", seat=2, stack=1000)
 
         table.seat_player(0, p1)
+        table.sit_in(0)
         table.seat_player(1, p2)
+        table.sit_in(1)
         table.seat_player(2, p3)
+        table.sit_in(2)
 
         result = table.start_new_hand()
         assert result["success"]
@@ -510,8 +541,11 @@ class TestUnderRaiseStateTracking:
         p3 = Player(user_id="user3", username="P3", seat=2, stack=1000)
 
         table.seat_player(0, p1)
+        table.sit_in(0)
         table.seat_player(1, p2)
+        table.sit_in(1)
         table.seat_player(2, p3)
+        table.sit_in(2)
 
         result = table.start_new_hand()
         assert result["success"]

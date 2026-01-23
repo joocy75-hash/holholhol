@@ -307,8 +307,6 @@ export function useTableWebSocket({
   // 쇼다운 완료 처리 함수
   const completeShowdown = useCallback(() => {
     console.log('✅ Showdown complete');
-    const pendingData = gameState.pendingHandStartedRef.current;
-    gameState.pendingHandStartedRef.current = null;
     gameState.pendingStackUpdatesRef.current = {};
 
     gameState.setShowdownPhase('settling');
@@ -324,7 +322,6 @@ export function useTableWebSocket({
       gameState.setRevealedPositions(new Set());
       gameState.setAllHandRanks({});
       gameState.setPotChips(0);
-      gameState.isShowdownInProgressRef.current = false;
 
       // 쇼다운 완료 후 pending STACK_ZERO 처리 (리바이 모달 표시)
       if (gameState.pendingStackZeroRef.current) {
@@ -335,6 +332,14 @@ export function useTableWebSocket({
         }
       }
 
+      // CRITICAL: pendingHandStartedRef를 먼저 읽고, isShowdownInProgressRef를 false로 설정
+      // 이 순서가 중요함! 동기 블록에서 처리하여 race condition 방지
+      // (JavaScript는 단일 스레드이므로 이 블록 실행 중에는 WebSocket 이벤트가 처리되지 않음)
+      const pendingData = gameState.pendingHandStartedRef.current;
+      gameState.pendingHandStartedRef.current = null;
+      gameState.isShowdownInProgressRef.current = false;
+
+      // 다음 핸드 시작 처리 (UI 전환을 위한 짧은 딜레이)
       setTimeout(() => {
         if (pendingData) {
           processHandStarted(pendingData as Parameters<typeof processHandStarted>[0]);
@@ -664,7 +669,8 @@ export function useTableWebSocket({
               nickname: (changes.nickname || changes.userId) as string,
             },
             stack: (changes.stack as number) || 0,
-            status: 'active',
+            // 중간 입장: 착석 시 기본 상태는 sitting_out
+            status: (changes.status as SeatInfo['status']) || 'sitting_out',
             betAmount: 0,
             totalBet: 0,
           };

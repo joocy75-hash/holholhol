@@ -11,6 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, UUIDMixin
 
 if TYPE_CHECKING:
+    from app.models.partner import Partner
     from app.models.wallet import CryptoAddress, WalletTransaction
 
 
@@ -90,6 +91,29 @@ class User(Base, UUIDMixin, TimestampMixin):
         comment="Total rake paid in KRW (for VIP level calculation)",
     )
 
+    # Partner (총판) 연결
+    partner_id: Mapped[str | None] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("partners.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="추천 파트너 ID",
+    )
+
+    # 파트너 정산용 통계 필드
+    total_bet_amount_krw: Mapped[int] = mapped_column(
+        BigInteger,
+        default=0,
+        nullable=False,
+        comment="누적 베팅량 (KRW) - 턴오버 정산용",
+    )
+    total_net_profit_krw: Mapped[int] = mapped_column(
+        BigInteger,
+        default=0,
+        nullable=False,
+        comment="누적 순손익 (KRW, 승리-베팅) - 레브쉐어 정산용",
+    )
+
     # Relationships
     sessions: Mapped[list["Session"]] = relationship(
         "Session",
@@ -109,6 +133,13 @@ class User(Base, UUIDMixin, TimestampMixin):
         "CryptoAddress",
         back_populates="user",
         cascade="all, delete-orphan",
+    )
+
+    # Partner relationship (추천 파트너)
+    partner: Mapped["Partner | None"] = relationship(
+        "Partner",
+        foreign_keys=[partner_id],
+        backref="referrals",
     )
 
     def __repr__(self) -> str:

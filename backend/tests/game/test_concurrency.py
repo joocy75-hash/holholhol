@@ -58,7 +58,8 @@ class TestConcurrentStartPrevention:
                 stack=1000,
             )
             table.seat_player(i, player)
-        
+            table.sit_in(i)
+
         # Start first hand
         result1 = table.start_new_hand()
         assume(result1["success"])
@@ -91,7 +92,8 @@ class TestConcurrentStartPrevention:
                 stack=1000,
             )
             table.seat_player(i, player)
-        
+            table.sit_in(i)
+
         assert table.phase == GamePhase.WAITING
         
         result = table.start_new_hand()
@@ -121,7 +123,8 @@ class TestConcurrentStartPrevention:
                 stack=1000,
             )
             table.seat_player(i, player)
-        
+            table.sit_in(i)
+
         # Try to start multiple times
         results = []
         for _ in range(5):
@@ -151,7 +154,8 @@ class TestConcurrentStartPrevention:
             stack=1000,
         )
         table.seat_player(0, player)
-        
+        table.sit_in(0)
+
         result = table.start_new_hand()
         
         assert result["success"] is False
@@ -199,7 +203,8 @@ class TestAsyncConcurrentStart:
                 stack=1000,
             )
             table.seat_player(i, player)
-        
+            table.sit_in(i)
+
         # Simulate concurrent start requests
         async def try_start():
             return table.start_new_hand()
@@ -258,7 +263,8 @@ class TestAsyncConcurrentStart:
                 stack=1000,
             )
             table.seat_player(i, player)
-        
+            table.sit_in(i)
+
         # Start first hand
         result = table.start_new_hand()
         assert result["success"]
@@ -301,7 +307,8 @@ class TestPhaseTransitionSafety:
                 stack=1000,
             )
             table.seat_player(i, player)
-        
+            table.sit_in(i)
+
         # Start hand
         result = table.start_new_hand()
         assume(result["success"])
@@ -338,7 +345,8 @@ class TestPhaseTransitionSafety:
                 stack=1000,
             )
             table.seat_player(i, player)
-        
+            table.sit_in(i)
+
         # Try action before hand starts (WAITING phase)
         result = table.process_action("user0", "fold", 0)
         
@@ -364,7 +372,8 @@ class TestPhaseTransitionSafety:
                 stack=1000,
             )
             table.seat_player(i, player)
-        
+            table.sit_in(i)
+
         hand_numbers = []
         
         for _ in range(3):
@@ -414,8 +423,10 @@ class TestBotLoopSafety:
             is_bot=True,
         )
         table.seat_player(0, player)
+        table.sit_in(0)
         table.seat_player(1, bot)
-        
+        table.sit_in(1)
+
         # Start and complete hand
         result = table.start_new_hand()
         assert result["success"]
@@ -453,10 +464,11 @@ class TestBotLoopSafety:
                 stack=1000,
             )
             table.seat_player(i, player)
-        
+            table.sit_in(i)
+
         result = table.start_new_hand()
         assert result["success"]
-        
+
         # During active hand, current_player_seat should be valid
         while table.phase != GamePhase.WAITING:
             if table.current_player_seat is not None:

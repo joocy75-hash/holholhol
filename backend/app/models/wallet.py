@@ -65,6 +65,9 @@ class TransactionType(str, Enum):
     ADMIN_ADJUST = "admin_adjust"
     BONUS = "bonus"
 
+    # Partner (총판) operations
+    PARTNER_COMMISSION = "partner_commission"
+
 
 class TransactionStatus(str, Enum):
     """Transaction status for async operations."""
