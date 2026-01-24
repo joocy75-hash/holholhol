@@ -17,7 +17,7 @@ from sqlalchemy import text
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.api import admin, admin_partner, auth, dev, hands, partner, rooms, users, wallet
+from app.api import admin, admin_partner, auth, dev, hands, messages, partner, rooms, users, wallet
 from app.tournament.api import (
     router as tournament_router,
     admin_router as tournament_admin_router,
@@ -584,6 +584,7 @@ app.include_router(hands.router, prefix=API_V1_PREFIX)  # Phase 2.5: 핸드 히�
 app.include_router(rooms.router, prefix=API_V1_PREFIX)
 app.include_router(users.router, prefix=API_V1_PREFIX)
 app.include_router(wallet.router, prefix=API_V1_PREFIX)
+app.include_router(messages.router, prefix=API_V1_PREFIX)
 
 # Internal Admin API (called from admin-backend)
 app.include_router(admin.router, prefix=API_V1_PREFIX)
