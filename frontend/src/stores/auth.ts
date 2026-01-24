@@ -21,9 +21,9 @@ interface AuthState {
     email: string,
     password: string,
     nickname: string,
-    partnerCode?: string,
-    usdtWalletAddress?: string,
-    usdtWalletType?: string
+    partnerCode: string | undefined,
+    usdtWalletAddress: string,  // 필수
+    usdtWalletType: 'TRC20' | 'ERC20'  // 필수
   ) => Promise<void>;
   logout: () => Promise<void>;
   fetchUser: () => Promise<void>;
@@ -64,9 +64,9 @@ export const useAuthStore = create<AuthState>((set) => ({
     email: string,
     password: string,
     nickname: string,
-    partnerCode?: string,
-    usdtWalletAddress?: string,
-    usdtWalletType?: string
+    partnerCode: string | undefined,
+    usdtWalletAddress: string,  // 필수
+    usdtWalletType: 'TRC20' | 'ERC20'  // 필수
   ) => {
     set({ isLoading: true, error: null });
     try {

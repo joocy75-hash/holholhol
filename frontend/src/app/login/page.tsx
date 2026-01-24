@@ -5,6 +5,19 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/stores/auth';
 
+// USDT 지갑 주소 유효성 검증 함수
+function isValidWalletAddress(address: string, type: 'TRC20' | 'ERC20'): boolean {
+  if (!address) return false;
+
+  if (type === 'TRC20') {
+    // TRC20 (Tron): T로 시작, Base58, 34자
+    return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address);
+  } else {
+    // ERC20 (Ethereum): 0x로 시작, 16진수, 42자
+    return /^0x[a-fA-F0-9]{40}$/.test(address);
+  }
+}
+
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -52,13 +65,25 @@ function LoginForm() {
           setLocalError('비밀번호는 8자 이상이어야 합니다.');
           return;
         }
+        if (!formData.usdtWalletAddress) {
+          setLocalError('USDT 지갑 주소는 필수입니다.');
+          return;
+        }
+        if (!isValidWalletAddress(formData.usdtWalletAddress, formData.usdtWalletType)) {
+          setLocalError(
+            formData.usdtWalletType === 'TRC20'
+              ? 'TRC20 주소는 T로 시작하는 34자여야 합니다.'
+              : 'ERC20 주소는 0x로 시작하는 42자여야 합니다.'
+          );
+          return;
+        }
         await signup(
           formData.username,
           formData.email,
           formData.password,
           formData.nickname,
           formData.partnerCode || undefined,
-          formData.usdtWalletAddress || undefined,
+          formData.usdtWalletAddress,  // 필수 필드
           formData.usdtWalletType
         );
         router.push('/lobby');
@@ -315,18 +340,30 @@ function LoginForm() {
                   {/* 지갑 주소 입력 */}
                   <div>
                     <label className="block text-xs font-medium mb-2 text-gray-400">
-                      USDT 지갑 주소
+                      USDT 지갑 주소 <span className="text-red-400">*</span>
                     </label>
                     <input
                       type="text"
                       name="usdtWalletAddress"
                       value={formData.usdtWalletAddress}
                       onChange={handleChange}
-                      className="glass-input w-full px-4 py-3 font-mono text-sm"
-                      placeholder={formData.usdtWalletType === 'TRC20' ? 'T로 시작하는 주소' : '0x로 시작하는 주소'}
+                      className={`glass-input w-full px-4 py-3 font-mono text-sm ${
+                        formData.usdtWalletAddress && !isValidWalletAddress(formData.usdtWalletAddress, formData.usdtWalletType)
+                          ? 'border-red-500/50'
+                          : ''
+                      }`}
+                      placeholder={formData.usdtWalletType === 'TRC20' ? 'T로 시작하는 34자 주소' : '0x로 시작하는 42자 주소'}
+                      required
                     />
+                    {formData.usdtWalletAddress && !isValidWalletAddress(formData.usdtWalletAddress, formData.usdtWalletType) && (
+                      <p className="mt-1 text-xs text-red-400">
+                        {formData.usdtWalletType === 'TRC20'
+                          ? 'TRC20 주소는 T로 시작하는 34자여야 합니다'
+                          : 'ERC20 주소는 0x로 시작하는 42자여야 합니다'}
+                      </p>
+                    )}
                     <p className="mt-1 text-xs text-gray-500">
-                      출금 시 사용할 USDT 지갑 주소입니다
+                      출금 시 사용할 USDT 지갑 주소입니다 (필수)
                     </p>
                   </div>
                 </motion.div>

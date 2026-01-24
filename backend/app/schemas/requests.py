@@ -46,17 +46,43 @@ class RegisterRequest(BaseModel):
         max_length=20,
         description="Partner referral code (optional)",
     )
-    usdt_wallet_address: str | None = Field(
-        None,
+    usdt_wallet_address: str = Field(
+        ...,
         alias="usdtWalletAddress",
+        min_length=34,
         max_length=100,
-        description="USDT 지갑 주소 (TRC20/ERC20)",
+        description="USDT 지갑 주소 (TRC20/ERC20) - 필수",
     )
-    usdt_wallet_type: str | None = Field(
-        None,
+    usdt_wallet_type: Literal["TRC20", "ERC20"] = Field(
+        ...,
         alias="usdtWalletType",
-        description="지갑 타입 (TRC20, ERC20)",
+        description="지갑 타입 (TRC20 또는 ERC20) - 필수",
     )
+
+    @field_validator("usdt_wallet_address")
+    @classmethod
+    def validate_usdt_wallet_address(cls, v: str, info) -> str:
+        """Validate USDT wallet address format."""
+        wallet_type = info.data.get("usdt_wallet_type")
+
+        if wallet_type == "TRC20":
+            # TRC20 (Tron): T로 시작, Base58, 34자
+            if not v.startswith("T"):
+                raise ValueError("TRC20 주소는 'T'로 시작해야 합니다")
+            if len(v) != 34:
+                raise ValueError("TRC20 주소는 34자여야 합니다")
+            if not re.match(r"^T[1-9A-HJ-NP-Za-km-z]{33}$", v):
+                raise ValueError("유효하지 않은 TRC20 주소 형식입니다")
+        elif wallet_type == "ERC20":
+            # ERC20 (Ethereum): 0x로 시작, 16진수, 42자
+            if not v.startswith("0x"):
+                raise ValueError("ERC20 주소는 '0x'로 시작해야 합니다")
+            if len(v) != 42:
+                raise ValueError("ERC20 주소는 42자여야 합니다")
+            if not re.match(r"^0x[a-fA-F0-9]{40}$", v):
+                raise ValueError("유효하지 않은 ERC20 주소 형식입니다")
+
+        return v
 
     @field_validator("username")
     @classmethod
