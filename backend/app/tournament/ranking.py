@@ -13,7 +13,7 @@ import asyncio
 import json
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
@@ -474,7 +474,7 @@ class RankingEngine:
         # Check cache
         cached = self._snapshots.get(tournament_id)
         if cached:
-            age_ms = (datetime.utcnow() - cached.timestamp).total_seconds() * 1000
+            age_ms = (datetime.now(timezone.utc) - cached.timestamp).total_seconds() * 1000
             if age_ms < self.SNAPSHOT_INTERVAL_MS:
                 return cached
 

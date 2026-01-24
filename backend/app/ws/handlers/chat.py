@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import html
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
@@ -164,7 +164,7 @@ class ChatHandler(BaseHandler):
             "imageUrl": emoticon.image_url,
             "soundUrl": emoticon.sound_url,
             "targetUserId": target_user_id,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         # 테이블에 브로드캐스트
@@ -243,7 +243,7 @@ class ChatHandler(BaseHandler):
             "message": message_text,
             "chatType": chat_type.value,
             "isPlayer": is_player,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         # Store in Redis if available

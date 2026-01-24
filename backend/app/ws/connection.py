@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -63,7 +63,7 @@ class WebSocketConnection:
 
     def update_ping(self) -> None:
         """Update last ping timestamp."""
-        self.last_ping_at = datetime.utcnow()
+        self.last_ping_at = datetime.now(timezone.utc)
         self.missed_pongs = 0
 
     def update_state_version(self, channel: str, version: int) -> None:

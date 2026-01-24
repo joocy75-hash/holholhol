@@ -1,6 +1,6 @@
 """System event handlers (PING/PONG, CONNECTION_STATE, RECOVERY)."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from app.ws.connection import WebSocketConnection, ConnectionState
@@ -63,7 +63,7 @@ class SystemHandler(BaseHandler):
         클라이언트가 서버 PING에 응답한 PONG 처리.
         missed_pongs 카운터를 리셋하여 연결 유지.
         """
-        conn.last_pong_at = datetime.utcnow()
+        conn.last_pong_at = datetime.now(timezone.utc)
         conn.missed_pongs = 0
 
         logger.debug(

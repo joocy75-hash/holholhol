@@ -18,7 +18,7 @@ from __future__ import annotations
 import asyncio
 import random
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any
 
 from app.utils.json_utils import json_dumps, json_loads
@@ -147,7 +147,7 @@ class ActionHandler(BaseHandler):
 
     async def _cleanup_stale_turn_times(self) -> None:
         """Clean up stale turn start times."""
-        cutoff = datetime.utcnow() - timedelta(seconds=TURN_TIMEOUT_MAX_AGE_SECONDS)
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=TURN_TIMEOUT_MAX_AGE_SECONDS)
         stale_keys = [
             k for k, v in self._turn_start_times.items()
             if v < cutoff
@@ -1046,7 +1046,7 @@ class ActionHandler(BaseHandler):
         if is_utg:
             table._is_preflop_first_turn = False
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         deadline = now + timedelta(seconds=turn_time)
         turn_start_time = int(now.timestamp() * 1000)
 

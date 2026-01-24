@@ -11,7 +11,7 @@ Features:
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING
@@ -217,7 +217,7 @@ class VIPService:
                 cache_key,
                 mapping={
                     "total_rake": str(total_rake),
-                    "updated_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
                 },
             )
             await self._redis.expire(cache_key, self.VIP_CACHE_TTL)
@@ -279,7 +279,7 @@ class VIPService:
         # Determine week boundaries
         if week_start is None:
             # Previous week (Monday to Sunday)
-            today = datetime.utcnow().replace(
+            today = datetime.now(timezone.utc).replace(
                 hour=0, minute=0, second=0, microsecond=0
             )
             days_since_monday = today.weekday()
@@ -387,7 +387,7 @@ class VIPService:
         """
         # Determine week boundaries
         if week_start is None:
-            today = datetime.utcnow().replace(
+            today = datetime.now(timezone.utc).replace(
                 hour=0, minute=0, second=0, microsecond=0
             )
             days_since_monday = today.weekday()

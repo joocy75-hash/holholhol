@@ -6,7 +6,7 @@ Tournament Admin Controller.
 
 import asyncio
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
@@ -134,7 +134,7 @@ class TournamentAdminController:
                 status=TournamentStatus.PAUSED,
                 created_at=state.created_at,
                 started_at=state.started_at,
-                paused_at=datetime.utcnow(),
+                paused_at=datetime.now(timezone.utc),
                 current_blind_level=state.current_blind_level,
                 level_started_at=state.level_started_at,
                 players=state.players,
@@ -182,7 +182,7 @@ class TournamentAdminController:
                 created_at=state.created_at,
                 started_at=state.started_at,
                 current_blind_level=state.current_blind_level,
-                level_started_at=datetime.utcnow(),
+                level_started_at=datetime.now(timezone.utc),
                 players=state.players,
                 tables=state.tables,
                 ranking=state.ranking,
@@ -398,7 +398,7 @@ class TournamentAdminController:
                 created_at=state.created_at,
                 started_at=state.started_at,
                 current_blind_level=level,
-                level_started_at=datetime.utcnow(),
+                level_started_at=datetime.now(timezone.utc),
                 players=state.players,
                 tables=state.tables,
                 ranking=state.ranking,

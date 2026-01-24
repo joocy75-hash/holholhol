@@ -1,6 +1,6 @@
 """Announcements API - 유저용 활성 공지 조회."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 from fastapi import APIRouter, Query
@@ -83,7 +83,7 @@ async def get_active_announcements(
     - end_time이 없거나 현재 시간 이후
     - 우선순위 높은 순 → 생성일 최신순 정렬
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     # Raw SQL로 announcements 테이블 조회
     # admin-backend와 같은 DB를 공유하므로 직접 쿼리

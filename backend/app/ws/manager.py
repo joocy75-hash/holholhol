@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import uuid4
 
@@ -290,7 +290,7 @@ class ConnectionManager:
                 await self.store_user_state(user_id, {
                     "subscribed_channels": channels_to_unsubscribe,
                     "last_seen_versions": conn.last_seen_versions,
-                    "disconnected_at": datetime.utcnow().isoformat(),
+                    "disconnected_at": datetime.now(timezone.utc).isoformat(),
                 })
                 logger.debug(
                     f"Saved reconnection state for user {user_id} "
@@ -708,7 +708,7 @@ class ConnectionManager:
 
     async def _check_heartbeats(self) -> None:
         """Check for stale connections (no PING for 60s per spec)."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         stale_timeout = timedelta(seconds=SERVER_TIMEOUT)
 
         stale_connections = []
@@ -773,7 +773,7 @@ class ConnectionManager:
         - MAU HyperLogLog에 user_id 추가 (MAU 계산용)
         """
         try:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             today = now.strftime("%Y-%m-%d")
             month = now.strftime("%Y-%m")
 
@@ -828,7 +828,7 @@ class ConnectionManager:
     async def _save_ccu_snapshot(self) -> None:
         """현재 CCU를 시간별 키에 저장."""
         try:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             hour_key = now.strftime("%Y-%m-%d:%H")
 
             # 현재 CCU 조회

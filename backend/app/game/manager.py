@@ -14,7 +14,7 @@ from typing import Awaitable, Callable, Dict, List, Optional
 import asyncio
 import logging
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.game.poker_table import PokerTable, GamePhase
 from app.config import get_settings
@@ -696,7 +696,7 @@ class GameManager:
             return {"success": False, "error": "No active turn"}
         
         # Store timer override on table
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         deadline = now + timedelta(seconds=remaining_seconds)
         
         if not hasattr(table, '_timer_override'):
@@ -769,7 +769,7 @@ class GameManager:
         Returns:
             정리된 테이블 수
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         cleanup_threshold = now - timedelta(minutes=EMPTY_TABLE_CLEANUP_MINUTES)
         tables_to_remove: List[str] = []
 
@@ -811,7 +811,7 @@ class GameManager:
 
     def update_table_activity(self, room_id: str) -> None:
         """테이블 활동 시간 갱신 (착석, 액션 등에서 호출)."""
-        self._table_last_activity[room_id] = datetime.utcnow()
+        self._table_last_activity[room_id] = datetime.now(timezone.utc)
 
     def save_hand_history(
         self,

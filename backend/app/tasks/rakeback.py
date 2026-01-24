@@ -7,7 +7,7 @@ Scheduled to run every Monday at 4 AM KST.
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.tasks.celery_app import celery_app
 
@@ -104,7 +104,7 @@ async def _process_weekly_rakeback(week_start: datetime | None = None) -> dict:
                 "total_rake_paid": total_rake,
                 "total_rakeback": total_rakeback,
                 "by_vip_level": by_level,
-                "processed_at": datetime.utcnow().isoformat(),
+                "processed_at": datetime.now(timezone.utc).isoformat(),
             }
             
     except Exception as e:
@@ -112,7 +112,7 @@ async def _process_weekly_rakeback(week_start: datetime | None = None) -> dict:
         return {
             "status": "error",
             "error": str(e),
-            "processed_at": datetime.utcnow().isoformat(),
+            "processed_at": datetime.now(timezone.utc).isoformat(),
         }
     finally:
         await engine.dispose()

@@ -165,6 +165,10 @@ class Settings(BaseSettings):
         ...,
         description="API key for internal admin endpoints (X-API-Key header, required)",
     )
+    admin_backend_url: str = Field(
+        default="http://localhost:8001",
+        description="Admin Backend API URL for message system integration",
+    )
 
     # Dev/Test API Settings (E2E 테스트용 치트 API)
     dev_api_enabled: bool = Field(

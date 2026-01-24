@@ -8,6 +8,8 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
+from dateutil.relativedelta import relativedelta
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -354,8 +356,8 @@ async def get_monthly_stats(
 
     # 최근 N개월의 통계 조회
     for i in range(months):
-        # 현재 월부터 과거로 역순 계산
-        target_date = now - timedelta(days=i * 30)
+        # 현재 월부터 과거로 역순 계산 (정확한 달력 월 계산)
+        target_date = now - relativedelta(months=i)
         year = target_date.year
         month = target_date.month
 

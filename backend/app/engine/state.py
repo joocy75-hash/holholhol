@@ -6,7 +6,7 @@ State updates are performed via dataclasses.replace().
 """
 
 from dataclasses import dataclass, field, replace
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -398,7 +398,7 @@ class TableState:
             self,
             hand=hand,
             state_version=self.state_version + 1,
-            updated_at=datetime.utcnow(),
+            updated_at=datetime.now(timezone.utc),
         )
 
     def with_seats(self, seats: tuple[SeatState, ...]) -> "TableState":
@@ -407,7 +407,7 @@ class TableState:
             self,
             seats=seats,
             state_version=self.state_version + 1,
-            updated_at=datetime.utcnow(),
+            updated_at=datetime.now(timezone.utc),
         )
 
     def increment_version(self) -> "TableState":
@@ -415,7 +415,7 @@ class TableState:
         return replace(
             self,
             state_version=self.state_version + 1,
-            updated_at=datetime.utcnow(),
+            updated_at=datetime.now(timezone.utc),
         )
 
     def get_seat(self, position: int) -> SeatState | None:

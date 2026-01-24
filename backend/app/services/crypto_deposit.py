@@ -11,7 +11,7 @@ Features:
 
 import hashlib
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
@@ -229,7 +229,7 @@ class CryptoDepositService:
 
         # Update deposit address stats
         crypto_addr.total_deposits += 1
-        crypto_addr.last_deposit_at = datetime.utcnow()
+        crypto_addr.last_deposit_at = datetime.now(timezone.utc)
 
         await self.session.flush()
 

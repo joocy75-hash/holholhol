@@ -298,14 +298,14 @@ async def get_exchange_rates() -> ExchangeRatesResponse:
     try:
         rates = await service.get_all_rates()
 
-        from datetime import datetime
+        from datetime import datetime, timezone
 
         return ExchangeRatesResponse(
             btc_krw=rates.get(CryptoType.BTC),
             eth_krw=rates.get(CryptoType.ETH),
             usdt_krw=rates.get(CryptoType.USDT),
             usdc_krw=rates.get(CryptoType.USDC),
-            updated_at=datetime.utcnow().isoformat(),
+            updated_at=datetime.now(timezone.utc).isoformat(),
         )
 
     except ExchangeRateError as e:

@@ -11,7 +11,7 @@ Features:
 
 import hashlib
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -161,7 +161,7 @@ class CryptoWithdrawalService:
             crypto_amount=str(crypto_amount),
             crypto_address=crypto_address,
             exchange_rate_krw=exchange_rate,
-            withdrawal_requested_at=datetime.utcnow(),
+            withdrawal_requested_at=datetime.now(timezone.utc),
             description=(
                 f"Withdrawal request: ₩{krw_amount:,} → "
                 f"{crypto_amount:.8f} {crypto_type.value.upper()}"
@@ -246,7 +246,7 @@ class CryptoWithdrawalService:
         Returns:
             List of processed transactions
         """
-        cutoff = datetime.utcnow() - timedelta(hours=self.PENDING_HOURS)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=self.PENDING_HOURS)
 
         # Get pending withdrawals older than 24 hours
         query = select(WalletTransaction).where(
@@ -285,7 +285,7 @@ class CryptoWithdrawalService:
 
         # Mark as completed
         tx.status = TransactionStatus.COMPLETED
-        tx.withdrawal_processed_at = datetime.utcnow()
+        tx.withdrawal_processed_at = datetime.now(timezone.utc)
 
         # Release from pending
         user = await self.session.get(User, tx.user_id)
@@ -298,7 +298,7 @@ class CryptoWithdrawalService:
 
     async def _get_daily_withdrawal_total(self, user_id: str) -> int:
         """Get total withdrawals in the last 24 hours."""
-        cutoff = datetime.utcnow() - timedelta(hours=24)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
 
         query = select(WalletTransaction).where(
             WalletTransaction.user_id == user_id,

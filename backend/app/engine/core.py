@@ -22,7 +22,7 @@ from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 from dataclasses import replace
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from pokerkit import Automation, NoLimitTexasHoldem
@@ -224,7 +224,7 @@ class PokerKitWrapper:
             hand_id=hand_id,
             hand_number=hand_number,
             active_seats=active_seats,
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
         )
 
         # Serialize PokerKit state (internal server use only)
@@ -235,7 +235,7 @@ class PokerKitWrapper:
             table_state,
             hand=hand_state,
             state_version=table_state.state_version + 1,
-            updated_at=datetime.utcnow(),
+            updated_at=datetime.now(timezone.utc),
             _pk_snapshot=pk_snapshot,
         )
 
@@ -297,7 +297,7 @@ class PokerKitWrapper:
             position=position,
             action_type=actual_action_type,
             amount=executed_amount,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
         )
 
         # Extract new hand state
@@ -314,7 +314,7 @@ class PokerKitWrapper:
             table_state,
             hand=new_hand,
             state_version=table_state.state_version + 1,
-            updated_at=datetime.utcnow(),
+            updated_at=datetime.now(timezone.utc),
             _pk_snapshot=self._serialize_pk_state(pk_state),
         )
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Coroutine, TypeVar
 
 logger = logging.getLogger(__name__)
@@ -135,7 +135,7 @@ class ResourceTracker:
         if entry:
             resource, _ = entry
             # Update access time
-            self._resources[key] = (resource, datetime.utcnow())
+            self._resources[key] = (resource, datetime.now(timezone.utc))
             return resource
         return None
     
@@ -152,11 +152,11 @@ class ResourceTracker:
         entry = self._resources.get(key)
         if entry:
             resource, _ = entry
-            self._resources[key] = (resource, datetime.utcnow())
+            self._resources[key] = (resource, datetime.now(timezone.utc))
             return resource
         
         resource = factory()
-        self._resources[key] = (resource, datetime.utcnow())
+        self._resources[key] = (resource, datetime.now(timezone.utc))
         return resource
     
     def remove(self, key: str) -> Any | None:
@@ -183,7 +183,7 @@ class ResourceTracker:
             Number of resources removed
         """
         async with self._lock:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             stale_keys = []
             
             for key, (resource, last_access) in self._resources.items():

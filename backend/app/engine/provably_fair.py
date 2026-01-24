@@ -31,7 +31,7 @@ import hashlib
 import hmac
 import secrets
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import uuid4
 
@@ -359,7 +359,7 @@ class ProvablyFairEngine:
             공개된 증명 객체
         """
         proof.server_seed = server_seed
-        proof.revealed_at = datetime.utcnow()
+        proof.revealed_at = datetime.now(timezone.utc)
         return proof
 
 

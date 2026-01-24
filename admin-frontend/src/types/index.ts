@@ -347,3 +347,17 @@ export interface PartnerMonthlyStat {
   netLoss: number;
   commission: number;
 }
+
+/** 백엔드 일별 통계 API 응답 구조 */
+export interface PartnerDailyStatsResponse {
+  items: PartnerDailyStat[];
+  periodStart: string;
+  periodEnd: string;
+}
+
+/** 백엔드 월별 통계 API 응답 구조 */
+export interface PartnerMonthlyStatsResponse {
+  items: PartnerMonthlyStat[];
+  periodStart: string;
+  periodEnd: string;
+}

@@ -6,7 +6,7 @@ Tournament Engine Integration with PokerKit.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
@@ -150,7 +150,7 @@ class TournamentHandBridge:
                 "user_id": user_id,
                 "action": action.action.value,
                 "amount": action.amount,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             },
         )
 

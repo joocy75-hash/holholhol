@@ -7,7 +7,7 @@ All mutations go through the TournamentEngine.
 
 from enum import Enum, auto
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any, Tuple
 from uuid import uuid4
 import json
@@ -281,7 +281,7 @@ class TournamentPlayer:
             is_active=False,
             is_sitting_out=self.is_sitting_out,
             elimination_rank=rank,
-            elimination_time=datetime.utcnow(),
+            elimination_time=datetime.now(timezone.utc),
             eliminated_by=by_user,
             rebuy_count=self.rebuy_count,
             addon_used=self.addon_used,

@@ -36,7 +36,7 @@ class PartnerStatsService:
         target_date: date,
         partner_id: str | None = None,
     ) -> int:
-        """특정 날짜의 일일 통계 집계.
+        """특정 날짜의 일일 통계 집계 (Bulk Upsert 최적화).
 
         Args:
             target_date: 집계할 날짜 (UTC 기준)
@@ -46,11 +46,12 @@ class PartnerStatsService:
             집계된 레코드 수
 
         Note:
-            - 기존 데이터가 있으면 업데이트 (UPSERT)
+            - PostgreSQL Bulk UPSERT로 N+1 쿼리 문제 해결
+            - 100명 파트너 기준: 200~300 쿼리 → 2~3 쿼리 (100배 개선)
             - User 테이블의 created_at이 target_date인 신규 가입자 집계
             - 수수료는 파트너의 commission_type에 따라 계산
         """
-        count = 0
+        from sqlalchemy.dialects.postgresql import insert
 
         # 대상 파트너 조회
         query = select(Partner).where(Partner.status == "active")
@@ -59,6 +60,10 @@ class PartnerStatsService:
 
         result = await self.db.execute(query)
         partners = result.scalars().all()
+
+        if not partners:
+            logger.warning("no_active_partners_found", partner_id=partner_id)
+            return 0
 
         # 날짜 범위 설정 (UTC 기준)
         start_datetime = datetime(
@@ -72,28 +77,57 @@ class PartnerStatsService:
         )
         end_datetime = start_datetime + timedelta(days=1)
 
-        for partner in partners:
-            # 해당 날짜의 신규 가입자 통계 집계
-            stats_query = (
-                select(
-                    func.count(User.id).label("referrals"),
-                    func.coalesce(func.sum(User.total_bet_amount_krw), 0).label(
-                        "bet_amount"
-                    ),
-                    func.coalesce(func.sum(User.total_rake_paid_krw), 0).label("rake"),
-                    func.coalesce(
-                        func.sum(func.greatest(-User.total_net_profit_krw, 0)), 0
-                    ).label("net_loss"),
-                )
-                .where(
-                    User.partner_id == partner.id,
-                    User.created_at >= start_datetime,
-                    User.created_at < end_datetime,
-                )
-            )
+        # 파트너 ID 리스트 추출
+        partner_ids = [p.id for p in partners]
+        partner_map = {p.id: p for p in partners}
 
-            stats_result = await self.db.execute(stats_query)
-            stats = stats_result.one()
+        # 🚀 최적화: 모든 파트너의 통계를 한 번에 GROUP BY로 집계
+        # Before: N개 쿼리 (각 파트너마다)
+        # After: 1개 쿼리 (GROUP BY partner_id)
+        stats_query = (
+            select(
+                User.partner_id,
+                func.count(User.id).label("referrals"),
+                func.coalesce(func.sum(User.total_bet_amount_krw), 0).label(
+                    "bet_amount"
+                ),
+                func.coalesce(func.sum(User.total_rake_paid_krw), 0).label("rake"),
+                func.coalesce(
+                    func.sum(func.greatest(-User.total_net_profit_krw, 0)), 0
+                ).label("net_loss"),
+            )
+            .where(
+                User.partner_id.in_(partner_ids),
+                User.created_at >= start_datetime,
+                User.created_at < end_datetime,
+            )
+            .group_by(User.partner_id)
+        )
+
+        stats_result = await self.db.execute(stats_query)
+        stats_rows = stats_result.all()
+
+        # 통계를 파트너 ID로 매핑
+        stats_map = {row.partner_id: row for row in stats_rows}
+
+        # Bulk insert용 데이터 준비
+        batch_data = []
+
+        for partner in partners:
+            # 해당 파트너의 통계 가져오기 (없으면 0으로 초기화)
+            stats = stats_map.get(
+                partner.id,
+                type(
+                    "Stats",
+                    (),
+                    {
+                        "referrals": 0,
+                        "bet_amount": 0,
+                        "rake": 0,
+                        "net_loss": 0,
+                    },
+                )(),
+            )
 
             # 수수료 계산
             rate = float(partner.commission_rate)
@@ -104,48 +138,48 @@ class PartnerStatsService:
             else:  # turnover
                 commission = int(stats.bet_amount * rate)
 
-            # UPSERT: 기존 데이터가 있으면 업데이트, 없으면 생성
-            existing = await self.db.execute(
-                select(PartnerDailyStats).where(
-                    PartnerDailyStats.partner_id == partner.id,
-                    PartnerDailyStats.date == target_date,
-                )
+            # Bulk insert용 데이터 준비
+            batch_data.append(
+                {
+                    "partner_id": partner.id,
+                    "date": target_date,
+                    "new_referrals": stats.referrals,
+                    "total_bet_amount": stats.bet_amount,
+                    "total_rake": stats.rake,
+                    "total_net_loss": stats.net_loss,
+                    "commission_amount": commission,
+                }
             )
-            daily_stats = existing.scalar_one_or_none()
 
-            if daily_stats:
-                # 기존 데이터 업데이트
-                daily_stats.new_referrals = stats.referrals
-                daily_stats.total_bet_amount = stats.bet_amount
-                daily_stats.total_rake = stats.rake
-                daily_stats.total_net_loss = stats.net_loss
-                daily_stats.commission_amount = commission
-                daily_stats.updated_at = datetime.now(timezone.utc)
-            else:
-                # 신규 데이터 생성
-                daily_stats = PartnerDailyStats(
-                    partner_id=partner.id,
-                    date=target_date,
-                    new_referrals=stats.referrals,
-                    total_bet_amount=stats.bet_amount,
-                    total_rake=stats.rake,
-                    total_net_loss=stats.net_loss,
-                    commission_amount=commission,
-                )
-                self.db.add(daily_stats)
+        # Bulk UPSERT: INSERT ... ON CONFLICT DO UPDATE
+        # PostgreSQL 전용 문법 - 단 1개 쿼리로 모든 파트너 처리
+        if batch_data:
+            stmt = insert(PartnerDailyStats).values(batch_data)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["partner_id", "date"],
+                set_={
+                    "new_referrals": stmt.excluded.new_referrals,
+                    "total_bet_amount": stmt.excluded.total_bet_amount,
+                    "total_rake": stmt.excluded.total_rake,
+                    "total_net_loss": stmt.excluded.total_net_loss,
+                    "commission_amount": stmt.excluded.commission_amount,
+                    "updated_at": func.now(),
+                },
+            )
+            await self.db.execute(stmt)
+            await self.db.commit()
 
-            count += 1
+            count = len(batch_data)
+            logger.info(
+                "partner_daily_stats_aggregated_bulk",
+                date=target_date,
+                count=count,
+                partner_id=partner_id,
+            )
 
-        await self.db.commit()
+            return count
 
-        logger.info(
-            "partner_daily_stats_aggregated",
-            date=target_date,
-            count=count,
-            partner_id=partner_id,
-        )
-
-        return count
+        return 0
 
     async def get_daily_stats(
         self,

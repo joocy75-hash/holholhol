@@ -8,7 +8,7 @@ This service handles:
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
@@ -81,7 +81,7 @@ class HandHistoryService:
 
         if existing_hand:
             # Update existing hand with result
-            existing_hand.ended_at = datetime.utcnow()
+            existing_hand.ended_at = datetime.now(timezone.utc)
             existing_hand.result = {
                 "pot_total": pot_size,
                 "community_cards": community_cards,
@@ -96,8 +96,8 @@ class HandHistoryService:
                 id=hand_id,
                 table_id=table_id,
                 hand_number=hand_number,
-                started_at=hand_result.get("started_at", datetime.utcnow()),
-                ended_at=datetime.utcnow(),
+                started_at=hand_result.get("started_at", datetime.now(timezone.utc)),
+                ended_at=datetime.now(timezone.utc),
                 initial_state={
                     "participants": [
                         {"user_id": p["user_id"], "seat": p["seat"]}
@@ -288,7 +288,7 @@ class HandHistoryService:
         """
         from datetime import timedelta
 
-        cutoff = datetime.utcnow() - timedelta(hours=hours)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
 
         # Query hand participants for these users
         query = (

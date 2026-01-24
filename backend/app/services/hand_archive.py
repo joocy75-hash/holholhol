@@ -11,7 +11,7 @@ Features:
 
 import gzip
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 import msgpack
@@ -138,7 +138,7 @@ class HandArchiveService:
             Compressed bytes
         """
         # Add archive metadata
-        hand_data["_archived_at"] = datetime.utcnow().isoformat()
+        hand_data["_archived_at"] = datetime.now(timezone.utc).isoformat()
 
         compressed = self.compress_hand(hand_data)
 
@@ -192,7 +192,7 @@ class HandArchiveService:
 
         try:
             # 날짜 기반 파티셔닝 (YYYY/MM/DD/hand_id.msgpack.gz)
-            archived_at = hand_data.get("_archived_at", datetime.utcnow().isoformat())
+            archived_at = hand_data.get("_archived_at", datetime.now(timezone.utc).isoformat())
             if isinstance(archived_at, str):
                 dt = datetime.fromisoformat(archived_at.replace("Z", "+00:00"))
             else:
@@ -357,7 +357,7 @@ async def archive_old_hands(
     from sqlalchemy import select
     from app.models.hand import Hand
 
-    cutoff_date = datetime.utcnow() - timedelta(days=older_than_days)
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=older_than_days)
 
     # Query old hands
     query = select(Hand).where(

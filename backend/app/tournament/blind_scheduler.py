@@ -33,7 +33,7 @@ import asyncio
 import time
 import weakref
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional, Set, Awaitable
 from uuid import uuid4
 import json
@@ -123,7 +123,7 @@ class BlindSchedule:
     def get_next_level_at(self) -> datetime:
         """다음 레벨 시작 예정 UTC 시간."""
         remaining = self.get_remaining_time()
-        return datetime.utcnow() + timedelta(seconds=remaining)
+        return datetime.now(timezone.utc) + timedelta(seconds=remaining)
 
     def to_dict(self) -> Dict[str, Any]:
         """직렬화용 딕셔너리 변환."""
@@ -401,7 +401,7 @@ class BlindScheduler:
             levels=blind_levels,
             current_level=start_level,
             level_started_at=time.monotonic() - elapsed_seconds,
-            level_started_utc=datetime.utcnow() - timedelta(seconds=elapsed_seconds),
+            level_started_utc=datetime.now(timezone.utc) - timedelta(seconds=elapsed_seconds),
         )
 
         self._schedules[tournament_id] = schedule
@@ -564,7 +564,7 @@ class BlindScheduler:
         old_level = schedule.current_level
         schedule.current_level = level
         schedule.level_started_at = time.monotonic()
-        schedule.level_started_utc = datetime.utcnow()
+        schedule.level_started_utc = datetime.now(timezone.utc)
         schedule.accumulated_pause_time = 0.0
 
         # 경고 초기화
@@ -786,7 +786,7 @@ class BlindScheduler:
         # 레벨 업데이트
         schedule.current_level = next_blind.level
         schedule.level_started_at = time.monotonic()
-        schedule.level_started_utc = datetime.utcnow()
+        schedule.level_started_utc = datetime.now(timezone.utc)
         schedule.accumulated_pause_time = 0.0
 
         # 경고 초기화
@@ -957,7 +957,7 @@ class BlindScheduler:
 
                     # 경과 시간 계산
                     level_started_utc = datetime.fromisoformat(state["level_started_utc"])
-                    elapsed = (datetime.utcnow() - level_started_utc).total_seconds()
+                    elapsed = (datetime.now(timezone.utc) - level_started_utc).total_seconds()
                     elapsed -= state.get("accumulated_pause_time", 0)
 
                     # 스케줄 재등록

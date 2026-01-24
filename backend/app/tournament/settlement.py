@@ -16,7 +16,7 @@ Usage:
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 from uuid import uuid4
 
@@ -338,7 +338,7 @@ class TournamentSettlement:
                     result.transaction_id = tx.id
                     result.success = True
                     result.error_message = None
-                    result.paid_at = datetime.utcnow()
+                    result.paid_at = datetime.now(timezone.utc)
 
                     summary.successful_payouts += 1
                     summary.failed_payouts -= 1

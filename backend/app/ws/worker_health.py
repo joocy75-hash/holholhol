@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from redis.asyncio import Redis
@@ -90,8 +90,8 @@ class WorkerHealthManager:
             "ws:workers",
             self.instance_id,
             json.dumps({
-                "started_at": datetime.utcnow().isoformat(),
-                "last_heartbeat": datetime.utcnow().isoformat(),
+                "started_at": datetime.now(timezone.utc).isoformat(),
+                "last_heartbeat": datetime.now(timezone.utc).isoformat(),
                 "connection_count": 0,
             }),
         )
@@ -99,7 +99,7 @@ class WorkerHealthManager:
         await self.redis.setex(
             f"ws:worker:{self.instance_id}:alive",
             WORKER_TTL,
-            datetime.utcnow().isoformat(),
+            datetime.now(timezone.utc).isoformat(),
         )
         logger.debug(f"Worker {self.instance_id} registered")
 
@@ -123,7 +123,7 @@ class WorkerHealthManager:
 
     async def _send_heartbeat(self) -> None:
         """Heartbeat 전송 및 TTL 갱신."""
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         # 워커 정보 업데이트
         await self.redis.hset(

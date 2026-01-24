@@ -12,6 +12,7 @@ from app.models.room import Room, RoomStatus
 from app.models.table import Table
 from app.models.user import User
 from app.utils.security import hash_password, verify_password
+from app.utils.sql import escape_like_pattern
 
 settings = get_settings()
 
@@ -283,8 +284,8 @@ class RoomService:
         if user.balance < buy_in:
             raise RoomError(
                 "INSUFFICIENT_BALANCE",
-                f"Insufficient balance. Required: {buy_in}, Available: {user.balance}",
-                {"required": buy_in, "available": user.balance},
+                f"잔액이 부족합니다. 필요 금액: {buy_in:,}원",
+                {"required": buy_in},
             )
 
         # Deduct buy-in from user balance (LAST, after all validations pass)
@@ -735,8 +736,8 @@ class RoomService:
         if user.balance < buy_in:
             raise RoomError(
                 "INSUFFICIENT_BALANCE",
-                f"Insufficient balance. Required: {buy_in}, Available: {user.balance}",
-                {"required": buy_in, "available": user.balance},
+                f"잔액이 부족합니다. 필요 금액: {buy_in:,}원",
+                {"required": buy_in},
             )
 
         # Deduct buy-in from user balance
@@ -818,8 +819,8 @@ class RoomService:
         if user.balance < buy_in:
             raise RoomError(
                 "INSUFFICIENT_BALANCE",
-                f"Insufficient balance. Required: {buy_in}, Available: {user.balance}",
-                {"required": buy_in, "available": user.balance},
+                f"잔액이 부족합니다. 필요 금액: {buy_in:,}원",
+                {"required": buy_in},
             )
 
         # 이미 착석 중인지 확인
@@ -999,7 +1000,8 @@ class RoomService:
             conditions.append(Room.status != RoomStatus.CLOSED.value)
 
         if search:
-            conditions.append(Room.name.ilike(f"%{search}%"))
+            escaped_search = escape_like_pattern(search)
+            conditions.append(Room.name.ilike(f"%{escaped_search}%", escape="\\"))
 
         for condition in conditions:
             query = query.where(condition)

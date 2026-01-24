@@ -11,7 +11,7 @@ IMPORTANT: 프로덕션 환경에서는 자동으로 비활성화됩니다.
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
@@ -99,7 +99,7 @@ async def broadcast_turn_prompt(
 ) -> int:
     """Broadcast TURN_PROMPT event."""
     turn_timeout = 30  # seconds
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     deadline = now + timedelta(seconds=turn_timeout)
     turn_start_time = int(now.timestamp() * 1000)
     
@@ -275,7 +275,7 @@ async def dev_health_check(api_key: DevApiKey) -> DevResponse:
 @router.get("/server-time")
 async def get_server_time(api_key: DevApiKey) -> DevResponse:
     """서버 시간 조회 (타이머 동기화 테스트용)."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     return DevResponse(
         success=True,
         message="Server time retrieved",
@@ -656,7 +656,7 @@ async def set_timer(
                 allowed.append(action_dict)
             
             # Use the new deadline from set_timer result
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             turn_start_time = int(now.timestamp() * 1000)
             
             message = MessageEnvelope.create(

@@ -13,7 +13,7 @@ import hmac
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -69,7 +69,7 @@ class AuditService:
             Audit entry ID
         """
         audit_id = str(uuid4())
-        timestamp = datetime.utcnow().isoformat()
+        timestamp = datetime.now(timezone.utc).isoformat()
 
         # Build audit entry
         entry = {
@@ -130,7 +130,7 @@ class AuditService:
         Files are named: audit_YYYY-MM-DD.jsonl
         Each line is a JSON object.
         """
-        date_str = datetime.utcnow().strftime("%Y-%m-%d")
+        date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         file_path = self._log_dir / f"audit_{date_str}.jsonl"
 
         line = json.dumps(entry, ensure_ascii=False, default=str) + "\n"
@@ -375,7 +375,7 @@ class AuditService:
             Verification report with counts and any invalid entries
         """
         if date is None:
-            date = datetime.utcnow()
+            date = datetime.now(timezone.utc)
 
         date_str = date.strftime("%Y-%m-%d")
         file_path = self._log_dir / f"audit_{date_str}.jsonl"
@@ -505,7 +505,7 @@ class AuditService:
             감사 로그 ID
         """
         audit_id = str(uuid4())
-        timestamp = datetime.utcnow().isoformat()
+        timestamp = datetime.now(timezone.utc).isoformat()
 
         entry = {
             "audit_id": audit_id,
@@ -550,7 +550,7 @@ class AuditService:
 
     async def _log_admin_to_file(self, entry: dict[str, Any]) -> None:
         """관리자 액션을 파일에 로깅."""
-        date_str = datetime.utcnow().strftime("%Y-%m-%d")
+        date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         file_path = self._log_dir / f"admin_audit_{date_str}.jsonl"
 
         line = json.dumps(entry, ensure_ascii=False, default=str) + "\n"

@@ -1057,7 +1057,7 @@ class TableHandler(BaseHandler):
                         action_dict["maxAmount"] = available.get("max_raise", 0)
                     allowed.append(action_dict)
 
-                deadline = datetime.utcnow() + timedelta(seconds=30)
+                deadline = datetime.now(timezone.utc) + timedelta(seconds=30)
                 message = MessageEnvelope.create(
                     event_type=EventType.TURN_PROMPT,
                     payload={

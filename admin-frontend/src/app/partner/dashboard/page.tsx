@@ -46,7 +46,7 @@ export default function PartnerDashboardPage() {
 
         setPartnerInfo(info);
         setStats(overview);
-        setDailyStats(daily);
+        setDailyStats(daily.items);
       } catch (error) {
         console.error('Failed to fetch partner data:', error);
         toast.error('데이터를 불러오는데 실패했습니다.');

@@ -8,7 +8,7 @@ Enterprise Tournament Engine - Core Implementation.
 import asyncio
 import random
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple, Callable
 from uuid import uuid4
 
@@ -336,7 +336,7 @@ class TournamentEngine:
 
             # Prepare shotgun start
             countdown = state.config.shotgun_countdown_seconds
-            target_time = datetime.utcnow() + timedelta(seconds=countdown)
+            target_time = datetime.now(timezone.utc) + timedelta(seconds=countdown)
 
             shotgun_state = ShotgunStartState(
                 tournament_id=tournament_id,
@@ -461,10 +461,10 @@ class TournamentEngine:
                 config=state.config,
                 status=TournamentStatus.RUNNING,
                 created_at=state.created_at,
-                started_at=datetime.utcnow(),
+                started_at=datetime.now(timezone.utc),
                 current_blind_level=1,
-                level_started_at=datetime.utcnow(),
-                next_level_at=datetime.utcnow()
+                level_started_at=datetime.now(timezone.utc),
+                next_level_at=datetime.now(timezone.utc)
                 + timedelta(minutes=state.config.blind_levels[0].duration_minutes),
                 players=state.players,
                 tables=state.tables,
@@ -600,7 +600,7 @@ class TournamentEngine:
                 status=new_status,
                 created_at=state.created_at,
                 started_at=state.started_at,
-                ended_at=datetime.utcnow()
+                ended_at=datetime.now(timezone.utc)
                 if new_status == TournamentStatus.COMPLETED
                 else None,
                 current_blind_level=state.current_blind_level,
@@ -646,7 +646,7 @@ class TournamentEngine:
         """블라인드 레벨 관리 백그라운드 태스크."""
         while self._running:
             try:
-                now = datetime.utcnow()
+                now = datetime.now(timezone.utc)
 
                 for tournament_id, state in list(self._tournaments.items()):
                     if state.status not in (
@@ -699,8 +699,8 @@ class TournamentEngine:
                 created_at=state.created_at,
                 started_at=state.started_at,
                 current_blind_level=next_level,
-                level_started_at=datetime.utcnow(),
-                next_level_at=datetime.utcnow()
+                level_started_at=datetime.now(timezone.utc),
+                next_level_at=datetime.now(timezone.utc)
                 + timedelta(minutes=blind_config.duration_minutes),
                 players=state.players,
                 tables=state.tables,

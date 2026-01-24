@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from app.ws.events import EventType
@@ -32,7 +32,7 @@ class MessageEnvelope:
         """Factory method to create a new message envelope."""
         return cls(
             type=event_type,
-            ts=int(datetime.utcnow().timestamp() * 1000),
+            ts=int(datetime.now(timezone.utc).timestamp() * 1000),
             trace_id=trace_id or str(uuid.uuid4()),
             payload=payload,
             request_id=request_id,
@@ -43,7 +43,7 @@ class MessageEnvelope:
         """Parse incoming message to MessageEnvelope."""
         return cls(
             type=EventType(data["type"]),
-            ts=data.get("ts", int(datetime.utcnow().timestamp() * 1000)),
+            ts=data.get("ts", int(datetime.now(timezone.utc).timestamp() * 1000)),
             trace_id=data.get("traceId", str(uuid.uuid4())),
             payload=data.get("payload", {}),
             version=data.get("version", "v1"),

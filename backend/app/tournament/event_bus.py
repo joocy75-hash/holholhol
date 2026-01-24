@@ -15,7 +15,7 @@ import json
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import (
     Any,
     Awaitable,
@@ -250,7 +250,7 @@ class TournamentEventBus:
         await self._dispatch_local(event)
 
         self._metrics.events_published += 1
-        self._metrics.last_event_time = datetime.utcnow()
+        self._metrics.last_event_time = datetime.now(timezone.utc)
 
     async def publish_batch(self, events: List[TournamentEvent]) -> None:
         """Publish multiple events efficiently."""
@@ -377,7 +377,7 @@ class TournamentEventBus:
                                 ],
                                 tournament_id=data.get("tournament_id", ""),
                                 timestamp=datetime.fromisoformat(
-                                    data.get("timestamp", datetime.utcnow().isoformat())
+                                    data.get("timestamp", datetime.now(timezone.utc).isoformat())
                                 ),
                                 data=json.loads(data.get("data", "{}")),
                                 table_id=data.get("table_id") or None,

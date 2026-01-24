@@ -13,8 +13,8 @@ import type {
   PartnerReferral,
   PartnerSettlement,
   PartnerOverviewStats,
-  PartnerDailyStat,
-  PartnerMonthlyStat,
+  PartnerDailyStatsResponse,
+  PartnerMonthlyStatsResponse,
 } from '@/types';
 
 export interface PartnerReferralListResponse {
@@ -93,12 +93,13 @@ export const partnerPortalApi = {
 
   /**
    * 일별 통계 조회
+   * @returns 백엔드 응답 { items: [...], periodStart, periodEnd }
    */
   getDailyStats: async (
     token: string,
     days: number = 30
-  ): Promise<PartnerDailyStat[]> => {
-    return api.get<PartnerDailyStat[]>(
+  ): Promise<PartnerDailyStatsResponse> => {
+    return api.get<PartnerDailyStatsResponse>(
       `${API_ROUTES.PARTNER.STATS_DAILY}?days=${days}`,
       { token }
     );
@@ -106,12 +107,13 @@ export const partnerPortalApi = {
 
   /**
    * 월별 통계 조회
+   * @returns 백엔드 응답 { items: [...], periodStart, periodEnd }
    */
   getMonthlyStats: async (
     token: string,
     months: number = 12
-  ): Promise<PartnerMonthlyStat[]> => {
-    return api.get<PartnerMonthlyStat[]>(
+  ): Promise<PartnerMonthlyStatsResponse> => {
+    return api.get<PartnerMonthlyStatsResponse>(
       `${API_ROUTES.PARTNER.STATS_MONTHLY}?months=${months}`,
       { token }
     );

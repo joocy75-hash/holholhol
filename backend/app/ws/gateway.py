@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
@@ -122,7 +122,7 @@ def create_reauth_required_message() -> dict[str, Any]:
             "reason": "token_expired",
             "message": "Your session has expired. Please re-authenticate.",
         },
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -163,7 +163,7 @@ class HeartbeatManager:
 
     def record_pong(self) -> None:
         """클라이언트로부터 PONG 수신 시 호출."""
-        self.connection.last_pong_at = datetime.utcnow()
+        self.connection.last_pong_at = datetime.now(timezone.utc)
         self.connection.missed_pongs = 0
 
     async def _heartbeat_loop(self) -> None:
@@ -207,13 +207,13 @@ class HeartbeatManager:
                 ping_message = {
                     "type": "PING",
                     "payload": {},
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
                 try:
                     sent = await self.connection.send(ping_message)
                     if sent:
-                        self.connection.last_ping_at = datetime.utcnow()
+                        self.connection.last_ping_at = datetime.now(timezone.utc)
                     else:
                         logger.warning(
                             f"PING 전송 실패: user={self.connection.user_id}"
@@ -398,7 +398,7 @@ async def websocket_endpoint(websocket: WebSocket):
         user_id=user_id,
         session_id=session_id,
         connection_id=connection_id,
-        connected_at=datetime.utcnow(),
+        connected_at=datetime.now(timezone.utc),
     )
 
     # 6. Register connection
@@ -505,7 +505,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 {
                     "subscribed_channels": list(conn.subscribed_channels),
                     "last_seen_versions": conn.last_seen_versions,
-                    "disconnected_at": datetime.utcnow().isoformat(),
+                    "disconnected_at": datetime.now(timezone.utc).isoformat(),
                 },
             )
 

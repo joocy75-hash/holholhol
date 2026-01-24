@@ -28,7 +28,7 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from ..ws.connection import WebSocketConnection
@@ -172,7 +172,7 @@ class TournamentWebSocketHandler:
                 "event_type": event_type,
                 "tournament_id": tournament_id,
                 "data": data,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             },
         }
 
@@ -194,7 +194,7 @@ class TournamentWebSocketHandler:
                 "tournament_id": tournament_id,
                 "table_id": table_id,
                 "data": data,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             },
         }
 
@@ -212,7 +212,7 @@ class TournamentWebSocketHandler:
             "payload": {
                 "tournament_id": tournament_id,
                 "ranking": ranking[:100],  # Top 100
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             },
         }
 
@@ -243,7 +243,7 @@ class TournamentWebSocketHandler:
                 "ante": ante,
                 "durationMinutes": duration_minutes,
                 "nextLevelAt": next_level_at,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             },
         }
 
@@ -274,7 +274,7 @@ class TournamentWebSocketHandler:
                 "nextSmallBlind": next_small_blind,
                 "nextBigBlind": next_big_blind,
                 "nextAnte": next_ante,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             },
         }
 
@@ -375,7 +375,7 @@ class TournamentWebSocketHandler:
                 "from_table_id": from_table_id,
                 "to_table_id": to_table_id,
                 "to_seat": to_seat,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             },
         }
 
@@ -395,7 +395,7 @@ class TournamentWebSocketHandler:
                 "tournament_id": tournament_id,
                 "seconds_remaining": seconds_remaining,
                 "target_start_time": target_start_time,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             },
         }
 

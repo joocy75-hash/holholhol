@@ -9,7 +9,7 @@ import asyncio
 import logging
 import random
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -343,7 +343,7 @@ class GameService:
             hand=None,
             dealer_position=table.dealer_position or 0,
             state_version=table.state_version or 0,
-            updated_at=datetime.utcnow(),
+            updated_at=datetime.now(timezone.utc),
         )
 
     def _serialize_hand_state(self, table_state: TableState) -> dict[str, Any]:
@@ -518,7 +518,7 @@ class GameService:
         # Calculate deadline
         config = table_state.config
         from datetime import timedelta
-        deadline = datetime.utcnow() + timedelta(seconds=config.turn_timeout_seconds)
+        deadline = datetime.now(timezone.utc) + timedelta(seconds=config.turn_timeout_seconds)
 
         message = MessageEnvelope.create(
             event_type=EventType.TURN_PROMPT,
@@ -631,7 +631,7 @@ class GameService:
                 game_state_dict["pkSnapshotB64"] = new_state._pk_snapshot.hex()
             table.game_state = game_state_dict
             table.state_version = new_state.state_version
-            table.updated_at = datetime.utcnow()
+            table.updated_at = datetime.now(timezone.utc)
             attributes.flag_modified(table, "game_state")
             await self.db.commit()
 

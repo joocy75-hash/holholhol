@@ -330,7 +330,7 @@ async def logout(
 # Two-Factor Authentication Endpoints
 # =============================================================================
 
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -488,7 +488,7 @@ async def verify_and_enable_two_factor(
     
     # Enable 2FA
     two_factor.is_enabled = True
-    two_factor.last_used_at = datetime.utcnow()
+    two_factor.last_used_at = datetime.now(timezone.utc)
     await db.commit()
     
     return SuccessResponse(
@@ -577,7 +577,7 @@ async def disable_two_factor(
             hashed_codes.pop(used_index)
             two_factor.backup_codes_hash = json.dumps(hashed_codes)
             two_factor.backup_codes_remaining = len(hashed_codes)
-            two_factor.last_backup_used_at = datetime.utcnow()
+            two_factor.last_backup_used_at = datetime.now(timezone.utc)
     
     if not is_valid:
         raise HTTPException(
