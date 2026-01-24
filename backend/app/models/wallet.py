@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 class CryptoType(str, Enum):
     """Supported cryptocurrency types.
-    
+
     빠른 송금이 가능한 코인 위주로 선정:
     - USDT (TRC-20): 트론 네트워크, 수수료 저렴, 1-3분
     - XRP (Ripple): 3-5초 송금, 수수료 매우 저렴
@@ -39,9 +39,9 @@ class CryptoType(str, Enum):
     """
 
     USDT = "usdt"  # TRC-20 (Tron network)
-    XRP = "xrp"    # Ripple
-    TRX = "trx"    # Tron
-    SOL = "sol"    # Solana
+    XRP = "xrp"  # Ripple
+    TRX = "trx"  # Tron
+    SOL = "sol"  # Solana
 
 
 class TransactionType(str, Enum):
@@ -56,6 +56,12 @@ class TransactionType(str, Enum):
     CASH_OUT = "cash_out"
     WIN = "win"
     LOSE = "lose"
+
+    # Tournament operations
+    TOURNAMENT_BUY_IN = "tournament_buy_in"
+    TOURNAMENT_REBUY = "tournament_rebuy"
+    TOURNAMENT_ADDON = "tournament_addon"
+    TOURNAMENT_PRIZE = "tournament_prize"
 
     # Platform fees
     RAKE = "rake"

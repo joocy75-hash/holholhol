@@ -229,6 +229,7 @@ export default function ProfilePage() {
         <ProfileHeader
           user={profile || (user ? {
             id: user.id,
+            username: '',
             email: '',
             nickname: user.nickname,
             avatar_url: user.avatarUrl || null,
