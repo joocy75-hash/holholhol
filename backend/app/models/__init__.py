@@ -13,6 +13,7 @@ from app.models.partner import (
     SettlementPeriod,
     SettlementStatus,
 )
+from app.models.partner_stats import PartnerDailyStats
 from app.models.rake import RakeConfig
 from app.models.room import Room
 from app.models.table import Table
@@ -58,6 +59,7 @@ __all__ = [
     # Partner (총판)
     "Partner",
     "PartnerSettlement",
+    "PartnerDailyStats",
     "PartnerStatus",
     "CommissionType",
     "SettlementStatus",

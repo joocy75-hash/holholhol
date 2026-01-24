@@ -33,6 +33,7 @@ from app.schemas.partner import (
 )
 from app.services.partner import PartnerService
 from app.services.partner_settlement import PartnerSettlementService
+from app.services.partner_stats import PartnerStatsService
 
 router = APIRouter(prefix="/partner", tags=["Partner Dashboard"])
 logger = get_logger(__name__)
@@ -283,52 +284,37 @@ async def get_daily_stats(
 ):
     """Get daily statistics for current partner.
 
-    Note: 현재는 간단한 구현. 실제 운영 시에는 별도 통계 테이블 사용 권장.
+    사전 집계된 통계 테이블에서 빠르게 조회합니다.
+
+    Note:
+        - partner_daily_stats 테이블에서 조회 (O(1) 성능)
+        - 통계가 없는 날짜는 자동으로 집계 시도 (fallback)
     """
+    stats_service = PartnerStatsService(db)
+
     now = datetime.now(timezone.utc)
     period_start = now - timedelta(days=days)
+    start_date = period_start.date()
+    end_date = now.date()
 
-    # 일별 신규 가입자 수
-    daily_query = (
-        select(
-            func.date_trunc("day", User.created_at).label("date"),
-            func.count(User.id).label("referrals"),
-            func.coalesce(func.sum(User.total_rake_paid_krw), 0).label("rake"),
-            func.coalesce(func.sum(User.total_bet_amount_krw), 0).label("bet_amount"),
-            func.coalesce(
-                func.sum(func.greatest(-User.total_net_profit_krw, 0)), 0
-            ).label("net_loss"),
-        )
-        .where(
-            User.partner_id == partner.id,
-            User.created_at >= period_start,
-        )
-        .group_by(func.date_trunc("day", User.created_at))
-        .order_by(func.date_trunc("day", User.created_at))
+    # 사전 집계된 통계 조회
+    daily_stats = await stats_service.get_daily_stats(
+        partner_id=str(partner.id),
+        start_date=start_date,
+        end_date=end_date,
     )
-    result = await db.execute(daily_query)
-    rows = result.all()
 
-    # 수수료 계산 (레이크백 기준)
-    rate = float(partner.commission_rate)
+    # 응답 포맷 변환
     items = []
-    for row in rows:
-        # 수수료 타입에 따른 계산
-        if partner.commission_type.value == "rakeback":
-            commission = int(row.rake * rate)
-        elif partner.commission_type.value == "revshare":
-            commission = int(row.net_loss * rate)
-        else:  # turnover
-            commission = int(row.bet_amount * rate)
-
+    for stat in daily_stats:
         items.append(
             DailyStatItem(
-                date=row.date.strftime("%Y-%m-%d"),
-                referrals=row.referrals,
-                rake=row.rake,
-                bet_amount=row.bet_amount,
-                net_loss=row.net_loss,
-                commission=commission,
+                date=stat.date.strftime("%Y-%m-%d"),
+                referrals=stat.new_referrals,
+                rake=stat.total_rake,
+                bet_amount=stat.total_bet_amount,
+                net_loss=stat.total_net_loss,
+                commission=stat.commission_amount,
             )
         )
 
@@ -336,6 +322,7 @@ async def get_daily_stats(
         "partner_daily_stats_accessed",
         partner_id=partner.id,
         days=days,
+        stats_count=len(items),
     )
 
     return PartnerDailyStatsResponse(
@@ -356,56 +343,50 @@ async def get_monthly_stats(
     db: DbSession,
     months: int = Query(12, ge=1, le=24, description="조회 기간 (개월)"),
 ):
-    """Get monthly statistics for current partner."""
+    """Get monthly statistics for current partner.
+
+    사전 집계된 일일 통계를 월별로 합산하여 반환합니다.
+    """
+    stats_service = PartnerStatsService(db)
     now = datetime.now(timezone.utc)
-    period_start = now - timedelta(days=months * 30)  # 대략적인 계산
 
-    # 월별 통계
-    monthly_query = (
-        select(
-            func.date_trunc("month", User.created_at).label("month"),
-            func.count(User.id).label("referrals"),
-            func.coalesce(func.sum(User.total_rake_paid_krw), 0).label("rake"),
-            func.coalesce(func.sum(User.total_bet_amount_krw), 0).label("bet_amount"),
-            func.coalesce(
-                func.sum(func.greatest(-User.total_net_profit_krw, 0)), 0
-            ).label("net_loss"),
-        )
-        .where(
-            User.partner_id == partner.id,
-            User.created_at >= period_start,
-        )
-        .group_by(func.date_trunc("month", User.created_at))
-        .order_by(func.date_trunc("month", User.created_at))
-    )
-    result = await db.execute(monthly_query)
-    rows = result.all()
-
-    rate = float(partner.commission_rate)
     items = []
-    for row in rows:
-        if partner.commission_type.value == "rakeback":
-            commission = int(row.rake * rate)
-        elif partner.commission_type.value == "revshare":
-            commission = int(row.net_loss * rate)
-        else:  # turnover
-            commission = int(row.bet_amount * rate)
 
-        items.append(
-            MonthlyStatItem(
-                month=row.month.strftime("%Y-%m"),
-                referrals=row.referrals,
-                rake=row.rake,
-                bet_amount=row.bet_amount,
-                net_loss=row.net_loss,
-                commission=commission,
-            )
+    # 최근 N개월의 통계 조회
+    for i in range(months):
+        # 현재 월부터 과거로 역순 계산
+        target_date = now - timedelta(days=i * 30)
+        year = target_date.year
+        month = target_date.month
+
+        # 월간 통계 조회 (일일 통계 합산)
+        monthly_stat = await stats_service.get_monthly_stats(
+            partner_id=str(partner.id),
+            year=year,
+            month=month,
         )
+
+        # 통계가 있는 월만 포함
+        if monthly_stat["days_count"] > 0:
+            items.append(
+                MonthlyStatItem(
+                    month=f"{year}-{month:02d}",
+                    referrals=monthly_stat["new_referrals"],
+                    rake=monthly_stat["total_rake"],
+                    bet_amount=monthly_stat["total_bet_amount"],
+                    net_loss=monthly_stat["total_net_loss"],
+                    commission=monthly_stat["commission_amount"],
+                )
+            )
+
+    # 날짜순 정렬 (오래된 것부터)
+    items.reverse()
 
     logger.info(
         "partner_monthly_stats_accessed",
         partner_id=partner.id,
         months=months,
+        stats_count=len(items),
     )
 
     return PartnerMonthlyStatsResponse(items=items)

@@ -7,6 +7,7 @@ Create Date: 2026-01-24
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import UUID
 
 # revision identifiers
 revision = 'add_daily_checkins_table'
@@ -20,7 +21,7 @@ def upgrade() -> None:
     op.create_table(
         'daily_checkins',
         sa.Column('id', sa.Integer, primary_key=True, autoincrement=True),
-        sa.Column('user_id', sa.String(36), sa.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True),
+        sa.Column('user_id', UUID(as_uuid=True), sa.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True),
         sa.Column('checkin_date', sa.Date, nullable=False, comment='출석 날짜 (KST)'),
         sa.Column('streak_days', sa.Integer, default=1, nullable=False, comment='연속 출석 일수'),
         sa.Column('reward_amount', sa.Integer, default=0, nullable=False, comment='지급 보상 금액'),

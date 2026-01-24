@@ -26,6 +26,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, UUIDMixin
 
 if TYPE_CHECKING:
+    from app.models.partner_stats import PartnerDailyStats
     from app.models.user import User
 
 
@@ -159,6 +160,12 @@ class Partner(Base, UUIDMixin, TimestampMixin):
         back_populates="partner",
         cascade="all, delete-orphan",
         order_by="desc(PartnerSettlement.created_at)",
+    )
+    daily_stats: Mapped[list["PartnerDailyStats"]] = relationship(
+        "PartnerDailyStats",
+        back_populates="partner",
+        cascade="all, delete-orphan",
+        order_by="desc(PartnerDailyStats.date)",
     )
 
     def __repr__(self) -> str:

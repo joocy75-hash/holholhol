@@ -7,6 +7,7 @@ Create Date: 2026-01-24
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import UUID
 
 # revision identifiers
 revision = 'add_messages_table'
@@ -19,9 +20,9 @@ def upgrade() -> None:
     """messages 테이블 생성 - 관리자 → 유저 쪽지"""
     op.create_table(
         'messages',
-        sa.Column('id', sa.String(36), primary_key=True),
-        sa.Column('sender_id', sa.String(36), nullable=False, comment='발신자 (관리자) ID'),
-        sa.Column('recipient_id', sa.String(36), nullable=False, index=True, comment='수신자 (유저) ID'),
+        sa.Column('id', UUID(as_uuid=True), primary_key=True),
+        sa.Column('sender_id', UUID(as_uuid=True), nullable=False, comment='발신자 (관리자) ID'),
+        sa.Column('recipient_id', UUID(as_uuid=True), nullable=False, index=True, comment='수신자 (유저) ID'),
         sa.Column('title', sa.String(200), nullable=False, comment='쪽지 제목'),
         sa.Column('content', sa.Text, nullable=False, comment='쪽지 내용'),
         sa.Column('is_read', sa.Boolean, default=False, nullable=False, comment='읽음 여부'),

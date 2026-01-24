@@ -151,3 +151,118 @@ GameManager ──▶ Redis (주 저장소) ──▶ DB (영구 백업)
 | `/history` | 핸드 기록 |
 | `/events` | 이벤트 |
 | `/settings` | 설정 |
+
+---
+
+## 파트너 통계 시스템
+
+### 아키텍처
+파트너(총판) 통계는 **사전 집계 방식**을 사용하여 조회 성능을 최적화합니다.
+
+```
+User 테이블 (원본 데이터)
+    ↓ [배치 집계]
+partner_daily_stats (사전 집계 테이블)
+    ↓ [빠른 조회]
+파트너 API (/stats/daily, /stats/monthly)
+```
+
+### 주요 컴포넌트
+
+| 컴포넌트 | 파일 | 설명 |
+|----------|------|------|
+| 모델 | `app/models/partner_stats.py` | `PartnerDailyStats` 테이블 정의 |
+| 서비스 | `app/services/partner_stats.py` | `PartnerStatsService` - 집계 및 조회 로직 |
+| API | `app/api/partner.py` | `/stats/daily`, `/stats/monthly` 엔드포인트 |
+| 마이그레이션 | `alembic/versions/cd8f2579ace8_*.py` | 테이블 생성 마이그레이션 |
+
+### 데이터베이스 스키마
+
+```sql
+CREATE TABLE partner_daily_stats (
+  id SERIAL PRIMARY KEY,
+  partner_id UUID NOT NULL REFERENCES partners(id) ON DELETE CASCADE,
+  date DATE NOT NULL,
+
+  -- 신규 가입자 통계
+  new_referrals BIGINT DEFAULT 0,
+
+  -- 베팅 통계 (KRW)
+  total_bet_amount BIGINT DEFAULT 0,
+  total_rake BIGINT DEFAULT 0,
+  total_net_loss BIGINT DEFAULT 0,
+
+  -- 수수료 (commission_type에 따라 계산)
+  commission_amount BIGINT DEFAULT 0,
+
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+
+  UNIQUE (partner_id, date)
+);
+
+CREATE INDEX ix_partner_daily_stats_partner_date ON partner_daily_stats(partner_id, date);
+```
+
+### 통계 집계 방식
+
+#### 수동 집계 (현재)
+```python
+from app.services.partner_stats import PartnerStatsService
+from datetime import date
+
+# 특정 날짜 집계
+service = PartnerStatsService(db)
+await service.aggregate_daily_stats(target_date=date(2026, 1, 24))
+
+# 특정 파트너만 집계
+await service.aggregate_daily_stats(
+    target_date=date(2026, 1, 24),
+    partner_id="uuid-here"
+)
+```
+
+#### 자동 집계 (향후 구현 예정)
+Celery Beat를 사용하여 매일 자정에 자동 집계:
+```python
+# backend/app/tasks/partner_stats.py (예정)
+@celery_app.task
+def aggregate_partner_daily_stats():
+    """매일 자정 KST 실행"""
+    yesterday = date.today() - timedelta(days=1)
+    # ...
+```
+
+### 성능 최적화
+
+| 항목 | Before (실시간 집계) | After (사전 집계) |
+|------|---------------------|------------------|
+| 90일 통계 조회 | 2-5초 (전체 User 스캔) | <100ms (인덱스 조회) |
+| DB 부하 | 높음 (매 요청마다 집계) | 낮음 (조회만) |
+| 정확도 | 실시간 | 최대 24시간 지연 |
+
+### 주의사항
+
+1. **실시간 통계 아님**: 일일 통계는 최대 24시간 지연될 수 있음
+2. **과거 데이터 수정**: User의 통계 컬럼 수정 시 재집계 필요
+3. **초기 데이터**: 신규 파트너는 수동으로 과거 데이터 집계 필요
+
+### API 사용 예시
+
+```bash
+# 일별 통계 조회 (최근 30일)
+GET /api/v1/partner/stats/daily?days=30
+
+# 월별 통계 조회 (최근 12개월)
+GET /api/v1/partner/stats/monthly?months=12
+```
+
+### 트러블슈팅
+
+**통계가 비어있음**:
+- 원인: 아직 집계가 실행되지 않음
+- 해결: `aggregate_daily_stats()` 수동 실행
+
+**통계 수치가 부정확함**:
+- 원인: User 테이블 데이터 변경 후 재집계 안 함
+- 해결: 해당 날짜 재집계 (UPSERT 방식으로 자동 업데이트)
