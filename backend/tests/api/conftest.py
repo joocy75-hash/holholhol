@@ -127,6 +127,7 @@ async def test_app(test_db: AsyncSession):
     from app.api.auth import router as auth_router
     from app.api.rooms import router as rooms_router
     from app.api.users import router as users_router
+    from app.api.admin_partner import router as admin_partner_router
     from app.config import get_settings
 
     app = FastAPI(title="Test App")
@@ -150,6 +151,7 @@ async def test_app(test_db: AsyncSession):
     app.include_router(auth_router, prefix="/api/v1")
     app.include_router(rooms_router, prefix="/api/v1")
     app.include_router(users_router, prefix="/api/v1")
+    app.include_router(admin_partner_router, prefix="/api/v1")
 
     yield app
 
@@ -241,6 +243,55 @@ def auth_headers_user2(test_user2: User) -> dict[str, str]:
 def invalid_auth_headers() -> dict[str, str]:
     """Create authorization headers with an invalid token."""
     return {"Authorization": "Bearer invalid-token-12345"}
+
+
+@pytest_asyncio.fixture(scope="function")
+async def admin_user(test_db: AsyncSession) -> User:
+    """Create a test admin user with is_admin=True."""
+    user = User(
+        id=str(uuid4()),
+        email="admin@example.com",
+        username="admin",
+        password_hash=hash_password("AdminPass123"),
+        nickname="adminuser",
+        status=UserStatus.ACTIVE.value,
+        is_admin=True,  # Admin flag
+        total_hands=0,
+        total_winnings=0,
+    )
+    test_db.add(user)
+    await test_db.commit()
+    await test_db.refresh(user)
+    return user
+
+
+@pytest.fixture
+def admin_auth_headers(admin_user: User) -> dict[str, str]:
+    """Create authorization headers for admin user."""
+    session_id = generate_session_id()
+    tokens = create_token_pair(admin_user.id, session_id)
+    return {"Authorization": f"Bearer {tokens['access_token']}"}
+
+
+@pytest_asyncio.fixture(scope="function")
+async def test_partner(test_db: AsyncSession, test_user: User):
+    """Create a test partner."""
+    from app.models.partner import Partner, PartnerStatus, CommissionType
+
+    partner = Partner(
+        id=str(uuid4()),
+        user_id=test_user.id,
+        name="Test Partner",
+        partner_code="TEST123",
+        commission_type=CommissionType.REVENUE_SHARE,
+        commission_rate=10,
+        status=PartnerStatus.ACTIVE,
+        contact_info={"email": "partner@example.com"},
+    )
+    test_db.add(partner)
+    await test_db.commit()
+    await test_db.refresh(partner)
+    return partner
 
 
 # =============================================================================

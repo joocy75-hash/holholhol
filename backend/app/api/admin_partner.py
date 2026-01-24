@@ -8,7 +8,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.api.deps import CurrentUser, DbSession
+from app.api.deps import CurrentAdmin, DbSession
 from app.models.partner import PartnerStatus, SettlementStatus
 from app.schemas.partner import (
     PartnerCreateRequest,
@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 async def create_partner(
     request: PartnerCreateRequest,
     db: DbSession,
-    current_user: CurrentUser,
+    current_user: CurrentAdmin,
 ):
     """Create a new partner."""
     service = PartnerService(db)
@@ -73,7 +73,7 @@ async def create_partner(
 )
 async def list_partners(
     db: DbSession,
-    current_user: CurrentUser,
+    current_user: CurrentAdmin,
     page: int = Query(1, ge=1, description="페이지 번호"),
     page_size: int = Query(20, ge=1, le=100, alias="pageSize", description="페이지 크기"),
     status_filter: PartnerStatus | None = Query(None, alias="status", description="상태 필터"),
@@ -104,7 +104,7 @@ async def list_partners(
 async def get_partner(
     partner_id: str,
     db: DbSession,
-    current_user: CurrentUser,
+    current_user: CurrentAdmin,
 ):
     """Get partner by ID."""
     service = PartnerService(db)
@@ -127,7 +127,7 @@ async def update_partner(
     partner_id: str,
     request: PartnerUpdateRequest,
     db: DbSession,
-    current_user: CurrentUser,
+    current_user: CurrentAdmin,
 ):
     """Update partner information."""
     service = PartnerService(db)
@@ -158,7 +158,7 @@ async def update_partner(
 async def delete_partner(
     partner_id: str,
     db: DbSession,
-    current_user: CurrentUser,
+    current_user: CurrentAdmin,
 ):
     """Soft delete partner (set status to TERMINATED)."""
     service = PartnerService(db)
@@ -181,7 +181,7 @@ async def delete_partner(
 async def regenerate_partner_code(
     partner_id: str,
     db: DbSession,
-    current_user: CurrentUser,
+    current_user: CurrentAdmin,
 ):
     """Regenerate partner code."""
     service = PartnerService(db)
@@ -210,7 +210,7 @@ async def regenerate_partner_code(
 async def get_partner_referrals(
     partner_id: str,
     db: DbSession,
-    current_user: CurrentUser,
+    current_user: CurrentAdmin,
     page: int = Query(1, ge=1, description="페이지 번호"),
     page_size: int = Query(20, ge=1, le=100, alias="pageSize", description="페이지 크기"),
     search: str | None = Query(None, description="검색어 (닉네임, 이메일)"),
@@ -244,7 +244,7 @@ async def get_partner_referrals(
 )
 async def list_all_settlements(
     db: DbSession,
-    current_user: CurrentUser,
+    current_user: CurrentAdmin,
     page: int = Query(1, ge=1, description="페이지 번호"),
     page_size: int = Query(20, ge=1, le=100, alias="pageSize", description="페이지 크기"),
     status_filter: SettlementStatus | None = Query(None, alias="status", description="상태 필터"),
@@ -273,7 +273,7 @@ async def list_all_settlements(
 async def list_partner_settlements(
     partner_id: str,
     db: DbSession,
-    current_user: CurrentUser,
+    current_user: CurrentAdmin,
     page: int = Query(1, ge=1, description="페이지 번호"),
     page_size: int = Query(20, ge=1, le=100, alias="pageSize", description="페이지 크기"),
     status_filter: SettlementStatus | None = Query(None, alias="status", description="상태 필터"),
@@ -303,7 +303,7 @@ async def list_partner_settlements(
 async def generate_settlements(
     request: SettlementGenerateRequest,
     db: DbSession,
-    current_user: CurrentUser,
+    current_user: CurrentAdmin,
 ):
     """Generate settlements for partners."""
     service = PartnerSettlementService(db)
@@ -333,7 +333,7 @@ async def update_settlement(
     settlement_id: str,
     request: SettlementUpdateRequest,
     db: DbSession,
-    current_user: CurrentUser,
+    current_user: CurrentAdmin,
 ):
     """Update settlement status (approve/reject)."""
     service = PartnerSettlementService(db)
@@ -372,7 +372,7 @@ async def update_settlement(
 async def pay_settlement(
     settlement_id: str,
     db: DbSession,
-    current_user: CurrentUser,
+    current_user: CurrentAdmin,
 ):
     """Pay an approved settlement."""
     service = PartnerSettlementService(db)

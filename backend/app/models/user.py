@@ -28,7 +28,14 @@ class User(Base, UUIDMixin, TimestampMixin):
 
     __tablename__ = "users"
 
-    # Profile
+    # Profile - Login credentials
+    username: Mapped[str] = mapped_column(
+        String(50),
+        unique=True,
+        nullable=False,
+        index=True,
+        comment="로그인용 아이디 (영문/숫자, 4-20자)",
+    )
     nickname: Mapped[str] = mapped_column(
         String(50),
         unique=True,
@@ -50,11 +57,30 @@ class User(Base, UUIDMixin, TimestampMixin):
         nullable=True,
     )
 
+    # USDT Wallet (P2)
+    usdt_wallet_address: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="USDT 지갑 주소 (TRC20/ERC20)",
+    )
+    usdt_wallet_type: Mapped[str | None] = mapped_column(
+        String(10),
+        nullable=True,
+        comment="지갑 타입 (TRC20, ERC20)",
+    )
+
     # Status
     status: Mapped[str] = mapped_column(
         String(20),
         default=UserStatus.ACTIVE.value,
         nullable=False,
+    )
+
+    # Admin flag (for admin API access)
+    is_admin: Mapped[bool] = mapped_column(
+        default=False,
+        nullable=False,
+        comment="관리자 권한 여부 (admin API 접근 권한)",
     )
 
     # Balance - user's current chip balance (legacy, kept for compatibility)

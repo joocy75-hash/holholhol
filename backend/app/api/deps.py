@@ -187,6 +187,38 @@ def get_client_info(request: Request) -> dict[str, str | None]:
     }
 
 
+async def get_current_admin(
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> User:
+    """Get current user with admin privileges (required).
+
+    관리자 권한이 있는 유저인지 확인합니다.
+    Admin API에서 사용합니다.
+
+    Args:
+        current_user: Current authenticated user
+
+    Returns:
+        User object with admin privileges
+
+    Raises:
+        HTTPException: If user is not an admin
+    """
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": {
+                    "code": "ADMIN_REQUIRED",
+                    "message": "관리자 권한이 필요합니다",
+                    "details": {},
+                }
+            },
+        )
+
+    return current_user
+
+
 async def get_current_partner(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -232,6 +264,7 @@ async def get_current_partner(
 # Type aliases for cleaner annotations
 CurrentUser = Annotated[User, Depends(get_current_user)]
 OptionalUser = Annotated[User | None, Depends(get_current_user_optional)]
+CurrentAdmin = Annotated[User, Depends(get_current_admin)]
 CurrentPartner = Annotated[Partner, Depends(get_current_partner)]
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 TraceId = Annotated[str, Depends(get_trace_id)]
