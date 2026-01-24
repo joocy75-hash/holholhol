@@ -146,22 +146,21 @@ export default function UsersPage() {
         <CardContent>
           {loading ? (
             <TableSkeleton
-              columns={7}
+              columns={6}
               rows={10}
-              headers={['ID', '사용자명', '이메일', '잔액', '상태', '가입일', '최근 로그인']}
+              headers={['아이디', '닉네임', '이메일', '잔액', '상태', '가입일']}
             />
           ) : (
             <>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>사용자명</TableHead>
+                    <TableHead>아이디</TableHead>
+                    <TableHead>닉네임</TableHead>
                     <TableHead>이메일</TableHead>
                     <TableHead className="text-right">잔액</TableHead>
                     <TableHead>상태</TableHead>
                     <TableHead>가입일</TableHead>
-                    <TableHead>최근 로그인</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -171,13 +170,13 @@ export default function UsersPage() {
                       className="cursor-pointer hover:bg-gray-50"
                       onClick={() => router.push(`/users/${user.id}`)}
                     >
-                      <TableCell className="font-mono text-xs">
-                        {user.id.slice(0, 8)}...
+                      <TableCell className="font-medium text-blue-600">
+                        {user.username}
                       </TableCell>
-                      <TableCell className="font-medium">{user.username}</TableCell>
-                      <TableCell>{user.email}</TableCell>
+                      <TableCell>{user.nickname || user.username}</TableCell>
+                      <TableCell className="text-gray-500">{user.email}</TableCell>
                       <TableCell className="text-right">
-                        {user.balance.toLocaleString()} USDT
+                        {user.balance.toLocaleString()} 원
                       </TableCell>
                       <TableCell>
                         {user.isBanned ? (
@@ -193,14 +192,11 @@ export default function UsersPage() {
                       <TableCell className="text-sm text-gray-500">
                         {user.createdAt ? new Date(user.createdAt).toLocaleDateString('ko-KR') : '-'}
                       </TableCell>
-                      <TableCell className="text-sm text-gray-500">
-                        {user.lastLogin ? new Date(user.lastLogin).toLocaleDateString('ko-KR') : '-'}
-                      </TableCell>
                     </TableRow>
                   ))}
                   {users?.items.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} className="p-0">
+                      <TableCell colSpan={6} className="p-0">
                         {search ? (
                           <SearchEmptyState
                             query={search}

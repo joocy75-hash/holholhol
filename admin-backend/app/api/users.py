@@ -27,7 +27,8 @@ router = APIRouter()
 # Response Models
 class UserResponse(BaseModel):
     id: str
-    username: str
+    username: str  # 로그인 아이디
+    nickname: str | None = None  # 표시 이름
     email: str
     balance: float
     created_at: str | None
@@ -36,6 +37,12 @@ class UserResponse(BaseModel):
 
 
 class UserDetailResponse(UserResponse):
+    nickname: str | None = None  # 표시 이름 (username과 별개)
+    partner_code: str | None = None  # 추천인 파트너 코드
+    partner_name: str | None = None  # 추천인 파트너 이름
+    usdt_wallet_address: str | None = None  # USDT 지갑 주소
+    usdt_wallet_type: str | None = None  # 지갑 타입 (TRC20/ERC20)
+    krw_balance: int = 0  # KRW 잔액
     ban_reason: str | None = None
     ban_expires_at: str | None = None
 

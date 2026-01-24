@@ -6,7 +6,8 @@ import { useAuthStore } from '@/stores/authStore';
 
 export interface User {
   id: string;
-  username: string;
+  username: string;  // 로그인 아이디
+  nickname: string | null;  // 표시 이름
   email: string;
   balance: number;
   createdAt: string | null;
@@ -15,6 +16,11 @@ export interface User {
 }
 
 export interface UserDetail extends User {
+  partnerCode: string | null;  // 추천인 파트너 코드
+  partnerName: string | null;  // 추천인 파트너 이름
+  usdtWalletAddress: string | null;  // USDT 지갑 주소
+  usdtWalletType: string | null;  // 지갑 타입 (TRC20/ERC20)
+  krwBalance: number;  // KRW 잔액
   banReason: string | null;
   banExpiresAt: string | null;
 }

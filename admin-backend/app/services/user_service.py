@@ -107,7 +107,7 @@ class UserService:
             # 사용자 목록 조회
             list_query = text(f"""
                 SELECT
-                    id, nickname, email, balance,
+                    id, username, nickname, email, balance,
                     created_at, updated_at, status
                 FROM users
                 WHERE {where_sql}
@@ -120,12 +120,13 @@ class UserService:
             users = [
                 {
                     "id": str(row.id),
-                    "username": row.nickname,  # nickname을 username으로 매핑
+                    "username": row.username,  # 로그인 아이디
+                    "nickname": row.nickname,  # 표시 이름
                     "email": row.email,
                     "balance": float(row.balance) if row.balance else 0,
                     "created_at": row.created_at.isoformat() if row.created_at else None,
-                    "last_login": row.updated_at.isoformat() if row.updated_at else None,  # updated_at을 last_login으로 사용
-                    "is_banned": row.status == 'banned'
+                    "last_login": row.updated_at.isoformat() if row.updated_at else None,
+                    "is_banned": row.status == 'suspended'
                 }
                 for row in rows
             ]
@@ -142,14 +143,17 @@ class UserService:
             raise UserServiceError(f"사용자 검색 실패: {e}") from e
 
     async def get_user_detail(self, user_id: str) -> Optional[dict]:
-        """사용자 상세 정보 조회"""
+        """사용자 상세 정보 조회 (추천인, USDT 지갑 정보 포함)"""
         try:
             query = text("""
                 SELECT
-                    id, nickname, email, balance,
-                    created_at, updated_at, status
-                FROM users
-                WHERE id = :user_id
+                    u.id, u.username, u.nickname, u.email, u.balance,
+                    u.krw_balance, u.usdt_wallet_address, u.usdt_wallet_type,
+                    u.created_at, u.updated_at, u.status,
+                    p.partner_code, p.name as partner_name
+                FROM users u
+                LEFT JOIN partners p ON u.partner_id = p.id
+                WHERE u.id = :user_id
             """)
             result = await self.db.execute(query, {"user_id": user_id})
             row = result.fetchone()
@@ -159,14 +163,20 @@ class UserService:
 
             return {
                 "id": str(row.id),
-                "username": row.nickname,  # nickname을 username으로 매핑
+                "username": row.username,  # 로그인 아이디
+                "nickname": row.nickname,  # 표시 이름
                 "email": row.email,
                 "balance": float(row.balance) if row.balance else 0,
+                "krw_balance": int(row.krw_balance) if row.krw_balance else 0,
+                "usdt_wallet_address": row.usdt_wallet_address,
+                "usdt_wallet_type": row.usdt_wallet_type,
+                "partner_code": row.partner_code,
+                "partner_name": row.partner_name,
                 "created_at": row.created_at.isoformat() if row.created_at else None,
-                "last_login": row.updated_at.isoformat() if row.updated_at else None,  # updated_at을 last_login으로 사용
-                "is_banned": row.status == 'banned',
-                "ban_reason": None,  # 현재 테이블에 없음
-                "ban_expires_at": None  # 현재 테이블에 없음
+                "last_login": row.updated_at.isoformat() if row.updated_at else None,
+                "is_banned": row.status == 'suspended',
+                "ban_reason": None,
+                "ban_expires_at": None
             }
         except Exception as e:
             logger.error(f"사용자 상세 조회 실패: user_id={user_id}, error={e}", exc_info=True)

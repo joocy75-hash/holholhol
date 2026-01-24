@@ -208,7 +208,10 @@ export default function UserDetailPage() {
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-4">
           <Button variant="ghost" onClick={() => router.back()}>← 뒤로</Button>
-          <h1 className="text-2xl font-bold">{user.username}</h1>
+          <div>
+            <h1 className="text-2xl font-bold">{user.nickname || user.username}</h1>
+            <p className="text-sm text-gray-500">@{user.username}</p>
+          </div>
           {user.isBanned && (
             <span className="px-2 py-1 bg-red-100 text-red-700 rounded text-sm">
               제재됨
@@ -251,16 +254,20 @@ export default function UserDetailPage() {
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
-              <p className="text-sm text-gray-500">ID</p>
-              <p className="font-mono text-sm">{user.id}</p>
+              <p className="text-sm text-gray-500">아이디</p>
+              <p className="font-medium text-blue-600">{user.username}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">닉네임</p>
+              <p>{user.nickname || user.username}</p>
             </div>
             <div>
               <p className="text-sm text-gray-500">이메일</p>
               <p>{user.email}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-500">잔액</p>
-              <p className="text-xl font-bold">{user.balance.toLocaleString()} USDT</p>
+              <p className="text-sm text-gray-500">잔액 (KRW)</p>
+              <p className="text-xl font-bold">{(user.krwBalance || 0).toLocaleString()} 원</p>
             </div>
             <div>
               <p className="text-sm text-gray-500">가입일</p>
@@ -280,6 +287,43 @@ export default function UserDetailPage() {
         </CardContent>
       </Card>
 
+      {/* 추천인 및 지갑 정보 Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle>추천인 및 지갑 정보</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <p className="text-sm text-gray-500">추천인 코드</p>
+              <p className={user.partnerCode ? 'font-medium' : 'text-gray-400'}>
+                {user.partnerCode || '없음'}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">추천인 이름</p>
+              <p className={user.partnerName ? 'font-medium' : 'text-gray-400'}>
+                {user.partnerName || '없음'}
+              </p>
+            </div>
+            <div className="col-span-2">
+              <p className="text-sm text-gray-500">USDT 지갑 주소</p>
+              <p className={`font-mono text-sm ${user.usdtWalletAddress ? '' : 'text-gray-400'}`}>
+                {user.usdtWalletAddress || '미등록'}
+              </p>
+            </div>
+            {user.usdtWalletType && (
+              <div>
+                <p className="text-sm text-gray-500">지갑 타입</p>
+                <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">
+                  {user.usdtWalletType}
+                </span>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
@@ -290,11 +334,94 @@ export default function UserDetailPage() {
         </TabsList>
 
         <TabsContent value="info">
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-gray-500">추가 정보가 여기에 표시됩니다.</p>
-            </CardContent>
-          </Card>
+          <div className="space-y-6">
+            {/* Password Change Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle>비밀번호 변경</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="font-medium">사용자 비밀번호 초기화</p>
+                      <p className="text-sm text-gray-500 mt-1">
+                        사용자를 위해 새로운 비밀번호를 설정합니다
+                      </p>
+                    </div>
+                    <Button onClick={() => setPasswordModalOpen(true)}>
+                      비밀번호 변경
+                    </Button>
+                  </div>
+                  <div className="text-sm text-gray-500 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex gap-2">
+                      <svg className="h-5 w-5 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <div>
+                        <p className="font-medium text-blue-900">안내</p>
+                        <ul className="mt-1 text-blue-800 space-y-1">
+                          <li>• 비밀번호는 최소 8자 이상이어야 합니다</li>
+                          <li>• 변경된 비밀번호는 사용자에게 별도로 전달해야 합니다</li>
+                          <li>• 보안을 위해 강력한 비밀번호를 설정하세요</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Account Settings Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle>계정 설정</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="font-medium">프로필 정보 수정</p>
+                      <p className="text-sm text-gray-500 mt-1">
+                        닉네임과 이메일을 변경합니다
+                      </p>
+                    </div>
+                    <Button variant="outline" onClick={openEditModal}>
+                      프로필 수정
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="font-medium">계정 상태 관리</p>
+                      <p className="text-sm text-gray-500 mt-1">
+                        {user.isBanned ? '계정을 활성화합니다' : '계정을 정지합니다'}
+                      </p>
+                    </div>
+                    <Button
+                      variant={user.isBanned ? "default" : "destructive"}
+                      onClick={() => setStatusModalOpen(true)}
+                    >
+                      {user.isBanned ? '활성화' : '정지'}
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-between p-4 bg-red-50 rounded-lg border border-red-200">
+                    <div>
+                      <p className="font-medium text-red-900">계정 삭제</p>
+                      <p className="text-sm text-red-700 mt-1">
+                        이 작업은 되돌릴 수 없습니다
+                      </p>
+                    </div>
+                    <Button
+                      variant="destructive"
+                      onClick={() => setDeleteModalOpen(true)}
+                    >
+                      삭제
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="transactions">
