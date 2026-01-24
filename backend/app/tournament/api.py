@@ -602,3 +602,453 @@ async def recover_tournament(tournament_id: str):
         )
 
     return TournamentResponse(**state.to_dict())
+
+
+# =============================================================================
+# Recovery Management Endpoints (Admin)
+# =============================================================================
+
+
+class RecoverableTournamentInfo(BaseModel):
+    """복구 가능한 토너먼트 정보."""
+
+    tournament_id: str
+    status: str
+    active_players: int
+    total_players: int
+    table_count: int
+    blind_level: int
+    can_recover: bool
+
+
+class RecoveryListResponse(BaseModel):
+    """복구 가능 목록 응답."""
+
+    recoverable_count: int
+    tournaments: List[RecoverableTournamentInfo]
+
+
+class RecoveryResult(BaseModel):
+    """복구 결과."""
+
+    tournament_id: str
+    success: bool
+    status: Optional[str] = None
+    error: Optional[str] = None
+
+
+class BatchRecoveryResponse(BaseModel):
+    """일괄 복구 응답."""
+
+    total: int
+    success_count: int
+    failed_count: int
+    results: List[RecoveryResult]
+
+
+@admin_router.get("/recovery/list", response_model=RecoveryListResponse)
+async def list_recoverable_tournaments():
+    """
+    [관리자] 복구 가능한 토너먼트 목록 조회.
+
+    Redis에 저장된 스냅샷을 기반으로 복구 가능한 토너먼트를 나열합니다.
+    서버 재시작 시 자동 복구되지 않은 토너먼트를 확인할 수 있습니다.
+    """
+    engine = get_engine()
+
+    # 이미 메모리에 로드된 토너먼트
+    loaded_ids = set(engine._tournaments.keys())
+
+    # Redis에서 복구 가능한 토너먼트 조회
+    snapshot_ids = await engine.snapshot.list_recoverable_tournaments()
+
+    tournaments = []
+    for tid in snapshot_ids:
+        # 이미 로드된 경우
+        if tid in loaded_ids:
+            state = engine._tournaments[tid]
+            tournaments.append(
+                RecoverableTournamentInfo(
+                    tournament_id=tid,
+                    status=state.status.value,
+                    active_players=state.active_player_count,
+                    total_players=len(state.players),
+                    table_count=len(state.tables),
+                    blind_level=state.current_blind_level,
+                    can_recover=False,  # 이미 로드됨
+                )
+            )
+        else:
+            # 스냅샷에서 정보 로드
+            state = await engine.snapshot.load_latest(tid)
+            if state:
+                # 이미 종료된 토너먼트인지 확인
+                from .models import TournamentStatus
+
+                can_recover = state.status not in (
+                    TournamentStatus.COMPLETED,
+                    TournamentStatus.CANCELLED,
+                )
+                tournaments.append(
+                    RecoverableTournamentInfo(
+                        tournament_id=tid,
+                        status=state.status.value,
+                        active_players=state.active_player_count,
+                        total_players=len(state.players),
+                        table_count=len(state.tables),
+                        blind_level=state.current_blind_level,
+                        can_recover=can_recover,
+                    )
+                )
+
+    return RecoveryListResponse(
+        recoverable_count=sum(1 for t in tournaments if t.can_recover),
+        tournaments=tournaments,
+    )
+
+
+@admin_router.post("/recovery/batch", response_model=BatchRecoveryResponse)
+async def batch_recover_tournaments(
+    tournament_ids: Optional[List[str]] = None,
+):
+    """
+    [관리자] 토너먼트 일괄 복구.
+
+    tournament_ids가 제공되지 않으면 모든 복구 가능한 토너먼트를 복구합니다.
+
+    Args:
+        tournament_ids: 복구할 토너먼트 ID 목록 (선택)
+    """
+    engine = get_engine()
+
+    # 복구할 토너먼트 목록 결정
+    if tournament_ids:
+        target_ids = tournament_ids
+    else:
+        target_ids = await engine.snapshot.list_recoverable_tournaments()
+
+    results = []
+    success_count = 0
+
+    for tid in target_ids:
+        # 이미 로드된 경우 스킵
+        if tid in engine._tournaments:
+            results.append(
+                RecoveryResult(
+                    tournament_id=tid,
+                    success=True,
+                    status="already_loaded",
+                    error=None,
+                )
+            )
+            success_count += 1
+            continue
+
+        try:
+            state = await engine.recover_tournament(tid)
+            if state:
+                from .models import TournamentStatus
+
+                # 종료된 토너먼트 스냅샷 정리
+                if state.status in (
+                    TournamentStatus.COMPLETED,
+                    TournamentStatus.CANCELLED,
+                ):
+                    await engine.snapshot.delete_snapshot(tid)
+                    results.append(
+                        RecoveryResult(
+                            tournament_id=tid,
+                            success=True,
+                            status="cleaned_up",
+                            error=None,
+                        )
+                    )
+                else:
+                    results.append(
+                        RecoveryResult(
+                            tournament_id=tid,
+                            success=True,
+                            status=state.status.value,
+                            error=None,
+                        )
+                    )
+                success_count += 1
+            else:
+                results.append(
+                    RecoveryResult(
+                        tournament_id=tid,
+                        success=False,
+                        status=None,
+                        error="Snapshot not found",
+                    )
+                )
+        except Exception as e:
+            results.append(
+                RecoveryResult(
+                    tournament_id=tid,
+                    success=False,
+                    status=None,
+                    error=str(e),
+                )
+            )
+
+    return BatchRecoveryResponse(
+        total=len(results),
+        success_count=success_count,
+        failed_count=len(results) - success_count,
+        results=results,
+    )
+
+
+@admin_router.delete("/recovery/{tournament_id}/snapshot")
+async def delete_tournament_snapshot(
+    tournament_id: str,
+    admin_id: str = Query(..., description="Admin user ID"),
+):
+    """
+    [관리자] 토너먼트 스냅샷 삭제.
+
+    종료된 토너먼트의 스냅샷을 수동으로 정리합니다.
+    """
+    engine = get_engine()
+
+    deleted = await engine.snapshot.delete_snapshot(tournament_id)
+
+    return {
+        "tournament_id": tournament_id,
+        "deleted": deleted,
+        "admin_id": admin_id,
+    }
+
+
+# =============================================================================
+# Settlement Endpoints (Admin)
+# =============================================================================
+
+
+class EstimatedPayoutEntry(BaseModel):
+    """예상 상금 엔트리."""
+
+    rank: int
+    percentage: float
+    estimated_prize: int
+
+
+class EstimatedPayoutsResponse(BaseModel):
+    """예상 상금 응답."""
+
+    tournament_id: str
+    player_count: int
+    total_prize_pool: int
+    itm_count: int
+    payouts: List[EstimatedPayoutEntry]
+
+
+class PayoutResultResponse(BaseModel):
+    """정산 결과 응답."""
+
+    payout_id: str
+    user_id: str
+    nickname: str
+    rank: int
+    prize_amount: int
+    prize_percentage: float
+    transaction_id: Optional[str] = None
+    success: bool
+    error_message: Optional[str] = None
+    paid_at: str
+
+
+class SettlementResponse(BaseModel):
+    """정산 요약 응답."""
+
+    settlement_id: str
+    tournament_id: str
+    tournament_name: str
+    total_prize_pool: int
+    total_paid: int
+    successful_payouts: int
+    failed_payouts: int
+    payouts: List[PayoutResultResponse]
+    settled_at: str
+
+
+@router.get(
+    "/{tournament_id}/payouts/estimate", response_model=EstimatedPayoutsResponse
+)
+async def estimate_payouts(
+    tournament_id: str,
+):
+    """
+    토너먼트 예상 상금 조회.
+
+    현재 등록된 플레이어 수를 기반으로 예상 상금을 계산합니다.
+    """
+    engine = get_engine()
+    state = engine.get_state(tournament_id)
+
+    if not state:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Tournament not found"
+        )
+
+    from .settlement import TournamentSettlement
+
+    # WalletService 없이 예상 상금만 계산
+    settlement = TournamentSettlement(wallet_service=None)  # type: ignore
+    estimates = settlement.estimate_payouts(state.config, len(state.players))
+
+    # ITM 플레이어 수 계산
+    itm_count = settlement.calculate_itm_players(state)
+
+    return EstimatedPayoutsResponse(
+        tournament_id=tournament_id,
+        player_count=len(state.players),
+        total_prize_pool=state.total_prize_pool,
+        itm_count=itm_count,
+        payouts=[
+            EstimatedPayoutEntry(
+                rank=e["rank"],
+                percentage=e["percentage"],
+                estimated_prize=e["estimated_prize"],
+            )
+            for e in estimates
+        ],
+    )
+
+
+@admin_router.post("/{tournament_id}/settle", response_model=SettlementResponse)
+async def settle_tournament(
+    tournament_id: str,
+    admin_id: str = Query(..., description="Admin user ID"),
+):
+    """
+    [관리자] 토너먼트 상금 정산.
+
+    토너먼트가 종료되면 순위별로 상금을 자동 지급합니다.
+    - ITM (In The Money) 플레이어에게만 상금 지급
+    - 분산 락으로 중복 정산 방지
+    - 실패한 지급은 retry 가능
+
+    Requirements:
+        - 토너먼트 상태가 COMPLETED 또는 HEADS_UP (1인 남음)
+    """
+    engine = get_engine()
+    state = engine.get_state(tournament_id)
+
+    if not state:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Tournament not found"
+        )
+
+    from .models import TournamentStatus
+
+    # 토너먼트가 종료된 상태인지 확인
+    if state.status not in (TournamentStatus.COMPLETED, TournamentStatus.HEADS_UP):
+        # HEADS_UP에서 1인만 남은 경우도 정산 가능
+        if state.status == TournamentStatus.HEADS_UP and state.active_player_count == 1:
+            pass  # 정산 진행
+        elif state.active_player_count <= 1:
+            pass  # 1인 이하면 정산 가능
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Tournament is not completed. Status: {state.status.value}, Active players: {state.active_player_count}",
+            )
+
+    # WalletService 및 Settlement 초기화
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from app.core.database import get_async_session
+    from app.services.wallet import WalletService
+    from .settlement import TournamentSettlement
+
+    # 실제 환경에서는 의존성 주입 사용
+    # 여기서는 간단히 직접 생성
+    try:
+        async for session in get_async_session():
+            wallet_service = WalletService(session)
+            settlement = TournamentSettlement(
+                wallet_service=wallet_service,
+                event_bus=engine.event_bus,
+            )
+
+            summary = await settlement.settle_tournament(tournament_id, state)
+
+            return SettlementResponse(
+                settlement_id=summary.settlement_id,
+                tournament_id=summary.tournament_id,
+                tournament_name=summary.tournament_name,
+                total_prize_pool=summary.total_prize_pool,
+                total_paid=summary.total_paid,
+                successful_payouts=summary.successful_payouts,
+                failed_payouts=summary.failed_payouts,
+                payouts=[
+                    PayoutResultResponse(
+                        payout_id=p.payout_id,
+                        user_id=p.user_id,
+                        nickname=p.nickname,
+                        rank=p.rank,
+                        prize_amount=p.prize_amount,
+                        prize_percentage=p.prize_percentage,
+                        transaction_id=p.transaction_id,
+                        success=p.success,
+                        error_message=p.error_message,
+                        paid_at=p.paid_at.isoformat(),
+                    )
+                    for p in summary.payouts
+                ],
+                settled_at=summary.settled_at.isoformat(),
+            )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Settlement failed: {str(e)}",
+        )
+
+
+@admin_router.get("/{tournament_id}/settlement/status")
+async def get_settlement_status(
+    tournament_id: str,
+):
+    """
+    [관리자] 정산 상태 조회.
+
+    토너먼트의 정산 가능 여부와 예상 지급 내역을 반환합니다.
+    """
+    engine = get_engine()
+    state = engine.get_state(tournament_id)
+
+    if not state:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Tournament not found"
+        )
+
+    from .models import TournamentStatus
+    from .settlement import TournamentSettlement
+
+    settlement = TournamentSettlement(wallet_service=None)  # type: ignore
+    payouts = settlement.calculate_payouts(state)
+    itm_count = settlement.calculate_itm_players(state)
+
+    can_settle = (
+        state.status == TournamentStatus.COMPLETED or state.active_player_count <= 1
+    )
+
+    return {
+        "tournament_id": tournament_id,
+        "status": state.status.value,
+        "can_settle": can_settle,
+        "total_prize_pool": state.total_prize_pool,
+        "active_players": state.active_player_count,
+        "total_players": len(state.players),
+        "itm_count": itm_count,
+        "estimated_payouts": [
+            {
+                "user_id": uid,
+                "rank": data[0],
+                "amount": data[1],
+                "percentage": data[2] * 100,
+            }
+            for uid, data in sorted(payouts.items(), key=lambda x: x[1][0])
+        ],
+    }

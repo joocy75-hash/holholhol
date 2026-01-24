@@ -121,6 +121,7 @@ class TournamentEngine:
         recovered_count = await self._recover_crashed_tournaments()
         if recovered_count > 0:
             import logging
+
             logger = logging.getLogger(__name__)
             logger.info(f"[RECOVERY] {recovered_count}개 토너먼트 자동 복구 완료")
 
@@ -134,6 +135,7 @@ class TournamentEngine:
             복구된 토너먼트 수
         """
         import logging
+
         logger = logging.getLogger(__name__)
 
         try:
@@ -150,7 +152,10 @@ class TournamentEngine:
                     state = await self.recover_tournament(tid)
                     if state:
                         # 복구된 토너먼트가 이미 종료 상태인지 확인
-                        if state.status in (TournamentStatus.COMPLETED, TournamentStatus.CANCELLED):
+                        if state.status in (
+                            TournamentStatus.COMPLETED,
+                            TournamentStatus.CANCELLED,
+                        ):
                             # 종료된 토너먼트 스냅샷 정리
                             await self.snapshot.delete_snapshot(tid)
                             logger.info(f"[RECOVERY] 종료된 토너먼트 {tid} 스냅샷 정리")
@@ -840,9 +845,104 @@ class TournamentEngine:
         return await self.ranking.get_top_players(tournament_id, top_n)
 
     async def recover_tournament(self, tournament_id: str) -> Optional[TournamentState]:
-        """서버 재시작 후 토너먼트 복구."""
+        """서버 재시작 후 토너먼트 복구.
+
+        스냅샷에서 상태를 복원하고 필요한 경우 테이블 핸드를 재시작합니다.
+
+        복구 프로세스:
+        1. Redis 스냅샷에서 상태 복원
+        2. 랭킹 엔진 동기화
+        3. RUNNING/FINAL_TABLE 상태인 경우 테이블 핸드 재시작
+        4. 이벤트 발행하여 클라이언트 알림
+
+        Args:
+            tournament_id: 복구할 토너먼트 ID
+
+        Returns:
+            복구된 토너먼트 상태 또는 None
+        """
+        import logging
+
+        logger = logging.getLogger(__name__)
+
         state = await self.snapshot.load_latest(tournament_id)
-        if state:
-            self._tournaments[tournament_id] = state
-            await self.ranking.sync_from_state(state)
+        if not state:
+            logger.warning(f"[RECOVERY] 토너먼트 {tournament_id} 스냅샷 없음")
+            return None
+
+        # 메모리에 상태 복원
+        self._tournaments[tournament_id] = state
+
+        # 랭킹 엔진 동기화
+        await self.ranking.sync_from_state(state)
+        logger.info(
+            f"[RECOVERY] 토너먼트 {tournament_id} 상태 복원 완료 "
+            f"(상태: {state.status.value}, 테이블: {len(state.tables)}개)"
+        )
+
+        # 진행 중인 토너먼트의 경우 테이블 핸드 재시작
+        if state.status in (
+            TournamentStatus.RUNNING,
+            TournamentStatus.FINAL_TABLE,
+            TournamentStatus.HEADS_UP,
+        ):
+            # 복구 이벤트 발행
+            await self.event_bus.publish(
+                TournamentEvent(
+                    event_type=TournamentEventType.TOURNAMENT_RESUMED,
+                    tournament_id=tournament_id,
+                    data={
+                        "recovery": True,
+                        "active_players": state.active_player_count,
+                        "table_count": len(state.tables),
+                        "blind_level": state.current_blind_level,
+                    },
+                )
+            )
+
+            # 핸드가 진행 중이 아닌 테이블에 대해 새 핸드 시작 스케줄링
+            restart_count = 0
+            for table_id, table in state.tables.items():
+                if not table.hand_in_progress and table.player_count >= 2:
+                    # 약간의 지연 후 핸드 시작 (안정화 대기)
+                    asyncio.create_task(
+                        self._delayed_table_hand_restart(
+                            tournament_id, table_id, delay=2.0
+                        )
+                    )
+                    restart_count += 1
+
+            if restart_count > 0:
+                logger.info(f"[RECOVERY] {restart_count}개 테이블 핸드 재시작 스케줄링")
+
         return state
+
+    async def _delayed_table_hand_restart(
+        self,
+        tournament_id: str,
+        table_id: str,
+        delay: float = 2.0,
+    ) -> None:
+        """지연 후 테이블 핸드 재시작.
+
+        복구 직후 안정화 대기 후 핸드를 재시작합니다.
+        """
+        await asyncio.sleep(delay)
+
+        state = self._tournaments.get(tournament_id)
+        if not state:
+            return
+
+        # 여전히 진행 중인 상태인지 확인
+        if state.status not in (
+            TournamentStatus.RUNNING,
+            TournamentStatus.FINAL_TABLE,
+            TournamentStatus.HEADS_UP,
+        ):
+            return
+
+        table = state.tables.get(table_id)
+        if not table or table.hand_in_progress or table.player_count < 2:
+            return
+
+        await self._start_table_hand(tournament_id, table_id)
