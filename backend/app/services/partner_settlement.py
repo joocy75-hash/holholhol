@@ -1,10 +1,12 @@
 """Partner Settlement (정산) service."""
 
+import hashlib
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.logging_config import get_logger
@@ -487,49 +489,77 @@ class PartnerSettlementService:
         if not user:
             raise SettlementError("USER_NOT_FOUND", "사용자를 찾을 수 없습니다")
 
-        # Create wallet transaction
-        import hashlib
+        try:
+            # Create wallet transaction
+            balance_before = user.krw_balance
+            balance_after = balance_before + settlement.commission_amount
 
-        balance_before = user.krw_balance
-        balance_after = balance_before + settlement.commission_amount
+            # Generate integrity hash
+            hash_data = f"{user.id}:{TransactionType.PARTNER_COMMISSION.value}:{settlement.commission_amount}:{balance_before}:{balance_after}"
+            integrity_hash = hashlib.sha256(hash_data.encode()).hexdigest()
 
-        # Generate integrity hash
-        hash_data = f"{user.id}:{TransactionType.PARTNER_COMMISSION.value}:{settlement.commission_amount}:{balance_before}:{balance_after}"
-        integrity_hash = hashlib.sha256(hash_data.encode()).hexdigest()
+            transaction = WalletTransaction(
+                user_id=user.id,
+                tx_type=TransactionType.PARTNER_COMMISSION,
+                status=TransactionStatus.COMPLETED,
+                krw_amount=settlement.commission_amount,
+                krw_balance_before=balance_before,
+                krw_balance_after=balance_after,
+                description=f"파트너 정산 지급 ({settlement.period_start.strftime('%Y-%m-%d')} ~ {settlement.period_end.strftime('%Y-%m-%d')})",
+                integrity_hash=integrity_hash,
+            )
+            self.db.add(transaction)
 
-        transaction = WalletTransaction(
-            user_id=user.id,
-            tx_type=TransactionType.PARTNER_COMMISSION,
-            status=TransactionStatus.COMPLETED,
-            krw_amount=settlement.commission_amount,
-            krw_balance_before=balance_before,
-            krw_balance_after=balance_after,
-            description=f"파트너 정산 지급 ({settlement.period_start.strftime('%Y-%m-%d')} ~ {settlement.period_end.strftime('%Y-%m-%d')})",
-            integrity_hash=integrity_hash,
-        )
-        self.db.add(transaction)
+            # Update user balance
+            user.krw_balance = balance_after
 
-        # Update user balance
-        user.krw_balance = balance_after
+            # Update partner statistics
+            partner.total_commission_earned += settlement.commission_amount
 
-        # Update partner statistics
-        partner.total_commission_earned += settlement.commission_amount
+            # Update settlement status
+            settlement.status = SettlementStatus.PAID
+            settlement.paid_at = datetime.now(timezone.utc)
 
-        # Update settlement status
-        settlement.status = SettlementStatus.PAID
-        settlement.paid_at = datetime.now(timezone.utc)
+            # Flush changes (this is where database errors typically occur)
+            await self.db.flush()
 
-        await self.db.flush()
+            logger.info(
+                "settlement_paid",
+                settlement_id=settlement_id,
+                partner_id=partner.id,
+                amount=settlement.commission_amount,
+                processed_by=admin_user_id,
+            )
 
-        logger.info(
-            "settlement_paid",
-            settlement_id=settlement_id,
-            partner_id=partner.id,
-            amount=settlement.commission_amount,
-            processed_by=admin_user_id,
-        )
+            return settlement
 
-        return settlement
+        except IntegrityError as e:
+            await self.db.rollback()
+            logger.error(
+                "settlement_payment_integrity_error",
+                settlement_id=settlement_id,
+                partner_id=partner.id,
+                error=str(e),
+            )
+            raise SettlementError(
+                "PAYMENT_INTEGRITY_ERROR",
+                "정산 지급 중 데이터 무결성 오류가 발생했습니다",
+                details={"error": str(e)},
+            )
+
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(
+                "settlement_payment_failed",
+                settlement_id=settlement_id,
+                partner_id=partner.id,
+                error=str(e),
+            )
+            raise SettlementError(
+                "PAYMENT_FAILED",
+                "정산 지급 중 오류가 발생했습니다",
+                details={"error": str(e)},
+            )
 
     async def get_settlement_summary(self, partner_id: str) -> dict[str, int]:
         """Get settlement summary for a partner.

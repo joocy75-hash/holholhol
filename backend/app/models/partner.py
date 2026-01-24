@@ -130,6 +130,7 @@ class Partner(Base, UUIDMixin, TimestampMixin):
 
     # 통계 (비정규화 - 빠른 조회용)
     total_referrals: Mapped[int] = mapped_column(
+        BigInteger,
         default=0,
         nullable=False,
         comment="총 추천 회원 수",

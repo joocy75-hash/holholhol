@@ -16,6 +16,7 @@ from app.models.partner import (
     PartnerStatus,
 )
 from app.models.user import User
+from app.utils.sql import escape_like_pattern
 
 logger = get_logger(__name__)
 
@@ -157,8 +158,11 @@ class PartnerService:
             count_query = count_query.where(Partner.status == status)
 
         if search:
-            search_filter = Partner.name.ilike(f"%{search}%") | Partner.partner_code.ilike(
-                f"%{search}%"
+            # Escape LIKE pattern special characters to prevent SQL injection
+            escaped_search = escape_like_pattern(search)
+            search_filter = (
+                Partner.name.ilike(f"%{escaped_search}%", escape="\\")
+                | Partner.partner_code.ilike(f"%{escaped_search}%", escape="\\")
             )
             query = query.where(search_filter)
             count_query = count_query.where(search_filter)
@@ -312,8 +316,11 @@ class PartnerService:
         count_query = select(func.count(User.id)).where(User.partner_id == partner_id)
 
         if search:
-            search_filter = User.nickname.ilike(f"%{search}%") | User.email.ilike(
-                f"%{search}%"
+            # Escape LIKE pattern special characters to prevent SQL injection
+            escaped_search = escape_like_pattern(search)
+            search_filter = (
+                User.nickname.ilike(f"%{escaped_search}%", escape="\\")
+                | User.email.ilike(f"%{escaped_search}%", escape="\\")
             )
             query = query.where(search_filter)
             count_query = count_query.where(search_filter)
