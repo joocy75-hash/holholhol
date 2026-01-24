@@ -41,20 +41,26 @@ class AuthService:
 
     async def register(
         self,
+        username: str,
         email: str,
         password: str,
         nickname: str,
         partner_code: str | None = None,
+        usdt_wallet_address: str | None = None,
+        usdt_wallet_type: str | None = None,
         user_agent: str | None = None,
         ip_address: str | None = None,
     ) -> dict[str, Any]:
         """Register a new user.
 
         Args:
+            username: Login ID (영문/숫자)
             email: User email
             password: Plain text password
             nickname: Display name
             partner_code: Optional partner referral code
+            usdt_wallet_address: Optional USDT wallet address
+            usdt_wallet_type: Optional wallet type (TRC20, ERC20)
             user_agent: Client user agent
             ip_address: Client IP address
 
@@ -62,8 +68,15 @@ class AuthService:
             Dict with user info and tokens
 
         Raises:
-            AuthError: If email or nickname already exists
+            AuthError: If username, email or nickname already exists
         """
+        # Check if username exists
+        existing = await self.db.execute(
+            select(User).where(User.username == username.lower())
+        )
+        if existing.scalar_one_or_none():
+            raise AuthError("AUTH_USERNAME_EXISTS", "Username already taken")
+
         # Check if email exists
         existing = await self.db.execute(
             select(User).where(User.email == email)
@@ -95,11 +108,14 @@ class AuthService:
 
         # Create user
         user = User(
+            username=username.lower(),
             email=email,
             password_hash=hash_password(password),
             nickname=nickname,
             status=UserStatus.ACTIVE.value,
             partner_id=partner_id,
+            usdt_wallet_address=usdt_wallet_address,
+            usdt_wallet_type=usdt_wallet_type,
         )
         self.db.add(user)
         await self.db.flush()
@@ -125,6 +141,7 @@ class AuthService:
         return {
             "user": {
                 "id": user.id,
+                "username": user.username,
                 "nickname": user.nickname,
                 "avatar_url": user.avatar_url,
                 "balance": user.balance,
@@ -134,7 +151,7 @@ class AuthService:
 
     async def login(
         self,
-        email: str,
+        username: str,
         password: str,
         user_agent: str | None = None,
         ip_address: str | None = None,
@@ -142,7 +159,7 @@ class AuthService:
         """Authenticate a user and create session.
 
         Args:
-            email: User email
+            username: 로그인 아이디
             password: Plain text password
             user_agent: Client user agent
             ip_address: Client IP address
@@ -153,14 +170,14 @@ class AuthService:
         Raises:
             AuthError: If credentials are invalid
         """
-        # Find user
+        # Find user by username (case-insensitive)
         result = await self.db.execute(
-            select(User).where(User.email == email)
+            select(User).where(User.username == username.lower())
         )
         user = result.scalar_one_or_none()
 
         if not user or not verify_password(password, user.password_hash):
-            raise AuthError("AUTH_INVALID_CREDENTIALS", "Invalid email or password")
+            raise AuthError("AUTH_INVALID_CREDENTIALS", "아이디 또는 비밀번호가 올바르지 않습니다")
 
         if user.status != UserStatus.ACTIVE.value:
             raise AuthError("AUTH_ACCOUNT_INACTIVE", f"Account is {user.status}")
@@ -185,6 +202,7 @@ class AuthService:
         return {
             "user": {
                 "id": user.id,
+                "username": user.username,
                 "nickname": user.nickname,
                 "avatar_url": user.avatar_url,
                 "balance": user.balance,

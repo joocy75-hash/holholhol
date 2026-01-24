@@ -13,11 +13,14 @@ function LoginForm() {
   const [isSignup, setIsSignup] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
+    username: '',
     email: '',
     password: '',
     nickname: '',
     confirmPassword: '',
     partnerCode: '',
+    usdtWalletAddress: '',
+    usdtWalletType: 'TRC20' as 'TRC20' | 'ERC20',
   });
 
   // URL 쿼리 파라미터에서 추천 코드 읽기 (예: /login?ref=ABC123)
@@ -49,10 +52,18 @@ function LoginForm() {
           setLocalError('비밀번호는 8자 이상이어야 합니다.');
           return;
         }
-        await signup(formData.email, formData.password, formData.nickname, formData.partnerCode || undefined);
+        await signup(
+          formData.username,
+          formData.email,
+          formData.password,
+          formData.nickname,
+          formData.partnerCode || undefined,
+          formData.usdtWalletAddress || undefined,
+          formData.usdtWalletType
+        );
         router.push('/lobby');
       } else {
-        await login(formData.email, formData.password);
+        await login(formData.username, formData.password);
         router.push('/lobby');
       }
     } catch {
@@ -148,40 +159,66 @@ function LoginForm() {
 
           {/* 폼 */}
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* 아이디 (로그인/회원가입 공통) */}
             <div>
               <label className="block text-xs font-medium mb-2 text-gray-400">
-                이메일
+                아이디
               </label>
               <input
-                type="email"
-                name="email"
-                value={formData.email}
+                type="text"
+                name="username"
+                value={formData.username}
                 onChange={handleChange}
                 className="glass-input w-full px-4 py-3 text-base"
-                placeholder="이메일을 입력하세요"
+                placeholder="아이디를 입력하세요"
+                minLength={4}
+                maxLength={50}
+                pattern="[a-zA-Z0-9_]+"
+                title="영문, 숫자, 밑줄(_)만 사용 가능합니다"
                 required
               />
             </div>
 
+            {/* 회원가입 시에만 표시되는 필드들 */}
             <AnimatePresence>
               {isSignup && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
+                  className="space-y-4"
                 >
-                  <label className="block text-xs font-medium mb-2 text-gray-400">
-                    닉네임
-                  </label>
-                  <input
-                    type="text"
-                    name="nickname"
-                    value={formData.nickname}
-                    onChange={handleChange}
-                    className="glass-input w-full px-4 py-3 text-base"
-                    placeholder="닉네임을 입력하세요"
-                    required
-                  />
+                  {/* 이메일 (회원가입만) */}
+                  <div>
+                    <label className="block text-xs font-medium mb-2 text-gray-400">
+                      이메일
+                    </label>
+                    <input
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      className="glass-input w-full px-4 py-3 text-base"
+                      placeholder="이메일을 입력하세요"
+                      required
+                    />
+                  </div>
+
+                  {/* 닉네임 */}
+                  <div>
+                    <label className="block text-xs font-medium mb-2 text-gray-400">
+                      닉네임
+                    </label>
+                    <input
+                      type="text"
+                      name="nickname"
+                      value={formData.nickname}
+                      onChange={handleChange}
+                      className="glass-input w-full px-4 py-3 text-base"
+                      placeholder="닉네임을 입력하세요"
+                      required
+                    />
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -231,6 +268,67 @@ function LoginForm() {
                         비밀번호가 일치하지 않습니다
                       </p>
                     )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* USDT 지갑 주소 (회원가입 시에만 표시) */}
+            <AnimatePresence>
+              {isSignup && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-4"
+                >
+                  {/* 지갑 타입 선택 */}
+                  <div>
+                    <label className="block text-xs font-medium mb-2 text-gray-400">
+                      USDT 지갑 타입
+                    </label>
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="usdtWalletType"
+                          value="TRC20"
+                          checked={formData.usdtWalletType === 'TRC20'}
+                          onChange={handleChange}
+                          className="w-4 h-4 accent-blue-500"
+                        />
+                        <span className="text-sm text-gray-300">TRC20 (Tron)</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="usdtWalletType"
+                          value="ERC20"
+                          checked={formData.usdtWalletType === 'ERC20'}
+                          onChange={handleChange}
+                          className="w-4 h-4 accent-blue-500"
+                        />
+                        <span className="text-sm text-gray-300">ERC20 (Ethereum)</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* 지갑 주소 입력 */}
+                  <div>
+                    <label className="block text-xs font-medium mb-2 text-gray-400">
+                      USDT 지갑 주소
+                    </label>
+                    <input
+                      type="text"
+                      name="usdtWalletAddress"
+                      value={formData.usdtWalletAddress}
+                      onChange={handleChange}
+                      className="glass-input w-full px-4 py-3 font-mono text-sm"
+                      placeholder={formData.usdtWalletType === 'TRC20' ? 'T로 시작하는 주소' : '0x로 시작하는 주소'}
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      출금 시 사용할 USDT 지갑 주소입니다
+                    </p>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>

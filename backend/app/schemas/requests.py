@@ -21,6 +21,12 @@ RESERVED_NICKNAMES = {
 class RegisterRequest(BaseModel):
     """User registration request."""
 
+    username: str = Field(
+        ...,
+        min_length=4,
+        max_length=20,
+        description="로그인 아이디 (영문/숫자, 4-20자)",
+    )
     email: EmailStr = Field(..., description="User email address")
     password: str = Field(
         ...,
@@ -40,6 +46,27 @@ class RegisterRequest(BaseModel):
         max_length=20,
         description="Partner referral code (optional)",
     )
+    usdt_wallet_address: str | None = Field(
+        None,
+        alias="usdtWalletAddress",
+        max_length=100,
+        description="USDT 지갑 주소 (TRC20/ERC20)",
+    )
+    usdt_wallet_type: str | None = Field(
+        None,
+        alias="usdtWalletType",
+        description="지갑 타입 (TRC20, ERC20)",
+    )
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, v: str) -> str:
+        """Validate username format."""
+        if v.lower() in RESERVED_NICKNAMES:
+            raise ValueError("This username is reserved and cannot be used")
+        if not re.match(r"^[a-zA-Z0-9_]+$", v):
+            raise ValueError("Username can only contain letters, numbers, and underscores")
+        return v.lower()  # 소문자로 정규화
 
     @field_validator("password")
     @classmethod
@@ -67,7 +94,12 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     """User login request."""
 
-    email: EmailStr = Field(..., description="User email address")
+    username: str = Field(
+        ...,
+        min_length=4,
+        max_length=50,
+        description="로그인 아이디",
+    )
     password: str = Field(..., description="User password")
 
 

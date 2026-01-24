@@ -6,7 +6,7 @@ import { authApi } from '@/lib/auth-api';
 import { logger } from '@/lib/logger';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -16,8 +16,8 @@ export default function LoginPage() {
     logger.log('[Login] Button clicked');
     setStatus('Logging in...');
 
-    if (!email || !password) {
-      setError('이메일과 비밀번호를 입력하세요');
+    if (!username || !password) {
+      setError('아이디와 비밀번호를 입력하세요');
       setStatus('Validation failed');
       return;
     }
@@ -29,7 +29,7 @@ export default function LoginPage() {
       setStatus('Calling API...');
 
       // authApi를 사용하여 로그인
-      const loginResponse = await authApi.login({ email, password });
+      const loginResponse = await authApi.login({ username, password });
       setStatus('Login successful, getting user...');
 
       // 2FA 필요 시 처리 (향후 구현)
@@ -92,12 +92,12 @@ export default function LoginPage() {
         <CardContent>
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">이메일</label>
+              <label className="text-sm font-medium">아이디</label>
               <input
-                type="email"
-                placeholder="admin@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text"
+                placeholder="admin"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 className="w-full px-3 py-2 border rounded-md"
               />
             </div>

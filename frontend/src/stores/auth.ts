@@ -15,8 +15,16 @@ interface AuthState {
   isLoading: boolean;
   error: string | null;
 
-  login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, nickname: string, partnerCode?: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<void>;
+  signup: (
+    username: string,
+    email: string,
+    password: string,
+    nickname: string,
+    partnerCode?: string,
+    usdtWalletAddress?: string,
+    usdtWalletType?: string
+  ) => Promise<void>;
   logout: () => Promise<void>;
   fetchUser: () => Promise<void>;
   clearError: () => void;
@@ -28,10 +36,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: false,
   error: null,
 
-  login: async (email: string, password: string) => {
+  login: async (username: string, password: string) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await authApi.login({ email, password });
+      const response = await authApi.login({ username, password });
       const { user, tokens } = response.data;
 
       localStorage.setItem('access_token', tokens.accessToken);
@@ -51,10 +59,26 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  signup: async (email: string, password: string, nickname: string, partnerCode?: string) => {
+  signup: async (
+    username: string,
+    email: string,
+    password: string,
+    nickname: string,
+    partnerCode?: string,
+    usdtWalletAddress?: string,
+    usdtWalletType?: string
+  ) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await authApi.signup({ email, password, nickname, partnerCode });
+      const response = await authApi.signup({
+        username,
+        email,
+        password,
+        nickname,
+        partnerCode,
+        usdtWalletAddress,
+        usdtWalletType,
+      });
       const { user, tokens } = response.data;
 
       localStorage.setItem('access_token', tokens.accessToken);

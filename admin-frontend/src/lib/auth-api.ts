@@ -13,7 +13,8 @@ export interface TwoFactorSetupResponse {
 
 export const authApi = {
   login: async (data: LoginRequest): Promise<LoginResponse> => {
-    return api.post<LoginResponse>(API_ROUTES.AUTH.LOGIN, data);
+    // 로그인 API는 401 에러 시 "세션 만료" 처리를 건너뜀 (잘못된 자격증명을 의미)
+    return api.post<LoginResponse>(API_ROUTES.AUTH.LOGIN, data, { skipAuthRefresh: true });
   },
 
   verify2FA: async (

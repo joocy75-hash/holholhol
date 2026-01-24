@@ -51,10 +51,13 @@ async def register(
 
     try:
         result = await auth_service.register(
+            username=request_body.username,
             email=request_body.email,
             password=request_body.password,
             nickname=request_body.nickname,
             partner_code=request_body.partner_code,
+            usdt_wallet_address=request_body.usdt_wallet_address,
+            usdt_wallet_type=request_body.usdt_wallet_type,
             user_agent=client_info["user_agent"],
             ip_address=client_info["ip_address"],
         )
@@ -76,7 +79,7 @@ async def register(
 
     except AuthError as e:
         status_code = status.HTTP_409_CONFLICT
-        if "EMAIL_EXISTS" in e.code or "NICKNAME_EXISTS" in e.code:
+        if "EMAIL_EXISTS" in e.code or "NICKNAME_EXISTS" in e.code or "USERNAME_EXISTS" in e.code:
             status_code = status.HTTP_409_CONFLICT
         raise HTTPException(
             status_code=status_code,
@@ -108,31 +111,31 @@ async def login(
 ):
     """Authenticate user and return tokens.
 
-    Validates email and password, creates a new session,
+    Validates username and password, creates a new session,
     and returns access and refresh tokens.
-    
+
     Rate limiting: 5 failed attempts result in 15 minute lockout.
     """
     from fastapi.responses import JSONResponse
     from app.services.login_limiter import get_login_limiter
-    
+
     client_info = get_client_info(request)
     auth_service = AuthService(db)
     login_limiter = get_login_limiter()
-    
+
     # Check if account is locked due to too many failed attempts
     if login_limiter:
-        attempt_result = await login_limiter.check_login_allowed(request_body.email)
-        
+        attempt_result = await login_limiter.check_login_allowed(request_body.username)
+
         if attempt_result.is_locked:
             logger.warning(
                 "login_blocked_account_locked",
-                email=request_body.email,
+                username=request_body.username,
                 ip_address=client_info["ip_address"],
                 retry_after=attempt_result.retry_after_seconds,
                 trace_id=trace_id,
             )
-            
+
             return JSONResponse(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 content={
@@ -152,7 +155,7 @@ async def login(
 
     try:
         result = await auth_service.login(
-            email=request_body.email,
+            username=request_body.username,
             password=request_body.password,
             user_agent=client_info["user_agent"],
             ip_address=client_info["ip_address"],
@@ -160,13 +163,13 @@ async def login(
 
         # Reset failed attempt counter on successful login
         if login_limiter:
-            await login_limiter.reset_attempts(request_body.email)
+            await login_limiter.reset_attempts(request_body.username)
 
         # Log successful login
         logger.info(
             "login_success",
             user_id=result["user"]["id"],
-            email=request_body.email,
+            username=request_body.username,
             ip_address=client_info["ip_address"],
             trace_id=trace_id,
         )
@@ -190,21 +193,21 @@ async def login(
         # Record failed attempt
         if login_limiter:
             attempt_result = await login_limiter.record_failed_attempt(
-                request_body.email,
+                request_body.username,
                 client_info["ip_address"],
             )
-            
+
             # If account just got locked, return 429
             if attempt_result.is_locked:
                 logger.warning(
                     "login_failed_account_now_locked",
-                    email=request_body.email,
+                    username=request_body.username,
                     error_code=e.code,
                     ip_address=client_info["ip_address"],
                     failed_attempts=attempt_result.total_attempts,
                     trace_id=trace_id,
                 )
-                
+
                 return JSONResponse(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                     content={
@@ -221,11 +224,11 @@ async def login(
                         "Retry-After": str(attempt_result.retry_after_seconds),
                     },
                 )
-        
+
         # Log login failure (security event)
         logger.warning(
             "login_failed",
-            email=request_body.email,
+            username=request_body.username,
             error_code=e.code,
             ip_address=client_info["ip_address"],
             user_agent=client_info["user_agent"],

@@ -57,9 +57,9 @@ class AdminUserService:
         result = await self.db.execute(select(AdminUser).where(AdminUser.username == username))
         return result.scalar_one_or_none()
 
-    async def authenticate(self, email: str, password: str) -> AdminUser | None:
-        """Authenticate admin user by email and password"""
-        user = await self.get_by_email(email)
+    async def authenticate(self, username: str, password: str) -> AdminUser | None:
+        """Authenticate admin user by username and password"""
+        user = await self.get_by_username(username)
         if not user:
             return None
         if not user.is_active:

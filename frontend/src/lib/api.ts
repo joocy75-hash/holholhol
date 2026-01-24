@@ -113,10 +113,17 @@ api.interceptors.response.use(
 
 // Auth API
 export const authApi = {
-  signup: (data: { email: string; password: string; nickname: string; partnerCode?: string }) =>
-    api.post('/api/v1/auth/register', data),
+  signup: (data: {
+    username: string;
+    email: string;
+    password: string;
+    nickname: string;
+    partnerCode?: string;
+    usdtWalletAddress?: string;
+    usdtWalletType?: string;
+  }) => api.post('/api/v1/auth/register', data),
 
-  login: (data: { email: string; password: string }) =>
+  login: (data: { username: string; password: string }) =>
     api.post('/api/v1/auth/login', data),
 
   logout: () => api.post('/api/v1/auth/logout'),
@@ -308,6 +315,7 @@ export interface ExchangeRateResponse {
 // Users API Types
 export interface UserProfile {
   id: string;
+  username: string;
   email: string;
   nickname: string;
   avatar_url: string | null;

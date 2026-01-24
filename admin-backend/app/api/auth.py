@@ -19,7 +19,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    username: str
     password: str
 
 
@@ -79,12 +79,12 @@ async def login(
 ):
     """Admin login endpoint"""
     service = AdminUserService(db)
-    user = await service.authenticate(login_data.email, login_data.password)
+    user = await service.authenticate(login_data.username, login_data.password)
 
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password",
+            detail="아이디 또는 비밀번호가 올바르지 않습니다",
         )
 
     # Check if 2FA is enabled
