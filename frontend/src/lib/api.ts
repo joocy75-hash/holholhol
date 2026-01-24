@@ -536,4 +536,104 @@ export const announcementsApi = {
     }),
 };
 
+// Checkin API Types (출석체크)
+export interface BonusReward {
+  type: string;
+  amount: number;
+}
+
+export interface CheckinResponse {
+  success: boolean;
+  checkin_date: string;
+  streak_days: number;
+  reward_amount: number;
+  reward_type: string;
+  bonus_rewards: BonusReward[];
+  new_balance: number;
+}
+
+export interface MonthlyCheckin {
+  date: string;
+  reward: number;
+  reward_type: string;
+}
+
+export interface NextBonus {
+  days_remaining: number;
+  bonus: number;
+}
+
+export interface CheckinStatusResponse {
+  can_checkin: boolean;
+  streak_days: number;
+  monthly_checkins: MonthlyCheckin[];
+  next_bonus: NextBonus | null;
+  daily_reward: number;
+}
+
+export interface CheckinHistoryItem {
+  date: string;
+  streak_days: number;
+  reward_amount: number;
+  reward_type: string;
+  checked_at: string;
+}
+
+// Checkin API (출석체크)
+export const checkinApi = {
+  // 출석체크 수행
+  doCheckin: () => api.post<CheckinResponse>('/api/v1/checkin'),
+
+  // 출석체크 상태 조회
+  getStatus: () => api.get<CheckinStatusResponse>('/api/v1/checkin/status'),
+
+  // 출석체크 히스토리
+  getHistory: (limit = 30) =>
+    api.get<{ items: CheckinHistoryItem[] }>('/api/v1/checkin/history', {
+      params: { limit },
+    }),
+};
+
+// Referral API Types (친구추천)
+export interface ReferralCodeResponse {
+  referral_code: string;
+  referrer_reward: number;
+  referee_reward: number;
+}
+
+export interface RecentReferral {
+  nickname: string;
+  joined_at: string | null;
+}
+
+export interface ReferralStatsResponse {
+  referral_code: string;
+  total_referrals: number;
+  total_rewards: number;
+  referrer_reward: number;
+  referee_reward: number;
+  recent_referrals: RecentReferral[];
+}
+
+export interface ApplyReferralResponse {
+  success: boolean;
+  referrer_nickname: string;
+  referee_reward: number;
+}
+
+// Referral API (친구추천)
+export const referralApi = {
+  // 내 추천 코드 조회
+  getCode: () => api.get<ReferralCodeResponse>('/api/v1/referral/code'),
+
+  // 추천 통계 조회
+  getStats: () => api.get<ReferralStatsResponse>('/api/v1/referral/stats'),
+
+  // 추천 코드 적용 (가입 후)
+  apply: (referralCode: string) =>
+    api.post<ApplyReferralResponse>('/api/v1/referral/apply', {
+      referral_code: referralCode,
+    }),
+};
+
 export default api;

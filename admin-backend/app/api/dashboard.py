@@ -351,3 +351,144 @@ async def get_stake_level_statistics(
     service = StatisticsService(main_db)
     stats = await service.get_stake_level_statistics()
     return {"stake_levels": stats}
+
+
+# =========================================================================
+# Event Statistics (이벤트 통계)
+# =========================================================================
+
+class CheckinStatsResponse(BaseModel):
+    today_checkins: int
+    total_checkins: int
+    total_rewards_paid: int
+    streak_7_count: int
+    streak_14_count: int
+    streak_30_count: int
+
+
+class ReferralStatsResponse(BaseModel):
+    total_referrals: int
+    total_rewards_paid: int
+    today_referrals: int
+    recent_referrals: list[dict]
+
+
+@router.get("/events/checkin/stats", response_model=CheckinStatsResponse)
+async def get_checkin_statistics(
+    current_user: AdminUser = Depends(require_viewer),
+    main_db: AsyncSession = Depends(get_main_db),
+):
+    """출석체크 이벤트 통계"""
+    from sqlalchemy import select, func
+    from datetime import date
+
+    today = date.today()
+
+    # 오늘 출석체크 수
+    today_result = await main_db.execute(
+        select(func.count()).select_from(
+            select(func.literal(1))
+            .where(
+                func.cast(
+                    func.column("checkin_date"),
+                    type_=func.DATE
+                ) == today
+            )
+            .select_from(func.table("daily_checkins"))
+            .subquery()
+        )
+    )
+    # 간단히 raw SQL 사용
+    today_checkins = (await main_db.execute(
+        "SELECT COUNT(*) FROM daily_checkins WHERE checkin_date = :today",
+        {"today": today}
+    )).scalar() or 0
+
+    # 전체 출석체크 수
+    total_checkins = (await main_db.execute(
+        "SELECT COUNT(*) FROM daily_checkins"
+    )).scalar() or 0
+
+    # 총 지급 보상
+    total_rewards = (await main_db.execute(
+        "SELECT COALESCE(SUM(reward_amount), 0) FROM daily_checkins"
+    )).scalar() or 0
+
+    # 연속 출석 달성 현황
+    streak_7 = (await main_db.execute(
+        "SELECT COUNT(*) FROM daily_checkins WHERE reward_type = 'streak_7'"
+    )).scalar() or 0
+
+    streak_14 = (await main_db.execute(
+        "SELECT COUNT(*) FROM daily_checkins WHERE reward_type = 'streak_14'"
+    )).scalar() or 0
+
+    streak_30 = (await main_db.execute(
+        "SELECT COUNT(*) FROM daily_checkins WHERE reward_type = 'streak_30'"
+    )).scalar() or 0
+
+    return CheckinStatsResponse(
+        today_checkins=today_checkins,
+        total_checkins=total_checkins,
+        total_rewards_paid=total_rewards,
+        streak_7_count=streak_7,
+        streak_14_count=streak_14,
+        streak_30_count=streak_30,
+    )
+
+
+@router.get("/events/referral/stats", response_model=ReferralStatsResponse)
+async def get_referral_statistics(
+    current_user: AdminUser = Depends(require_viewer),
+    main_db: AsyncSession = Depends(get_main_db),
+):
+    """친구추천 이벤트 통계"""
+    from datetime import date
+
+    today = date.today()
+
+    # 전체 추천 수 (추천인 기준)
+    total_referrals = (await main_db.execute(
+        "SELECT COUNT(*) FROM referral_rewards WHERE reward_type = 'referrer'"
+    )).scalar() or 0
+
+    # 총 지급 보상
+    total_rewards = (await main_db.execute(
+        "SELECT COALESCE(SUM(reward_amount), 0) FROM referral_rewards"
+    )).scalar() or 0
+
+    # 오늘 추천 수
+    today_referrals = (await main_db.execute(
+        "SELECT COUNT(*) FROM referral_rewards WHERE reward_type = 'referrer' AND DATE(rewarded_at) = :today",
+        {"today": today}
+    )).scalar() or 0
+
+    # 최근 추천 목록 (최근 10건)
+    recent_result = await main_db.execute(
+        """
+        SELECT rr.user_id, u1.nickname as referrer_nickname,
+               u2.nickname as referee_nickname, rr.reward_amount, rr.rewarded_at
+        FROM referral_rewards rr
+        JOIN users u1 ON rr.user_id = u1.id
+        JOIN users u2 ON rr.referred_user_id = u2.id
+        WHERE rr.reward_type = 'referrer'
+        ORDER BY rr.rewarded_at DESC
+        LIMIT 10
+        """
+    )
+    recent_referrals = [
+        {
+            "referrer": row.referrer_nickname,
+            "referee": row.referee_nickname,
+            "reward": row.reward_amount,
+            "date": row.rewarded_at.isoformat() if row.rewarded_at else None,
+        }
+        for row in recent_result.fetchall()
+    ]
+
+    return ReferralStatsResponse(
+        total_referrals=total_referrals,
+        total_rewards_paid=total_rewards,
+        today_referrals=today_referrals,
+        recent_referrals=recent_referrals,
+    )

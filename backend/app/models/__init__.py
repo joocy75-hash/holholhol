@@ -2,7 +2,9 @@
 
 from app.models.audit import AuditLog
 from app.models.base import Base, TimestampMixin
+from app.models.checkin import DailyCheckin, CHECKIN_REWARDS
 from app.models.hand import Hand, HandEvent, HandParticipant
+from app.models.referral import ReferralReward, REFERRAL_REWARDS
 from app.models.partner import (
     CommissionType,
     Partner,
@@ -27,6 +29,12 @@ __all__ = [
     # Base
     "Base",
     "TimestampMixin",
+    # Checkin (이벤트)
+    "DailyCheckin",
+    "CHECKIN_REWARDS",
+    # Referral (친구추천)
+    "ReferralReward",
+    "REFERRAL_REWARDS",
     # User
     "User",
     "Session",

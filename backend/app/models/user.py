@@ -13,6 +13,8 @@ from app.models.base import Base, TimestampMixin, UUIDMixin
 if TYPE_CHECKING:
     from app.models.partner import Partner
     from app.models.wallet import CryptoAddress, WalletTransaction
+    from app.models.checkin import DailyCheckin
+    from app.models.referral import ReferralReward
 
 
 class UserStatus(str, Enum):
@@ -126,6 +128,22 @@ class User(Base, UUIDMixin, TimestampMixin):
         comment="추천 파트너 ID",
     )
 
+    # 친구추천 시스템
+    referral_code: Mapped[str | None] = mapped_column(
+        String(20),
+        unique=True,
+        nullable=True,
+        index=True,
+        comment="내 추천 코드 (친구 초대용)",
+    )
+    referred_by_user_id: Mapped[str | None] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="나를 추천한 유저 ID",
+    )
+
     # 파트너 정산용 통계 필드
     total_bet_amount_krw: Mapped[int] = mapped_column(
         BigInteger,
@@ -166,6 +184,30 @@ class User(Base, UUIDMixin, TimestampMixin):
         "Partner",
         foreign_keys=[partner_id],
         backref="referrals",
+    )
+
+    # 출석체크 기록
+    checkins: Mapped[list["DailyCheckin"]] = relationship(
+        "DailyCheckin",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        order_by="desc(DailyCheckin.checkin_date)",
+    )
+
+    # 친구추천 관계 (내가 추천한 유저들)
+    referrals: Mapped[list["User"]] = relationship(
+        "User",
+        backref="referred_by",
+        foreign_keys="User.referred_by_user_id",
+        remote_side="User.id",
+    )
+
+    # 추천 보상 기록
+    referral_rewards: Mapped[list["ReferralReward"]] = relationship(
+        "ReferralReward",
+        back_populates="user",
+        foreign_keys="ReferralReward.user_id",
+        cascade="all, delete-orphan",
     )
 
     def __repr__(self) -> str:

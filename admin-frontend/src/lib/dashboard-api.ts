@@ -89,6 +89,28 @@ export interface ExchangeRateResponse {
   timestamp: string;
 }
 
+// Event Statistics Types
+export interface CheckinStats {
+  today_checkins: number;
+  total_checkins: number;
+  total_rewards_paid: number;
+  streak_7_count: number;
+  streak_14_count: number;
+  streak_30_count: number;
+}
+
+export interface ReferralStats {
+  total_referrals: number;
+  total_rewards_paid: number;
+  today_referrals: number;
+  recent_referrals: Array<{
+    referrer: string;
+    referee: string;
+    reward: number;
+    date: string | null;
+  }>;
+}
+
 function getToken(): string | undefined {
   return useAuthStore.getState().accessToken || undefined;
 }
@@ -181,6 +203,15 @@ export const dashboardApi = {
   // Exchange Rate API
   async getExchangeRate(): Promise<ExchangeRateResponse> {
     return api.get<ExchangeRateResponse>(API_ROUTES.CRYPTO.EXCHANGE_RATE, { token: getToken() });
+  },
+
+  // Event Statistics APIs
+  async getCheckinStats(): Promise<CheckinStats> {
+    return api.get<CheckinStats>('/api/dashboard/events/checkin/stats', { token: getToken() });
+  },
+
+  async getReferralStats(): Promise<ReferralStats> {
+    return api.get<ReferralStats>('/api/dashboard/events/referral/stats', { token: getToken() });
   },
 };
 
