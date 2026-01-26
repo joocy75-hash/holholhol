@@ -113,6 +113,9 @@ class Settings(BaseSettings):
     hot_wallet_alert_threshold: float = 5000.0  # USDT
     deposit_confirmations_required: int = 20
     csrf_enabled: bool = False  # Enable for defense-in-depth (JWT tokens already protect against CSRF)
+
+    # CORS - 프로덕션에서는 실제 도메인으로 설정
+    cors_origins: str = "http://localhost:3000,http://localhost:3001"
     
     # Fraud Detection
     fraud_consumer_enabled: bool = True  # Enable FraudEventConsumer for real-time fraud detection

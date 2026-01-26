@@ -12,13 +12,31 @@ from app.config import get_settings
 # Import all models for autogenerate
 from app.models.base import Base
 from app.models import (  # noqa: F401
+    # User & Session
     User,
     Session,
+    # Room & Table
     Room,
     Table,
+    # Hand
     Hand,
     HandEvent,
+    HandParticipant,
+    # Audit
     AuditLog,
+    # Checkin (이벤트)
+    DailyCheckin,
+    # Referral (친구추천)
+    ReferralReward,
+    # Wallet (Phase 5)
+    WalletTransaction,
+    CryptoAddress,
+    # Rake (Phase P1-1)
+    RakeConfig,
+    # Partner (총판)
+    Partner,
+    PartnerSettlement,
+    PartnerDailyStats,
 )
 
 # this is the Alembic Config object, which provides

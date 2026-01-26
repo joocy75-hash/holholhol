@@ -36,13 +36,18 @@ pwd_context = CryptContext(
 def hash_password(password: str) -> str:
     """Hash a password using bcrypt.
 
+    bcrypt has a 72-byte limit, so we first hash the password with SHA-256
+    to handle longer passwords safely.
+
     Args:
         password: Plain text password
 
     Returns:
         Hashed password string
     """
-    return pwd_context.hash(password)
+    # SHA-256 해시로 72바이트 제한 우회 (표준 방식)
+    password_sha256 = hashlib.sha256(password.encode()).hexdigest()
+    return pwd_context.hash(password_sha256)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -55,7 +60,9 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     Returns:
         True if password matches, False otherwise
     """
-    return pwd_context.verify(plain_password, hashed_password)
+    # SHA-256 해시로 72바이트 제한 우회 (hash_password와 동일 방식)
+    password_sha256 = hashlib.sha256(plain_password.encode()).hexdigest()
+    return pwd_context.verify(password_sha256, hashed_password)
 
 
 # =============================================================================

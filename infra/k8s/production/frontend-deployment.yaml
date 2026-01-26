@@ -26,8 +26,8 @@ spec:
     spec:
       securityContext:
         runAsNonRoot: true
-        runAsUser: 101  # nginx user
-        fsGroup: 101
+        runAsUser: 1001  # nextjs user
+        fsGroup: 1001
         seccompProfile:
           type: RuntimeDefault
       affinity:
@@ -53,13 +53,13 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
-            runAsUser: 101
+            runAsUser: 1001
             capabilities:
               drop:
                 - ALL
           ports:
             - name: http
-              containerPort: 80
+              containerPort: 3000
               protocol: TCP
           resources:
             requests:
@@ -97,6 +97,6 @@ spec:
     component: frontend
   ports:
     - name: http
-      port: 80
+      port: 3000
       targetPort: http
       protocol: TCP

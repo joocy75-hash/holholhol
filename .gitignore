@@ -41,3 +41,8 @@ build/
 .planning/accounts.md
 .planning/.last_save_time
 dump.rdb
+
+# Kubernetes Secrets (프로덕션 시크릿은 절대 커밋 금지)
+infra/k8s/production/secrets.yaml
+**/secrets.yaml
+!**/secrets.yaml.example

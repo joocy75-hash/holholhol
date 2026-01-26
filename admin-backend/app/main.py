@@ -8,6 +8,7 @@ from app.config import get_settings
 from app.api import auth, dashboard, statistics, users, rooms, hands, bans, crypto, audit, ton_deposit, admin_ton_deposit, fraud, system, announcements, suspicious, notifications, export, public_announcements, partners, partner_portal, messages
 from app.middleware.csrf import CSRFMiddleware
 from app.middleware.rate_limit import setup_rate_limiting
+from app.middleware.security_headers import SecurityHeadersMiddleware
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -232,12 +233,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware
+# CORS middleware - 환경변수에서 origins 읽기
+_cors_origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -252,6 +254,9 @@ app.add_middleware(
 
 # Rate Limiting middleware (보안: Brute-force/DoS 방지)
 setup_rate_limiting(app)
+
+# Security Headers middleware (보안: XSS, Clickjacking 등 방지)
+app.add_middleware(SecurityHeadersMiddleware, debug=settings.debug)
 
 
 @app.get("/health")

@@ -1,9 +1,9 @@
 # PokerKit Holdem - Production PostgreSQL
 # NOTE: For production, consider using managed database services like:
+# - Vultr Managed Database
 # - AWS RDS
 # - Google Cloud SQL
-# - Azure Database for PostgreSQL
-# This manifest is for self-hosted deployments
+# This manifest is for self-hosted deployments on Vultr VKE
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -90,7 +90,7 @@ spec:
         resources:
           requests:
             storage: 100Gi  # Production size
-        storageClassName: standard
+        storageClassName: vultr-block-storage-hdd  # Vultr Block Storage
 ---
 apiVersion: v1
 kind: Service

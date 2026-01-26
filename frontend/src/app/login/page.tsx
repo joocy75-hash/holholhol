@@ -200,6 +200,7 @@ function LoginForm() {
                 maxLength={50}
                 pattern="[a-zA-Z0-9_]+"
                 title="영문, 숫자, 밑줄(_)만 사용 가능합니다"
+                autoComplete="username"
                 required
               />
             </div>
@@ -225,6 +226,7 @@ function LoginForm() {
                       onChange={handleChange}
                       className="glass-input w-full px-4 py-3 text-base"
                       placeholder="이메일을 입력하세요"
+                      autoComplete="email"
                       required
                     />
                   </div>
@@ -259,6 +261,7 @@ function LoginForm() {
                 onChange={handleChange}
                 className="glass-input w-full px-4 py-3 text-base"
                 placeholder="비밀번호를 입력하세요"
+                autoComplete={isSignup ? 'new-password' : 'current-password'}
                 required
               />
             </div>
@@ -285,6 +288,7 @@ function LoginForm() {
                         : ''
                     }`}
                     placeholder="비밀번호를 다시 입력하세요"
+                    autoComplete="new-password"
                     required
                   />
                   {formData.confirmPassword &&

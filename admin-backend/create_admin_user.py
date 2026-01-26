@@ -17,12 +17,12 @@ async def create_default_admin():
         # Create default admin
         print("Creating default admin user...")
         await service.create_admin_user(
-            username="admin", email="admin@example.com", password="admin", role=AdminRole.admin
+            username="admin", email="admin@example.com", password="Admin@Holdem2026!", role=AdminRole.admin
         )
         print("Default admin user created successfully!")
         print("Username: admin")
         print("Email: admin@example.com")
-        print("Password: admin")
+        print("Password: Admin@Holdem2026!")
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ fastapi>=0.109.0
 uvicorn[standard]>=0.27.0
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
+email-validator>=2.0.0
 
 # Database
 sqlalchemy[asyncio]>=2.0.25
@@ -19,6 +20,7 @@ pokerkit>=0.5.0
 # Auth
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
+bcrypt>=4.0.0,<5.0.0  # passlib과 호환성 문제로 5.x 제외
 
 # Utilities
 structlog>=24.1.0
