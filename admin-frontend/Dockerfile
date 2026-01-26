@@ -7,6 +7,15 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
+
+# Build-time environment variables (passed via --build-arg)
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_WS_URL
+ARG NEXT_PUBLIC_MAIN_API_URL
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL}
+ENV NEXT_PUBLIC_MAIN_API_URL=${NEXT_PUBLIC_MAIN_API_URL}
+
 RUN npm run build
 
 # Production stage
@@ -29,5 +38,9 @@ EXPOSE 3001
 
 ENV PORT=3001
 ENV HOSTNAME="0.0.0.0"
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD wget --quiet --tries=1 --spider http://localhost:3001/ || exit 1
 
 CMD ["node", "server.js"]
