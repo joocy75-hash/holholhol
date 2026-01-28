@@ -181,8 +181,16 @@ async def lifespan(_app: FastAPI):
             logger.info("Initializing Live Bot Orchestrator...")
             try:
                 from app.bot.orchestrator import init_bot_orchestrator
+                from app.bot.game_loop import get_bot_game_loop
+
                 bot_orchestrator = await init_bot_orchestrator()
                 _app.state.bot_orchestrator = bot_orchestrator
+
+                # Initialize bot game loop for autonomous game management
+                game_loop = get_bot_game_loop()
+                await game_loop.start()
+                _app.state.bot_game_loop = game_loop
+
                 logger.info(
                     f"Live Bot Orchestrator initialized "
                     f"(target={bot_orchestrator.target_count})"
@@ -204,6 +212,12 @@ async def lifespan(_app: FastAPI):
     logger.info("Shutting down application...")
 
     try:
+        # Shutdown Live Bot Game Loop
+        if hasattr(_app.state, 'bot_game_loop'):
+            logger.info("Shutting down Bot Game Loop...")
+            await _app.state.bot_game_loop.stop()
+            logger.info("Bot Game Loop shutdown complete")
+
         # Shutdown Live Bot Orchestrator
         if hasattr(_app.state, 'bot_orchestrator'):
             logger.info("Shutting down Live Bot Orchestrator...")

@@ -180,3 +180,22 @@ async def retire_bot(
     """
     result = await call_main_backend("POST", f"/internal/admin/bots/retire/{bot_id}")
     return result
+
+
+@router.delete(
+    "/all",
+    summary="Force remove all bots immediately",
+)
+async def force_remove_all_bots(
+    _: dict = Depends(get_current_user),
+) -> dict:
+    """Force remove all bots immediately.
+
+    Removes all bots from tables regardless of game state.
+    Target count is also reset to 0.
+
+    Returns:
+        Result with removed bot count and details
+    """
+    result = await call_main_backend("DELETE", "/internal/admin/bots/all")
+    return result

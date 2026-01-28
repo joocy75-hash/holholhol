@@ -938,3 +938,27 @@ async def retire_bot(
         "state": session.state.name,
         "message": "은퇴 요청이 등록되었습니다. 현재 핸드 완료 후 테이블을 떠납니다.",
     }
+
+
+@router.delete(
+    "/bots/all",
+    responses={401: {"description": "Invalid API key"}},
+)
+async def force_remove_all_bots(
+    x_api_key: str = Header(...),
+):
+    """모든 봇 즉시 삭제.
+
+    게임 진행 상태와 관계없이 모든 봇을 즉시 테이블에서 제거합니다.
+    target_count도 0으로 리셋됩니다.
+    """
+    verify_api_key(x_api_key)
+
+    from app.bot.orchestrator import get_bot_orchestrator
+
+    orchestrator = get_bot_orchestrator()
+    result = await orchestrator.force_remove_all_bots()
+
+    logger.info(f"Force removed all bots: {result['removed_count']} bots removed")
+
+    return result

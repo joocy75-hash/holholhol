@@ -146,6 +146,39 @@ class BotOrchestrator:
             "current_total": self.total_bot_count,
         }
 
+    async def force_remove_all_bots(self) -> dict:
+        """Force remove all bots immediately.
+
+        Called by admin API for emergency cleanup.
+        Removes all bots from tables regardless of game state.
+
+        Returns:
+            Status dictionary with removal count
+        """
+        async with self._lock:
+            removed_count = len(self._sessions)
+            removed_bots = []
+
+            for session in list(self._sessions.values()):
+                removed_bots.append({
+                    "nickname": session.nickname,
+                    "room_id": session.room_id,
+                    "state": session.state.name,
+                })
+                await self._remove_bot_from_game(session)
+
+            self._sessions.clear()
+            self._target_count = 0  # Reset target to 0
+
+            logger.info(f"[BOT_ORCH] Force removed {removed_count} bots")
+
+            return {
+                "success": True,
+                "removed_count": removed_count,
+                "removed_bots": removed_bots,
+                "new_target": 0,
+            }
+
     def get_status(self) -> dict:
         """Get orchestrator status.
 
@@ -199,6 +232,9 @@ class BotOrchestrator:
 
                     # Check resting bots
                     await self._check_resting_bots()
+
+                    # Cleanup retire-requested bots that are not in a hand
+                    await self._cleanup_retired_bots()
 
             except asyncio.CancelledError:
                 break
@@ -272,22 +308,47 @@ class BotOrchestrator:
         Returns:
             True if a bot was retired
         """
-        # First try to retire a resting bot
-        for session in self._sessions.values():
+        # First try to retire a resting bot (immediate removal)
+        for bot_id, session in list(self._sessions.items()):
             if session.state == BotState.RESTING:
                 session.request_retire()
+                del self._sessions[bot_id]
+                logger.info(f"[BOT_ORCH] Retired resting bot {session.nickname}")
                 return True
 
-        # Then try an idle bot
-        for session in self._sessions.values():
+        # Then try an idle bot (immediate removal)
+        for bot_id, session in list(self._sessions.items()):
             if session.state == BotState.IDLE:
                 session.request_retire()
+                del self._sessions[bot_id]
+                logger.info(f"[BOT_ORCH] Retired idle bot {session.nickname}")
                 return True
 
-        # Finally, request a playing bot to leave after current hand
+        # For playing bots, check if hand is in progress
         for session in self._sessions.values():
             if session.state == BotState.PLAYING and not session._retire_requested:
                 session.request_retire()
+
+                # Check if game is actually in progress
+                if session.room_id:
+                    table = game_manager.get_table(session.room_id)
+                    if table:
+                        from app.game.poker_table import GamePhase
+
+                        # If no hand in progress, remove immediately
+                        if table.phase == GamePhase.WAITING:
+                            await self._remove_bot_from_game(session)
+                            await session.leave_table()
+                            del self._sessions[session.bot_id]
+                            logger.info(
+                                f"[BOT_ORCH] Retired waiting bot {session.nickname} "
+                                f"(no hand in progress)"
+                            )
+                        else:
+                            logger.info(
+                                f"[BOT_ORCH] Bot {session.nickname} will retire "
+                                f"after current hand"
+                            )
                 return True
 
         return False
@@ -307,6 +368,38 @@ class BotOrchestrator:
                     # We have enough bots, retire this one
                     session.request_retire()
                     del self._sessions[session.bot_id]
+
+    async def _cleanup_retired_bots(self) -> None:
+        """Cleanup bots that have retire requested and are not in a hand.
+
+        This handles bots that were requested to retire but the game
+        never started or completed.
+        """
+        from app.game.poker_table import GamePhase
+
+        for bot_id, session in list(self._sessions.items()):
+            if not session._retire_requested:
+                continue
+
+            # Skip if not in PLAYING state
+            if session.state != BotState.PLAYING:
+                continue
+
+            # Check if hand is in progress
+            if session.room_id:
+                table = game_manager.get_table(session.room_id)
+                if table and table.phase != GamePhase.WAITING:
+                    # Hand in progress, wait for completion
+                    continue
+
+            # No hand in progress, remove immediately
+            await self._remove_bot_from_game(session)
+            await session.leave_table()
+            del self._sessions[bot_id]
+            logger.info(
+                f"[BOT_ORCH] Cleaned up retired bot {session.nickname} "
+                f"(no hand in progress)"
+            )
 
     async def _add_bot_to_game(self, session: BotSession) -> bool:
         """Add a bot to the GameManager.
@@ -354,6 +447,12 @@ class BotOrchestrator:
             f"[BOT_ORCH] Bot {session.nickname} seated at "
             f"{session.room_id} seat {session.seat}"
         )
+
+        # Trigger game start check
+        from app.bot.game_loop import get_bot_game_loop
+
+        game_loop = get_bot_game_loop()
+        asyncio.create_task(game_loop.try_start_game(session.room_id))
 
         return True
 

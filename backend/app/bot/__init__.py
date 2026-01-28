@@ -13,5 +13,6 @@ Key components:
 """
 
 from app.bot.orchestrator import BotOrchestrator, get_bot_orchestrator
+from app.bot.game_loop import BotGameLoop, get_bot_game_loop
 
-__all__ = ["BotOrchestrator", "get_bot_orchestrator"]
+__all__ = ["BotOrchestrator", "get_bot_orchestrator", "BotGameLoop", "get_bot_game_loop"]
