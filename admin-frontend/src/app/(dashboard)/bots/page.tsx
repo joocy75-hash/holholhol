@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/table';
 import { botsApi, BotStatus, BotInfo } from '@/lib/bots-api';
 import { toast } from 'sonner';
-import { RefreshCw, Bot, Play, Pause, UserMinus } from 'lucide-react';
+import { RefreshCw, Bot, Play, Pause, UserMinus, Trash2 } from 'lucide-react';
 
 export default function BotsPage() {
   const [status, setStatus] = useState<BotStatus | null>(null);
@@ -86,6 +86,22 @@ export default function BotsPage() {
     } catch (error) {
       console.error('Failed to retire bot:', error);
       toast.error('봇 은퇴 요청에 실패했습니다.');
+    }
+  };
+
+  const handleForceRemoveAll = async () => {
+    if (!confirm('모든 봇을 즉시 삭제하시겠습니까? 진행 중인 게임에서도 즉시 제거됩니다.')) {
+      return;
+    }
+    try {
+      const result = await botsApi.forceRemoveAll();
+      if (result.success) {
+        toast.success(`${result.removedCount}개의 봇이 삭제되었습니다.`);
+        fetchStatus();
+      }
+    } catch (error) {
+      console.error('Failed to force remove all bots:', error);
+      toast.error('봇 삭제에 실패했습니다.');
     }
   };
 
@@ -268,6 +284,13 @@ export default function BotsPage() {
               }}
             >
               모든 봇 제거 (목표=0)
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleForceRemoveAll}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              즉시 전체 삭제
             </Button>
           </div>
         </CardContent>

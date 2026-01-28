@@ -52,6 +52,12 @@ export interface RetireBotResponse {
   message: string;
 }
 
+export interface ForceRemoveAllResponse {
+  success: boolean;
+  removedCount: number;
+  message: string;
+}
+
 function getAuthToken(): string | undefined {
   if (typeof window === 'undefined') return undefined;
   try {
@@ -87,5 +93,10 @@ export const botsApi = {
   retireBot: async (botId: string): Promise<RetireBotResponse> => {
     const token = getAuthToken();
     return api.post<RetireBotResponse>(`/api/bots/retire/${botId}`, undefined, { token });
+  },
+
+  forceRemoveAll: async (): Promise<ForceRemoveAllResponse> => {
+    const token = getAuthToken();
+    return api.delete<ForceRemoveAllResponse>('/api/bots/all', { token });
   },
 };
