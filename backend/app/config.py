@@ -160,6 +160,52 @@ class Settings(BaseSettings):
         description="API URL for bot authentication",
     )
 
+    # Live Bot Settings (살아있는 봇 시스템)
+    livebot_enabled: bool = Field(
+        default=True,
+        description="Enable live bot system",
+    )
+    livebot_target_count: int = Field(
+        default=0,
+        description="Target number of active live bots (managed via admin)",
+    )
+    livebot_session_min_minutes: int = Field(
+        default=30,
+        description="Minimum bot session duration in minutes",
+    )
+    livebot_session_max_minutes: int = Field(
+        default=240,
+        description="Maximum bot session duration in minutes",
+    )
+    livebot_rest_min_minutes: int = Field(
+        default=10,
+        description="Minimum bot rest time between sessions in minutes",
+    )
+    livebot_rest_max_minutes: int = Field(
+        default=60,
+        description="Maximum bot rest time between sessions in minutes",
+    )
+    livebot_rebuy_threshold_bb: int = Field(
+        default=20,
+        description="Rebuy when stack falls below this many big blinds",
+    )
+    livebot_rebuy_chance: float = Field(
+        default=0.6,
+        description="Probability of rebuy when stack is low (0.0-1.0)",
+    )
+    livebot_leave_after_big_win_chance: float = Field(
+        default=0.15,
+        description="Probability of leaving after a big win (0.0-1.0)",
+    )
+    livebot_spawn_rate_per_minute: int = Field(
+        default=5,
+        description="Max bots to spawn per minute (prevents flooding)",
+    )
+    livebot_retire_rate_per_minute: int = Field(
+        default=5,
+        description="Max bots to retire per minute (prevents mass exodus)",
+    )
+
     # Internal Admin API Settings (admin-backend 연동)
     internal_api_key: str = Field(
         ...,

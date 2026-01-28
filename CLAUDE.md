@@ -31,6 +31,64 @@ cd backend && pytest tests/ -v
 
 ---
 
+## 프로덕션 배포 (PM2)
+
+### 서버 정보
+- **IP**: 158.247.252.240
+- **프로젝트 경로**: `/app/holdem/`
+- **SSH**: `ssh root@158.247.252.240`
+
+### 서비스 구성 (PM2)
+| 서비스 | 포트 | 프로세스명 |
+|--------|------|-----------|
+| Backend | 8000 | backend |
+| Frontend | 3000 | frontend |
+| Admin Backend | 8001 | admin-backend |
+| Admin Frontend | 3001 | admin-frontend |
+
+### 배포 방법
+
+#### 방법 1: 전체 배포 스크립트
+```bash
+ssh root@158.247.252.240 "cd /app/holdem && ./scripts/deploy.sh"
+```
+
+#### 방법 2: 개별 서비스 배포
+```bash
+# Backend만
+ssh root@158.247.252.240 "cd /app/holdem/backend && source venv/bin/activate && pip install -r requirements.txt -q && pm2 reload backend"
+
+# Frontend만
+ssh root@158.247.252.240 "cd /app/holdem/frontend && pnpm install --frozen-lockfile && pnpm run build && cp -r public .next/standalone/public && cp -r .next/static .next/standalone/.next/static && pm2 reload frontend"
+
+# Admin Backend만
+ssh root@158.247.252.240 "cd /app/holdem/admin-backend && source venv/bin/activate && pip install -r requirements.txt -q && pm2 reload admin-backend"
+
+# Admin Frontend만
+ssh root@158.247.252.240 "cd /app/holdem/admin-frontend && pnpm install --frozen-lockfile && pnpm run build && cp -r public .next/standalone/public && cp -r .next/static .next/standalone/.next/static && pm2 reload admin-frontend"
+```
+
+#### 방법 3: GitHub Actions (자동 배포)
+- **main 브랜치에 push하면 자동으로 배포됨**
+- 수동 트리거: GitHub → Actions → "Deploy to Production" → Run workflow
+- 서비스 선택 (all/backend/frontend/admin-backend/admin-frontend)
+
+### PM2 명령어
+```bash
+pm2 status              # 상태 확인
+pm2 logs                # 전체 로그
+pm2 logs backend        # 특정 서비스 로그
+pm2 reload all          # 전체 재시작
+pm2 reload backend      # 특정 서비스 재시작
+```
+
+### 환경변수
+- Backend: `/app/holdem/backend/.env`
+- Admin Backend: `/app/holdem/admin-backend/.env`
+- Frontend: 빌드 시 `.env.production`에서 읽음
+
+---
+
 ## 아키텍처 방향성 (게임 상태 관리)
 
 ### 현재 상태 (프로토타입)

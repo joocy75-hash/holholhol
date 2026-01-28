@@ -625,8 +625,23 @@ export default function TablePage() {
     return maxSeats === 9 ? SEAT_POSITIONS_9 : SEAT_POSITIONS_6;
   }, [gameState.tableConfig?.maxSeats]);
 
+  // 모바일에서 스크롤 완전 차단
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.width = '100%';
+    document.body.style.height = '100%';
+
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      document.body.style.height = '';
+    };
+  }, []);
+
   return (
-    <div className="h-screen flex justify-center items-start bg-black overflow-hidden">
+    <div className="fixed inset-0 flex justify-center items-start bg-black overflow-hidden">
       {/* Scale Wrapper - 스케일된 실제 크기로 레이아웃 공간 확보 */}
       <div
         style={{

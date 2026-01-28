@@ -804,3 +804,137 @@ async def delete_rake_config(
 
     await db.commit()
     logger.info(f"Rake config deleted: {config_id}")
+
+
+# ============================================================================
+# Live Bot Endpoints
+# ============================================================================
+
+
+class BotTargetRequest(BaseModel):
+    """봇 목표 수 설정 요청."""
+
+    target_count: int = Field(ge=0, le=100, description="목표 봇 수 (0-100)")
+
+
+@router.get(
+    "/bots/status",
+    responses={401: {"description": "Invalid API key"}},
+)
+async def get_bot_status(
+    x_api_key: str = Header(...),
+):
+    """봇 시스템 상태 조회.
+
+    현재 봇 수, 상태별 분포, 개별 봇 정보를 반환합니다.
+    """
+    verify_api_key(x_api_key)
+
+    from app.bot.orchestrator import get_bot_orchestrator
+
+    orchestrator = get_bot_orchestrator()
+    return orchestrator.get_status()
+
+
+@router.post(
+    "/bots/target",
+    responses={401: {"description": "Invalid API key"}},
+)
+async def set_bot_target(
+    request: BotTargetRequest,
+    x_api_key: str = Header(...),
+):
+    """목표 봇 수 설정.
+
+    오케스트레이터가 이 목표에 맞게 봇 수를 점진적으로 조절합니다.
+    """
+    verify_api_key(x_api_key)
+
+    from app.bot.orchestrator import get_bot_orchestrator
+
+    orchestrator = get_bot_orchestrator()
+    result = await orchestrator.set_target_count(request.target_count)
+
+    logger.info(
+        f"Bot target count changed: {result['old_target']} -> {result['new_target']} "
+        f"(current active: {result['current_active']})"
+    )
+
+    return result
+
+
+@router.post(
+    "/bots/spawn",
+    responses={401: {"description": "Invalid API key"}},
+)
+async def spawn_bot(
+    x_api_key: str = Header(...),
+):
+    """봇 하나 즉시 생성 (테스트용).
+
+    Rate limiter를 무시하고 즉시 봇을 생성합니다.
+    """
+    verify_api_key(x_api_key)
+
+    from app.bot.orchestrator import get_bot_orchestrator
+
+    orchestrator = get_bot_orchestrator()
+
+    # Lock 획득 후 spawn 시도
+    async with orchestrator._lock:
+        success = await orchestrator._spawn_bot()
+
+    if success:
+        return {
+            "success": True,
+            "message": "봇이 생성되었습니다",
+            "active_count": orchestrator.active_bot_count,
+        }
+    else:
+        return {
+            "success": False,
+            "message": "봇 생성 실패 (적합한 방이 없을 수 있음)",
+            "active_count": orchestrator.active_bot_count,
+        }
+
+
+@router.post(
+    "/bots/retire/{bot_id}",
+    responses={
+        401: {"description": "Invalid API key"},
+        404: {"description": "Bot not found"},
+    },
+)
+async def retire_bot(
+    bot_id: str,
+    x_api_key: str = Header(...),
+):
+    """특정 봇 은퇴 요청.
+
+    봇이 현재 핸드를 완료한 후 테이블을 떠나게 합니다.
+    """
+    verify_api_key(x_api_key)
+
+    from app.bot.orchestrator import get_bot_orchestrator
+
+    orchestrator = get_bot_orchestrator()
+
+    # Find and retire the bot
+    session = orchestrator._sessions.get(bot_id)
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"봇을 찾을 수 없습니다: {bot_id}",
+        )
+
+    session.request_retire()
+
+    logger.info(f"Bot retire requested: {session.nickname} ({bot_id})")
+
+    return {
+        "success": True,
+        "bot_id": bot_id,
+        "nickname": session.nickname,
+        "state": session.state.name,
+        "message": "은퇴 요청이 등록되었습니다. 현재 핸드 완료 후 테이블을 떠납니다.",
+    }

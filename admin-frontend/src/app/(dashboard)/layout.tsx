@@ -20,6 +20,7 @@ const navItems = [
   { href: '/users', label: '사용자', icon: '👥' },
   { href: '/rooms', label: '방 관리', icon: '🎮' },
   { href: '/hands', label: '핸드 기록', icon: '🃏' },
+  { href: '/bots', label: 'Live 봇', icon: '🤖' },
   { href: '/bans', label: '제재 관리', icon: '🚫' },
   { href: '/deposits', label: '입금 관리', icon: '📥' },
   { href: '/partners', label: '파트너 관리', icon: '🤝' },
@@ -48,6 +49,7 @@ export default function DashboardLayout({
   const router = useRouter();
   const [authState, setAuthState] = useState<AuthState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
 
   // Handle auth errors (401) globally
   const handleAuthError = useCallback(() => {
@@ -64,16 +66,18 @@ export default function DashboardLayout({
   }, [handleAuthError]);
 
   useEffect(() => {
+    setIsMounted(true);
+
     // Read auth state directly from localStorage
     const checkAuth = () => {
       try {
         const stored = localStorage.getItem('admin-auth');
         console.log('[DashboardLayout] Checking auth, stored:', stored ? 'exists' : 'null');
-        
+
         if (stored) {
           const parsed = JSON.parse(stored);
           console.log('[DashboardLayout] Parsed:', JSON.stringify(parsed.state, null, 2));
-          
+
           if (parsed.state?.isAuthenticated && parsed.state?.accessToken) {
             // tokenExpiry 검증 (있는 경우에만)
             if (parsed.state.tokenExpiry && Date.now() > parsed.state.tokenExpiry) {
@@ -89,7 +93,7 @@ export default function DashboardLayout({
             return;
           }
         }
-        
+
         console.log('[DashboardLayout] Not authenticated, redirecting to login');
         router.replace('/login');
       } catch (e) {
@@ -98,9 +102,7 @@ export default function DashboardLayout({
       }
     };
 
-    // Small delay to ensure localStorage is available
-    const timer = setTimeout(checkAuth, 100);
-    return () => clearTimeout(timer);
+    checkAuth();
   }, [router]);
 
   const handleLogout = () => {
@@ -108,28 +110,18 @@ export default function DashboardLayout({
     router.replace('/login');
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="text-gray-500">로딩 중...</div>
-      </div>
-    );
-  }
-
-  if (!authState?.isAuthenticated) {
-    return null;
-  }
-
+  // 서버/클라이언트 하이드레이션 불일치 방지를 위해
+  // 마운트 전에는 전체 레이아웃 구조를 동일하게 유지
   return (
     <div className="flex h-screen bg-gray-100">
-      {/* Sidebar */}
-      <aside className="w-64 bg-white shadow-md">
+      {/* Sidebar - 항상 렌더링 */}
+      <aside className="w-64 bg-white shadow-md flex flex-col h-full overflow-hidden">
         <div className="p-4">
           <h1 className="text-xl font-bold text-gray-800">🎰 Admin</h1>
           <p className="text-sm text-gray-500">Holdem Management</p>
         </div>
         <Separator />
-        <nav className="p-2">
+        <nav className="p-2 flex-1 overflow-y-auto">
           {navItems.map((item) => (
             <Link
               key={item.href}
@@ -148,30 +140,42 @@ export default function DashboardLayout({
         {/* Header */}
         <header className="bg-white shadow-sm px-6 py-4 flex justify-between items-center">
           <div />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="flex items-center gap-2">
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback>
-                    {authState?.user?.username?.charAt(0).toUpperCase() || 'A'}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="text-sm">{authState?.user?.username}</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem disabled>
-                역할: {authState?.user?.role}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleLogout}>
-                로그아웃
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {isMounted && authState?.isAuthenticated ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="flex items-center gap-2">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback>
+                      {authState?.user?.username?.charAt(0).toUpperCase() || 'A'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="text-sm">{authState?.user?.username}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem disabled>
+                  역할: {authState?.user?.role}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleLogout}>
+                  로그아웃
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <div className="h-8 w-24 bg-gray-100 rounded animate-pulse" />
+          )}
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-auto p-6">{children}</main>
+        <main className="flex-1 overflow-auto p-6">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-gray-500">로딩 중...</div>
+            </div>
+          ) : authState?.isAuthenticated ? (
+            children
+          ) : null}
+        </main>
       </div>
     </div>
   );

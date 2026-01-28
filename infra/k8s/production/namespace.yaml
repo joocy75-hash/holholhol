@@ -1,9 +1,0 @@
-# PokerKit Holdem - Production Namespace
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: pokerkit-prod
-  labels:
-    app: pokerkit
-    env: production
-    name: pokerkit-prod

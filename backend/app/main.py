@@ -176,6 +176,23 @@ async def lifespan(_app: FastAPI):
             logger.error(f"Tournament engine initialization failed: {e}")
             # Non-critical: basic game functionality continues
 
+        # === Live Bot Orchestrator (프로덕션 봇 시스템) ===
+        if settings.livebot_enabled:
+            logger.info("Initializing Live Bot Orchestrator...")
+            try:
+                from app.bot.orchestrator import init_bot_orchestrator
+                bot_orchestrator = await init_bot_orchestrator()
+                _app.state.bot_orchestrator = bot_orchestrator
+                logger.info(
+                    f"Live Bot Orchestrator initialized "
+                    f"(target={bot_orchestrator.target_count})"
+                )
+            except Exception as e:
+                logger.error(f"Bot orchestrator initialization failed: {e}")
+                # Non-critical: game functionality continues without bots
+        else:
+            logger.info("Live Bot system disabled")
+
         logger.info("Application startup complete")
     except Exception as e:
         logger.error(f"Startup failed: {e}")
@@ -187,6 +204,13 @@ async def lifespan(_app: FastAPI):
     logger.info("Shutting down application...")
 
     try:
+        # Shutdown Live Bot Orchestrator
+        if hasattr(_app.state, 'bot_orchestrator'):
+            logger.info("Shutting down Live Bot Orchestrator...")
+            from app.bot.orchestrator import shutdown_bot_orchestrator
+            await shutdown_bot_orchestrator()
+            logger.info("Live Bot Orchestrator shutdown complete")
+
         # Shutdown WebSocket manager
         logger.info("Shutting down WebSocket gateway...")
         await shutdown_manager()

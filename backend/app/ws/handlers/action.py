@@ -58,19 +58,33 @@ TURN_TIMEOUT_MAX_AGE_SECONDS = 120  # 2 minutes
 def is_bot_player(player) -> bool:
     """Check if player is a bot.
 
-    user_id 접두사를 우선 확인 (bot_ 또는 test_player_로 시작하면 봇).
+    user_id 접두사를 우선 확인:
+    - bot_: Dev 봇
+    - test_player_: 테스트 봇
+    - livebot_: 살아있는 봇 (프로덕션)
     is_bot 필드가 명시적으로 True인 경우도 봇으로 처리.
     """
     if player is None:
         return False
     # 우선 user_id 접두사 확인 (가장 신뢰할 수 있는 방법)
     user_id = getattr(player, 'user_id', str(player))
-    if user_id.startswith("bot_") or user_id.startswith("test_player_"):
+    if user_id.startswith("bot_") or user_id.startswith("test_player_") or user_id.startswith("livebot_"):
         return True
     # 폴백: is_bot 필드 확인
     if hasattr(player, 'is_bot') and player.is_bot:
         return True
     return False
+
+
+def is_livebot_player(player) -> bool:
+    """Check if player is a live bot (production bot).
+
+    Live bots use the livebot_ prefix and have strategy-based behavior.
+    """
+    if player is None:
+        return False
+    user_id = getattr(player, 'user_id', str(player))
+    return user_id.startswith("livebot_")
 
 
 class ActionHandler(BaseHandler):
@@ -688,16 +702,34 @@ class ActionHandler(BaseHandler):
                 # 유효한 actions를 찾았으면 재시도 카운터 리셋
                 no_actions_retry_count = 0
 
-                # Bot decision logic with hand strength evaluation
-                action, amount = self._decide_bot_action(
-                    actions=actions,
-                    call_amount=call_amount,
-                    stack=current_player.stack,
-                    available=available,
-                    hole_cards=current_player.hole_cards or [],
-                    community_cards=table.community_cards or [],
-                    pot=table.pot,
-                )
+                # Bot decision logic
+                # Live bots use strategy system, dev bots use simple logic
+                if is_livebot_player(current_player):
+                    action, amount = self._decide_livebot_action(
+                        user_id=current_player.user_id,
+                        actions=actions,
+                        call_amount=call_amount,
+                        stack=current_player.stack,
+                        available=available,
+                        hole_cards=current_player.hole_cards or [],
+                        community_cards=table.community_cards or [],
+                        pot=table.pot,
+                        big_blind=table.big_blind,
+                        phase=table.phase.value,
+                        position=table.current_player_seat,
+                        num_players=table.max_players,
+                        num_active=len([p for p in table.players.values() if p and p.status == "active"]),
+                    )
+                else:
+                    action, amount = self._decide_bot_action(
+                        actions=actions,
+                        call_amount=call_amount,
+                        stack=current_player.stack,
+                        available=available,
+                        hole_cards=current_player.hole_cards or [],
+                        community_cards=table.community_cards or [],
+                        pot=table.pot,
+                    )
 
                 logger.info(f"[BOT] {current_player.username} chose: {action} {amount}")
 
@@ -764,6 +796,70 @@ class ActionHandler(BaseHandler):
             import traceback
             traceback.print_exc()
 
+    def _decide_livebot_action(
+        self,
+        user_id: str,
+        actions: list[str],
+        call_amount: int,
+        stack: int,
+        available: AvailableActions,
+        hole_cards: list[str],
+        community_cards: list[str],
+        pot: int,
+        big_blind: int,
+        phase: str,
+        position: int,
+        num_players: int,
+        num_active: int,
+    ) -> tuple[str, int]:
+        """Live bot decision using strategy system.
+
+        Live bots use predefined strategies (TAG, LAG, etc.) for more
+        realistic and varied play.
+        """
+        from app.bot.orchestrator import get_bot_orchestrator
+        from app.bot.strategy import get_strategy
+        from app.bot.strategy.base import GameContext
+
+        # Get bot's strategy from orchestrator
+        orchestrator = get_bot_orchestrator()
+        strategy_name = orchestrator.get_bot_strategy(user_id)
+
+        if not strategy_name:
+            # Fallback to balanced if not found
+            strategy_name = "balanced"
+            logger.warning(f"[LIVEBOT] Strategy not found for {user_id}, using balanced")
+
+        strategy = get_strategy(strategy_name)
+
+        # Build game context
+        context = GameContext(
+            actions=actions,
+            call_amount=call_amount,
+            min_raise=available.get("min_raise", call_amount * 2),
+            max_raise=available.get("max_raise", stack),
+            stack=stack,
+            current_bet=available.get("current_bet", 0),
+            position=position,
+            hole_cards=hole_cards,
+            community_cards=community_cards,
+            pot=pot,
+            phase=phase,
+            big_blind=big_blind,
+            num_players=num_players,
+            num_active=num_active,
+        )
+
+        # Get decision from strategy
+        decision = strategy.decide(context)
+
+        logger.info(
+            f"[LIVEBOT] {user_id} strategy={strategy_name}, "
+            f"decision={decision.action} {decision.amount}"
+        )
+
+        return decision.to_tuple()
+
     def _decide_bot_action(
         self,
         actions: list[str],
@@ -774,7 +870,7 @@ class ActionHandler(BaseHandler):
         community_cards: list[str] | None = None,
         pot: int = 0,
     ) -> tuple[str, int]:
-        """핸드 강도 기반 봇 결정 로직.
+        """핸드 강도 기반 봇 결정 로직 (Dev 봇용).
 
         실제 홀덤 플레이어처럼 행동:
         - 핸드 강도에 따라 베팅/레이즈/콜/폴드 결정
