@@ -8,7 +8,6 @@ import { analyzeHand } from '@/lib/handEvaluator';
 import { HandRankingGuide } from '@/components/table/pmang';
 import { RebuyModal } from '@/components/table/RebuyModal';
 import { DealingAnimation } from '@/components/table/DealingAnimation';
-import { DevAdminPanel } from '@/components/table/DevAdminPanel';
 import { TableCenter } from '@/components/table/TableCenter';
 import { useAnimatedNumber } from '@/components/table/PotDisplay';
 import { BuyInModal } from '@/components/table/BuyInModal';
@@ -904,17 +903,6 @@ export default function TablePage() {
         )}
         </div>
       </div>
-
-      {/* DEV 어드민 패널 */}
-      <DevAdminPanel
-        tableId={tableId}
-        onReset={handleDevReset}
-        onAddBot={handleAddBot}
-        onStartBotLoop={handleStartBotLoop}
-        isResetting={isResetting}
-        isAddingBot={isAddingBot}
-        isStartingLoop={isStartingLoop}
-      />
 
       {/* 리바이 모달 */}
       <RebuyModal
