@@ -48,27 +48,32 @@ cd backend && pytest tests/ -v
 
 ### 배포 방법
 
-#### 방법 1: 전체 배포 스크립트
+#### 방법 1: 빠른 배포 (코드만 변경된 경우)
 ```bash
-ssh root@158.247.252.240 "cd /app/holdem && ./scripts/deploy.sh"
+ssh root@158.247.252.240 "cd /app/holdem && git pull && pm2 reload all"
 ```
 
-#### 방법 2: 개별 서비스 배포
+#### 방법 2: 전체 배포 (의존성 변경 포함)
+```bash
+ssh root@158.247.252.240 "cd /app/holdem && git pull && ./scripts/deploy.sh"
+```
+
+#### 방법 3: 개별 서비스 배포
 ```bash
 # Backend만
-ssh root@158.247.252.240 "cd /app/holdem/backend && source venv/bin/activate && pip install -r requirements.txt -q && pm2 reload backend"
+ssh root@158.247.252.240 "cd /app/holdem && git pull && cd backend && source venv/bin/activate && pip install -r requirements.txt -q && pm2 reload backend"
 
 # Frontend만
-ssh root@158.247.252.240 "cd /app/holdem/frontend && pnpm install --frozen-lockfile && pnpm run build && cp -r public .next/standalone/public && cp -r .next/static .next/standalone/.next/static && pm2 reload frontend"
+ssh root@158.247.252.240 "cd /app/holdem && git pull && cd frontend && pnpm install && pnpm run build && cp -r public .next/standalone/public && cp -r .next/static .next/standalone/.next/static && pm2 reload frontend"
 
 # Admin Backend만
-ssh root@158.247.252.240 "cd /app/holdem/admin-backend && source venv/bin/activate && pip install -r requirements.txt -q && pm2 reload admin-backend"
+ssh root@158.247.252.240 "cd /app/holdem && git pull && cd admin-backend && source venv/bin/activate && pip install -r requirements.txt -q && pm2 reload admin-backend"
 
 # Admin Frontend만
-ssh root@158.247.252.240 "cd /app/holdem/admin-frontend && pnpm install --frozen-lockfile && pnpm run build && cp -r public .next/standalone/public && cp -r .next/static .next/standalone/.next/static && pm2 reload admin-frontend"
+ssh root@158.247.252.240 "cd /app/holdem && git pull && cd admin-frontend && pnpm install && pnpm run build && cp -r public .next/standalone/public && cp -r .next/static .next/standalone/.next/static && pm2 reload admin-frontend"
 ```
 
-#### 방법 3: GitHub Actions (자동 배포)
+#### 방법 4: GitHub Actions (자동 배포)
 - **main 브랜치에 push하면 자동으로 배포됨**
 - 수동 트리거: GitHub → Actions → "Deploy to Production" → Run workflow
 - 서비스 선택 (all/backend/frontend/admin-backend/admin-frontend)
