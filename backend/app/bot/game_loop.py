@@ -140,7 +140,7 @@ class BotGameLoop:
             await self._broadcast_personalized_states(room_id, table)
 
             # 딜링 애니메이션 대기
-            await asyncio.sleep(2.5)
+            await asyncio.sleep(self._settings.phase_transition_delay_seconds)
 
             # 봇 턴 처리 시작 (락 밖에서)
             self._processing_tables.add(room_id)
@@ -163,6 +163,12 @@ class BotGameLoop:
             room_id: The room/table ID
         """
         MAX_ITERATIONS = 50
+        MAX_RETRY_FOR_NONE_SEAT = 5
+        MAX_RETRY_FOR_NO_ACTIONS = 3
+        RETRY_DELAY = 0.3
+
+        none_seat_retry_count = 0
+        no_actions_retry_count = 0
 
         try:
             for iteration in range(MAX_ITERATIONS):
@@ -176,10 +182,19 @@ class BotGameLoop:
                     logger.info(f"[BOT_GAME_LOOP] Hand complete for {room_id}")
                     return
 
-                # 현재 플레이어 확인
+                # 현재 플레이어 확인 (재시도 로직 포함)
                 if table.current_player_seat is None:
-                    logger.warning(f"[BOT_GAME_LOOP] No current player for {room_id}")
+                    none_seat_retry_count += 1
+                    if none_seat_retry_count <= MAX_RETRY_FOR_NONE_SEAT:
+                        logger.debug(f"[BOT_GAME_LOOP] No current player, retry {none_seat_retry_count}/{MAX_RETRY_FOR_NONE_SEAT}")
+                        await asyncio.sleep(RETRY_DELAY)
+                        table._update_current_player()
+                        continue
+                    logger.warning(f"[BOT_GAME_LOOP] No current player for {room_id} after {MAX_RETRY_FOR_NONE_SEAT} retries")
                     return
+
+                # 성공적으로 현재 플레이어 찾음 - 카운터 리셋
+                none_seat_retry_count = 0
 
                 current_player = table.players.get(table.current_player_seat)
                 if not current_player:
@@ -211,18 +226,23 @@ class BotGameLoop:
                         await self._send_turn_prompt(room_id, table)
                     return
 
-                # 가능한 액션 가져오기
+                # 가능한 액션 가져오기 (재시도 로직 포함)
                 available = table.get_available_actions(current_player.user_id)
-                if not available:
-                    logger.warning(f"[BOT_GAME_LOOP] No actions available for {current_player.username}")
-                    return
-
-                actions = available.get("actions", [])
-                call_amount = available.get("call_amount", 0)
+                actions = available.get("actions", []) if available else []
+                call_amount = available.get("call_amount", 0) if available else 0
 
                 if not actions:
-                    logger.warning(f"[BOT_GAME_LOOP] Empty actions for {current_player.username}")
+                    no_actions_retry_count += 1
+                    if no_actions_retry_count <= MAX_RETRY_FOR_NO_ACTIONS:
+                        logger.debug(f"[BOT_GAME_LOOP] No actions for {current_player.username}, retry {no_actions_retry_count}/{MAX_RETRY_FOR_NO_ACTIONS}")
+                        await asyncio.sleep(RETRY_DELAY)
+                        table._update_current_player()
+                        continue
+                    logger.warning(f"[BOT_GAME_LOOP] No actions for {current_player.username} after {MAX_RETRY_FOR_NO_ACTIONS} retries")
                     return
+
+                # 성공적으로 액션 찾음 - 카운터 리셋
+                no_actions_retry_count = 0
 
                 # 봇 액션 결정
                 if is_livebot_player(current_player):
@@ -274,7 +294,7 @@ class BotGameLoop:
                 # 페이즈 변경 처리
                 if result.get("phase_changed"):
                     await self._broadcast_community_cards(room_id, table)
-                    await asyncio.sleep(2.5)  # 페이즈 전환 애니메이션
+                    await asyncio.sleep(self._settings.phase_transition_delay_seconds)  # 페이즈 전환 애니메이션
                     table._update_current_player()
 
                     if table.phase == GamePhase.WAITING:
@@ -374,8 +394,8 @@ class BotGameLoop:
 
     async def _get_connection_manager(self):
         """Get ConnectionManager instance."""
-        from app.ws.manager import get_connection_manager
-        return get_connection_manager()
+        from app.ws.gateway import get_manager
+        return await get_manager()
 
     async def _broadcast_to_table(self, room_id: str, message: dict) -> None:
         """Broadcast message to all table subscribers."""

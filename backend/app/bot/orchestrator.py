@@ -413,42 +413,44 @@ class BotOrchestrator:
         if not session.room_id or session.seat is None:
             return False
 
-        table = game_manager.get_table(session.room_id)
-        if not table:
-            logger.warning(f"[BOT_ORCH] Table not found: {session.room_id}")
-            return False
+        # Lock to prevent race conditions when multiple bots seat simultaneously
+        async with self._lock:
+            table = game_manager.get_table(session.room_id)
+            if not table:
+                logger.warning(f"[BOT_ORCH] Table not found: {session.room_id}")
+                return False
 
-        # Check if seat is still available
-        if table.players.get(session.seat) is not None:
-            logger.warning(
-                f"[BOT_ORCH] Seat {session.seat} no longer available at {session.room_id}"
+            # Check if seat is still available
+            if table.players.get(session.seat) is not None:
+                logger.warning(
+                    f"[BOT_ORCH] Seat {session.seat} no longer available at {session.room_id}"
+                )
+                return False
+
+            # Create player object
+            player = Player(
+                user_id=session.user_id,
+                username=session.nickname,
+                seat=session.seat,
+                stack=session.stack,
+                is_bot=True,
             )
-            return False
 
-        # Create player object
-        player = Player(
-            user_id=session.user_id,
-            username=session.nickname,
-            seat=session.seat,
-            stack=session.stack,
-            is_bot=True,
-        )
+            # Seat the bot
+            success = table.seat_player(session.seat, player)
+            if not success:
+                logger.error(f"[BOT_ORCH] Failed to seat bot at {session.room_id}")
+                return False
 
-        # Seat the bot
-        success = table.seat_player(session.seat, player)
-        if not success:
-            logger.error(f"[BOT_ORCH] Failed to seat bot at {session.room_id}")
-            return False
+            # Activate immediately (no BB wait for bots)
+            table.sit_in(session.seat)
 
-        # Activate immediately (no BB wait for bots)
-        table.sit_in(session.seat)
+            logger.debug(
+                f"[BOT_ORCH] Bot {session.nickname} seated at "
+                f"{session.room_id} seat {session.seat}"
+            )
 
-        logger.debug(
-            f"[BOT_ORCH] Bot {session.nickname} seated at "
-            f"{session.room_id} seat {session.seat}"
-        )
-
-        # Trigger game start check
+        # Trigger game start check (outside lock to avoid blocking)
         from app.bot.game_loop import get_bot_game_loop
 
         game_loop = get_bot_game_loop()
