@@ -158,6 +158,7 @@ class BotOrchestrator:
         async with self._lock:
             removed_count = len(self._sessions)
             removed_bots = []
+            affected_rooms: set[str] = set()
 
             for session in list(self._sessions.values()):
                 removed_bots.append({
@@ -165,17 +166,41 @@ class BotOrchestrator:
                     "room_id": session.room_id,
                     "state": session.state.name,
                 })
+                if session.room_id:
+                    affected_rooms.add(session.room_id)
                 await self._remove_bot_from_game(session)
 
             self._sessions.clear()
             self._target_count = 0  # Reset target to 0
 
-            logger.info(f"[BOT_ORCH] Force removed {removed_count} bots")
+            # 영향받은 테이블들의 게임 상태 초기화
+            for room_id in affected_rooms:
+                table = game_manager.get_table(room_id)
+                if table:
+                    # 테이블에 남은 플레이어 확인
+                    remaining_players = [p for p in table.players.values() if p is not None]
+                    if not remaining_players:
+                        # 모든 플레이어가 제거됨 - 테이블 완전 초기화
+                        game_manager.reset_table(room_id)
+                        logger.info(f"[BOT_ORCH] Reset empty table: {room_id}")
+                    else:
+                        # 일부 플레이어 남음 - 게임 상태만 초기화 (WAITING으로)
+                        from app.game.poker_table import GamePhase
+                        table.phase = GamePhase.WAITING
+                        table.pot = 0
+                        table.community_cards = []
+                        table.current_player_seat = None
+                        table.current_bet = 0
+                        table._state = None
+                        logger.info(f"[BOT_ORCH] Reset game state for table with remaining players: {room_id}")
+
+            logger.info(f"[BOT_ORCH] Force removed {removed_count} bots from {len(affected_rooms)} tables")
 
             return {
                 "success": True,
                 "removed_count": removed_count,
                 "removed_bots": removed_bots,
+                "affected_tables": len(affected_rooms),
                 "new_target": 0,
             }
 
@@ -454,7 +479,14 @@ class BotOrchestrator:
         from app.bot.game_loop import get_bot_game_loop
 
         game_loop = get_bot_game_loop()
-        asyncio.create_task(game_loop.try_start_game(session.room_id))
+
+        async def _try_start_with_error_handling():
+            try:
+                await game_loop.try_start_game(session.room_id)
+            except Exception as e:
+                logger.error(f"[BOT_ORCH] Failed to start game for {session.room_id}: {e}", exc_info=True)
+
+        asyncio.create_task(_try_start_with_error_handling())
 
         return True
 

@@ -94,6 +94,48 @@ pm2 reload backend      # 특정 서비스 재시작
 
 ---
 
+## 협업자 설정 (최초 1회)
+
+새로운 협업자가 이 프로젝트에 참여할 때 아래 설정을 완료해야 합니다.
+
+### 1. 저장소 클론
+```bash
+git clone https://github.com/YOUR_ORG/holdem.git
+cd holdem
+```
+
+### 2. GitHub Personal Access Token 생성
+1. GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)
+2. "Generate new token (classic)" 클릭
+3. 필수 권한 선택:
+   - `repo` (전체)
+   - `workflow` (GitHub Actions 수정 시 필요)
+4. 토큰 복사 (한번만 표시됨)
+
+### 3. Git Credential 저장
+```bash
+# credential helper 설정
+git config --global credential.helper store
+
+# 한번 push 또는 pull 시 토큰 입력
+git push origin main
+# Username: 본인 GitHub 아이디
+# Password: 위에서 생성한 토큰
+
+# 이후 자동 인증됨
+```
+
+### 4. 배포 확인
+- `main` 브랜치에 push하면 GitHub Actions가 자동으로 배포
+- GitHub → Actions 탭에서 배포 상태 확인 가능
+
+### 주의사항
+- **토큰은 절대 코드에 커밋하지 않음** (보안)
+- 토큰은 각자 로컬에만 저장됨 (`~/.git-credentials`)
+- 토큰 만료/변경 시 다시 설정 필요
+
+---
+
 ## 아키텍처 방향성 (게임 상태 관리)
 
 ### 현재 상태 (프로토타입)

@@ -549,6 +549,14 @@ class PokerTable:
         # Set initial blinds as current bets
         self._sync_bets_from_state()
 
+        # 디버깅 로그: 게임 시작 후 상태 확인
+        logger.info(
+            f"[START_HAND] Room {self.room_id} hand #{self.hand_number} started: "
+            f"phase={self.phase.value}, current_player_seat={self.current_player_seat}, "
+            f"actor_index={self._state.actor_index if self._state else None}, "
+            f"seat_to_index={self._seat_to_index}"
+        )
+
         return {
             "success": True,
             "hand_number": self.hand_number,

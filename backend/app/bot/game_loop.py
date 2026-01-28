@@ -170,6 +170,8 @@ class BotGameLoop:
         none_seat_retry_count = 0
         no_actions_retry_count = 0
 
+        logger.info(f"[BOT_GAME_LOOP] Starting process_bot_turns for {room_id}")
+
         try:
             for iteration in range(MAX_ITERATIONS):
                 table = game_manager.get_table(room_id)
@@ -186,11 +188,11 @@ class BotGameLoop:
                 if table.current_player_seat is None:
                     none_seat_retry_count += 1
                     if none_seat_retry_count <= MAX_RETRY_FOR_NONE_SEAT:
-                        logger.debug(f"[BOT_GAME_LOOP] No current player, retry {none_seat_retry_count}/{MAX_RETRY_FOR_NONE_SEAT}")
+                        logger.info(f"[BOT_GAME_LOOP] No current player for {room_id}, retry {none_seat_retry_count}/{MAX_RETRY_FOR_NONE_SEAT}, phase={table.phase.value}")
                         await asyncio.sleep(RETRY_DELAY)
                         table._update_current_player()
                         continue
-                    logger.warning(f"[BOT_GAME_LOOP] No current player for {room_id} after {MAX_RETRY_FOR_NONE_SEAT} retries")
+                    logger.warning(f"[BOT_GAME_LOOP] No current player for {room_id} after {MAX_RETRY_FOR_NONE_SEAT} retries, phase={table.phase.value}, state={table._state}")
                     return
 
                 # 성공적으로 현재 플레이어 찾음 - 카운터 리셋
