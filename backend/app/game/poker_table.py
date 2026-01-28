@@ -240,9 +240,12 @@ class PokerTable:
         return player.status == "sitting_out"
 
     def get_seated_players(self) -> List[Tuple[int, Player]]:
-        """Get list of (seat, player) for seated players."""
+        """Get list of (seat, player) for seated players.
+
+        Excludes sitting_out players and players with 0 stack.
+        """
         return [(seat, p) for seat, p in self.players.items()
-                if p is not None and p.status != "sitting_out"]
+                if p is not None and p.status != "sitting_out" and p.stack > 0]
 
     def get_all_seated_players(self) -> List[Tuple[int, Player]]:
         """Get list of (seat, player) for ALL seated players including sitting_out."""

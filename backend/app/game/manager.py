@@ -145,6 +145,10 @@ class GameManager:
         """Get all active tables."""
         return list(self._tables.values())
 
+    def list_tables(self) -> List[str]:
+        """Get list of all table IDs."""
+        return list(self._tables.keys())
+
     def get_table_count(self) -> int:
         """Get number of active tables."""
         return len(self._tables)
