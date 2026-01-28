@@ -774,8 +774,12 @@ class TableHandler(BaseHandler):
                 if player:
                     if player.user_id == user_id:
                         my_position = i
-                        my_hole_cards = player.hole_cards
-                        logger.info(f"[TABLE_SNAPSHOT] Found my player at seat {i}, hole_cards={my_hole_cards}")
+                        # sitting_out 플레이어는 핸드에 참여하지 않으므로 카드 없음
+                        if player.status != "sitting_out":
+                            my_hole_cards = player.hole_cards
+                        else:
+                            my_hole_cards = None
+                        logger.info(f"[TABLE_SNAPSHOT] Found my player at seat {i}, status={player.status}, hole_cards={my_hole_cards}")
                     seats.append({
                         "position": i,
                         "player": {

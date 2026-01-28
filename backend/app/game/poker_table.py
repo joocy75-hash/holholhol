@@ -827,11 +827,13 @@ class PokerTable:
         for player_data in state["players"]:
             if player_data and player_data["userId"] == user_id:
                 my_position = player_data["seat"]
-                # Show hole cards for requesting player
+                # Show hole cards for requesting player (sitting_out은 카드 없음)
                 seat = player_data["seat"]
                 actual_player = self.players.get(seat)
-                if actual_player:
+                if actual_player and actual_player.status != "sitting_out":
                     player_data["holeCards"] = actual_player.hole_cards
+                else:
+                    player_data["holeCards"] = None
             elif player_data:
                 player_data["holeCards"] = None  # Hide others' cards
 
