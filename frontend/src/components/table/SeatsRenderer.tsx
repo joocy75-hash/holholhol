@@ -120,8 +120,9 @@ export function SeatsRenderer({
 
         // 본인 좌석에서 sitting_out 여부 확인 (seat.status 또는 sittingOutPositions 사용)
         const isSittingOut = isMe && (seat?.status === 'sitting_out' || sittingOutPositions?.has(actualPosition));
-        // 본인이 착석했고 게임 중이 아닐 때만 토글 표시 (게임 중에는 숨김)
-        const showToggle = isMe && player && !isSpectator && !gameInProgress;
+        // 본인이 착석했고 sitting_out 상태일 때 토글 표시 (게임 중에도 sitting_out이면 표시)
+        // 게임 중이 아니거나, sitting_out 상태일 때 토글 표시
+        const showToggle = isMe && player && !isSpectator && (!gameInProgress || isSittingOut);
 
         return (
           <PlayerSeat
