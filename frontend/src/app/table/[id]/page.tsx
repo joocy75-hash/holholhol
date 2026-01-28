@@ -626,19 +626,27 @@ export default function TablePage() {
   }, [gameState.tableConfig?.maxSeats]);
 
   return (
-    <div className="min-h-screen flex justify-center items-center bg-black overflow-hidden">
-      {/* 고정 크기 게임 컨테이너 - CSS scale로 뷰포트에 맞춤 */}
+    <div className="h-screen flex justify-center items-start bg-black overflow-hidden">
+      {/* Scale Wrapper - 스케일된 실제 크기로 레이아웃 공간 확보 */}
       <div
-        ref={tableRef}
-        className="bg-cover bg-center bg-no-repeat relative"
         style={{
-          width: GAME_SIZE.WIDTH,
-          height: GAME_SIZE.HEIGHT,
-          transform: `scale(${gameScale})`,
-          transformOrigin: 'center center',
-          backgroundImage: "url('/assets/images/backgrounds/background_game.webp')",
+          width: GAME_SIZE.WIDTH * gameScale,
+          height: GAME_SIZE.HEIGHT * gameScale,
+          position: 'relative',
         }}
       >
+        {/* 게임 컨테이너 - 고정 크기, CSS scale로 축소 */}
+        <div
+          ref={tableRef}
+          className="bg-cover bg-center bg-no-repeat absolute top-0 left-0"
+          style={{
+            width: GAME_SIZE.WIDTH,
+            height: GAME_SIZE.HEIGHT,
+            transform: `scale(${gameScale})`,
+            transformOrigin: 'top left',
+            backgroundImage: "url('/assets/images/backgrounds/background_game.webp')",
+          }}
+        >
       {/* 메인 게임 영역 - 전체 화면 */}
       <main className="absolute inset-0" data-testid="poker-table">
         {/* 상단 UI - 나가기, 테이블 정보, 잔액 */}
@@ -665,7 +673,7 @@ export default function TablePage() {
 
         {/* Toast 알림 - 4초 후 자동 해제 */}
         {toast && (
-          <div className={`fixed top-20 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-lg shadow-lg text-white text-sm font-medium transition-all ${
+          <div className={`absolute top-20 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-lg shadow-lg text-white text-sm font-medium transition-all ${
             toast.type === 'warning' ? 'bg-yellow-600/90' :
             toast.type === 'error' ? 'bg-red-500/90' : 'bg-blue-500/90'
           }`}>
@@ -879,6 +887,7 @@ export default function TablePage() {
             position="right"
           />
         )}
+        </div>
       </div>
 
       {/* DEV 어드민 패널 */}
