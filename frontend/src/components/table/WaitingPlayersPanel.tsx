@@ -36,9 +36,9 @@ export function WaitingPlayersPanel({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: -10 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="absolute top-2 left-2 z-20"
+      className="absolute bottom-24 left-1/2 -translate-x-1/2 z-20"
     >
       <div className="bg-black/70 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/10">
         {/* 헤더 */}
