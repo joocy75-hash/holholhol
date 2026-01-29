@@ -151,6 +151,7 @@ class BotOrchestrator:
 
         Called by admin API for emergency cleanup.
         Removes all bots from tables regardless of game state.
+        Also cleans up bots from DB (for server restart scenarios).
 
         Returns:
             Status dictionary with removal count
@@ -173,6 +174,40 @@ class BotOrchestrator:
             self._sessions.clear()
             self._target_count = 0  # Reset target to 0
 
+            # DB에서도 봇 정리 (서버 재시작 후 세션이 비어있어도 DB에 남아있는 봇 제거)
+            db_cleaned = 0
+            try:
+                from sqlalchemy import select
+                from sqlalchemy.orm import attributes
+                from app.utils.db import get_db_session
+                from app.models.table import Table as DBTable
+
+                async with get_db_session() as db:
+                    result = await db.execute(select(DBTable))
+                    tables = result.scalars().all()
+                    for t in tables:
+                        if t.seats:
+                            new_seats = {}
+                            for pos, data in t.seats.items():
+                                if not data.get("is_bot", False):
+                                    new_seats[pos] = data
+                                else:
+                                    db_cleaned += 1
+                                    affected_rooms.add(str(t.room_id))
+                                    # GameManager에서도 제거
+                                    game_table = game_manager.get_table(str(t.room_id))
+                                    if game_table:
+                                        seat = int(pos)
+                                        if game_table.players.get(seat):
+                                            game_table.remove_player(seat)
+                            if new_seats != t.seats:
+                                t.seats = new_seats
+                                attributes.flag_modified(t, "seats")
+                    await db.commit()
+                logger.info(f"[BOT_ORCH] Cleaned {db_cleaned} bots from DB")
+            except Exception as e:
+                logger.error(f"[BOT_ORCH] Failed to clean bots from DB: {e}")
+
             # 영향받은 테이블들의 게임 상태 초기화
             for room_id in affected_rooms:
                 table = game_manager.get_table(room_id)
@@ -194,11 +229,14 @@ class BotOrchestrator:
                         table._state = None
                         logger.info(f"[BOT_ORCH] Reset game state for table with remaining players: {room_id}")
 
-            logger.info(f"[BOT_ORCH] Force removed {removed_count} bots from {len(affected_rooms)} tables")
+            total_removed = removed_count + db_cleaned
+            logger.info(f"[BOT_ORCH] Force removed {total_removed} bots (sessions: {removed_count}, DB: {db_cleaned}) from {len(affected_rooms)} tables")
 
             return {
                 "success": True,
-                "removed_count": removed_count,
+                "removed_count": total_removed,
+                "removed_from_sessions": removed_count,
+                "removed_from_db": db_cleaned,
                 "removed_bots": removed_bots,
                 "affected_tables": len(affected_rooms),
                 "new_target": 0,
