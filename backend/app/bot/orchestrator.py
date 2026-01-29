@@ -640,7 +640,10 @@ async def shutdown_bot_orchestrator() -> None:
 
 
 async def _update_room_player_count(room_id: str, delta: int) -> None:
-    """Update room's current_players count in DB.
+    """Update room's current_players count in DB atomically.
+
+    Uses atomic SQL UPDATE to prevent race conditions when multiple
+    bots join/leave simultaneously.
 
     Args:
         room_id: Room ID
@@ -649,18 +652,37 @@ async def _update_room_player_count(room_id: str, delta: int) -> None:
     try:
         from app.utils.db import async_session_factory
         from app.models import Room
-        from sqlalchemy import select
+        from sqlalchemy import update, select
+        from sqlalchemy.sql import func
 
         async with async_session_factory() as db:
-            result = await db.execute(
-                select(Room).where(Room.id == room_id)
-            )
-            room = result.scalar_one_or_none()
-            if room:
-                room.current_players = max(0, room.current_players + delta)
-                await db.commit()
+            # Use atomic UPDATE with GREATEST to prevent negative values
+            # This avoids race conditions from concurrent updates
+            if delta > 0:
+                stmt = (
+                    update(Room)
+                    .where(Room.id == room_id)
+                    .values(current_players=Room.current_players + delta)
+                    .returning(Room.current_players)
+                )
+            else:
+                # For decrements, ensure we don't go below 0
+                stmt = (
+                    update(Room)
+                    .where(Room.id == room_id)
+                    .values(
+                        current_players=func.greatest(0, Room.current_players + delta)
+                    )
+                    .returning(Room.current_players)
+                )
+
+            result = await db.execute(stmt)
+            await db.commit()
+
+            new_count = result.scalar_one_or_none()
+            if new_count is not None:
                 logger.info(
-                    f"[BOT_ORCH] Updated room {room_id[:8]} player count: {room.current_players}"
+                    f"[BOT_ORCH] Updated room {room_id[:8]} player count: {new_count}"
                 )
     except Exception as e:
         logger.warning(f"[BOT_ORCH] Failed to update room player count: {e}")
