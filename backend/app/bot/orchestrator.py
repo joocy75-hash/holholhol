@@ -370,11 +370,13 @@ class BotOrchestrator:
                         if table.phase == GamePhase.WAITING:
                             await self._remove_bot_from_game(session)
                             await session.leave_table()
-                            del self._sessions[session.bot_id]
-                            logger.info(
-                                f"[BOT_ORCH] Retired waiting bot {session.nickname} "
-                                f"(no hand in progress)"
-                            )
+                            # Session might be deleted by callback
+                            if session.bot_id in self._sessions:
+                                del self._sessions[session.bot_id]
+                                logger.info(
+                                    f"[BOT_ORCH] Retired waiting bot {session.nickname} "
+                                    f"(no hand in progress)"
+                                )
                         else:
                             logger.info(
                                 f"[BOT_ORCH] Bot {session.nickname} will retire "
