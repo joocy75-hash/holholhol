@@ -103,6 +103,11 @@ class Partner(Base, UUIDMixin, TimestampMixin):
         String(255),
         nullable=True,
     )
+    notes: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="비고 (어드민용 메모)",
+    )
 
     # 수수료 설정
     commission_type: Mapped[CommissionType] = mapped_column(
