@@ -658,7 +658,7 @@ async def _update_room_player_count(room_id: str, delta: int) -> None:
             if room:
                 room.current_players = max(0, room.current_players + delta)
                 await db.commit()
-                logger.debug(
+                logger.info(
                     f"[BOT_ORCH] Updated room {room_id[:8]} player count: {room.current_players}"
                 )
     except Exception as e:
