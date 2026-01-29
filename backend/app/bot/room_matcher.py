@@ -313,19 +313,35 @@ async def select_room_for_bot(
     # First try existing tables in GameManager
     rooms = get_available_rooms()
 
-    # If no rooms in GameManager, fetch from DB and create tables
-    if not rooms:
-        logger.debug("[ROOM_MATCHER] No rooms in GameManager, checking DB...")
-        db_rooms = await get_available_rooms_from_db()
+    logger.info(f"[ROOM_MATCHER] GameManager has {len(rooms)} tables, bot_stack={bot_stack}")
+    for t in rooms:
+        bb_ratio = bot_stack / t.big_blind if t.big_blind > 0 else 0
+        empty_seats = len(get_empty_seats(t))
+        bot_count = count_bots_at_table(t)
+        max_bots = get_max_bots_for_table(t.max_players)
+        score = calculate_room_score(t, bot_stack)
+        logger.info(
+            f"[ROOM_MATCHER]   {t.room_id[:8]}: BB={t.big_blind}, "
+            f"bb_ratio={bb_ratio:.1f}, empty={empty_seats}, "
+            f"bots={bot_count}/{max_bots}, score={score:.2f}"
+        )
 
-        for room_data in db_rooms:
-            if room_data["id"] in exclude_room_ids:
-                continue
+    # Always check DB for additional rooms not yet in GameManager
+    # This ensures bots can join suitable rooms even if only unsuitable ones are loaded
+    db_rooms = await get_available_rooms_from_db()
+    existing_room_ids = {t.room_id for t in rooms}
 
-            # Create table in GameManager
-            table = await ensure_table_exists(room_data["id"])
-            if table:
-                rooms.append(table)
+    for room_data in db_rooms:
+        if room_data["id"] in exclude_room_ids:
+            continue
+        if room_data["id"] in existing_room_ids:
+            continue  # Already loaded
+
+        # Create table in GameManager
+        table = await ensure_table_exists(room_data["id"])
+        if table:
+            rooms.append(table)
+            logger.info(f"[ROOM_MATCHER] Created table from DB: {room_data['id'][:8]}")
 
     if not rooms:
         logger.debug("[ROOM_MATCHER] No rooms available")
