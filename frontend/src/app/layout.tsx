@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import LobbyBGM from "@/components/LobbyBGM";
 import { AnnouncementProvider } from "@/components/announcements";
 
 export const metadata: Metadata = {
@@ -16,7 +15,6 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body className="antialiased">
-        <LobbyBGM />
         <AnnouncementProvider />
         {children}
       </body>

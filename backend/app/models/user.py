@@ -78,6 +78,23 @@ class User(Base, UUIDMixin, TimestampMixin):
         nullable=False,
     )
 
+    # Ban fields (for admin management)
+    is_banned: Mapped[bool] = mapped_column(
+        default=False,
+        nullable=False,
+        comment="계정 정지 여부",
+    )
+    ban_reason: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="정지 사유",
+    )
+    ban_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="정지 해제 일시 (null이면 영구 정지)",
+    )
+
     # Admin flag (for admin API access)
     is_admin: Mapped[bool] = mapped_column(
         default=False,

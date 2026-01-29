@@ -38,7 +38,7 @@ export default function LobbyHeader() {
       style={{
         position: 'relative',
         width: '390px',
-        height: '148px',
+        height: '90px',
         background: 'var(--figma-gradient-header)',
       }}
     >
@@ -52,78 +52,6 @@ export default function LobbyHeader() {
         }}
       />
 
-      {/* BGM 토글 버튼 - 상단 우측 */}
-      <motion.button
-        onClick={toggleBgm}
-        whileHover={{
-          boxShadow: bgmEnabled
-            ? '0 0 20px rgba(59, 130, 246, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
-            : '0 4px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
-          filter: 'brightness(1.15)',
-        }}
-        whileTap={{ filter: 'brightness(0.9)' }}
-        transition={quickSpring}
-        style={{
-          position: 'absolute',
-          right: '17px',
-          top: '12px',
-          width: '32px',
-          height: '32px',
-          background: bgmEnabled
-            ? 'linear-gradient(180deg, rgba(59, 130, 246, 0.3) 0%, rgba(37, 99, 235, 0.4) 100%)'
-            : 'linear-gradient(180deg, rgba(50, 50, 50, 0.5) 0%, rgba(30, 30, 30, 0.6) 100%)',
-          border: bgmEnabled
-            ? '1px solid rgba(96, 165, 250, 0.4)'
-            : '1px solid rgba(80, 80, 80, 0.4)',
-          borderRadius: '8px',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: bgmEnabled
-            ? '0 0 12px rgba(59, 130, 246, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
-            : '0 2px 4px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
-          backdropFilter: 'blur(8px)',
-        }}
-        title={bgmEnabled ? "배경음악 끄기" : "배경음악 켜기"}
-      >
-        {/* 음악 아이콘 SVG */}
-        {bgmEnabled ? (
-          // 음악 켜짐 아이콘
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="rgba(147, 197, 253, 0.9)"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M9 18V5l12-2v13" />
-            <circle cx="6" cy="18" r="3" fill="rgba(147, 197, 253, 0.9)" stroke="none" />
-            <circle cx="18" cy="16" r="3" fill="rgba(147, 197, 253, 0.9)" stroke="none" />
-          </svg>
-        ) : (
-          // 음악 꺼짐 아이콘
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="rgba(120, 120, 120, 0.8)"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M9 18V5l12-2v13" />
-            <circle cx="6" cy="18" r="3" fill="rgba(120, 120, 120, 0.8)" stroke="none" />
-            <circle cx="18" cy="16" r="3" fill="rgba(120, 120, 120, 0.8)" stroke="none" />
-            <line x1="3" y1="3" x2="21" y2="21" stroke="rgba(239, 68, 68, 0.8)" strokeWidth="2.5" />
-          </svg>
-        )}
-      </motion.button>
-
       {/* 프로필 박스 배경 */}
       <motion.div
         whileHover={{
@@ -133,7 +61,7 @@ export default function LobbyHeader() {
         style={{
           position: 'absolute',
           left: '17px',
-          top: '75px',
+          top: '15px',
           width: '219px',
           height: '60px',
           background: 'var(--figma-profile-box-bg)',
@@ -147,7 +75,7 @@ export default function LobbyHeader() {
         style={{
           position: 'absolute',
           left: '19px',
-          top: '77px',
+          top: '17px',
         }}
       >
         <Avatar
@@ -163,7 +91,7 @@ export default function LobbyHeader() {
         style={{
           position: 'absolute',
           left: '85px',
-          top: '86px',
+          top: '26px',
           display: 'flex',
           alignItems: 'center',
           gap: '6px',
@@ -189,7 +117,7 @@ export default function LobbyHeader() {
         style={{
           position: 'absolute',
           left: '85px',
-          top: '105px',
+          top: '45px',
           margin: 0,
           fontFamily: 'Paperlogy, sans-serif',
           fontWeight: 600,
@@ -214,7 +142,7 @@ export default function LobbyHeader() {
         style={{
           position: 'absolute',
           left: '244px',
-          top: '74px',
+          top: '14px',
           width: '64px',
           height: '61px',
           background: 'var(--figma-charge-btn-bg)',
@@ -277,7 +205,7 @@ export default function LobbyHeader() {
         style={{
           position: 'absolute',
           left: '316px',
-          top: '74px',
+          top: '14px',
           width: '64px',
           height: '61px',
           background: 'var(--figma-profile-box-bg)',

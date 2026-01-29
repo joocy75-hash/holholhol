@@ -150,6 +150,7 @@ class UserService:
                     u.id, u.username, u.nickname, u.email, u.balance,
                     u.krw_balance, u.usdt_wallet_address, u.usdt_wallet_type,
                     u.created_at, u.updated_at, u.status,
+                    u.is_banned, u.ban_reason, u.ban_expires_at,
                     p.partner_code, p.name as partner_name
                 FROM users u
                 LEFT JOIN partners p ON u.partner_id = p.id
@@ -174,9 +175,9 @@ class UserService:
                 "partner_name": row.partner_name,
                 "created_at": row.created_at.isoformat() if row.created_at else None,
                 "last_login": row.updated_at.isoformat() if row.updated_at else None,
-                "is_banned": row.status == 'suspended',
-                "ban_reason": None,
-                "ban_expires_at": None
+                "is_banned": row.is_banned if hasattr(row, 'is_banned') else row.status == 'suspended',
+                "ban_reason": row.ban_reason if hasattr(row, 'ban_reason') else None,
+                "ban_expires_at": row.ban_expires_at.isoformat() if hasattr(row, 'ban_expires_at') and row.ban_expires_at else None
             }
         except Exception as e:
             logger.error(f"사용자 상세 조회 실패: user_id={user_id}, error={e}", exc_info=True)
@@ -297,11 +298,11 @@ class UserService:
             total = count_result.scalar() or 0
             
             list_query = text("""
-                SELECT hp.id, hp.hand_id, hp.position, hp.cards, 
+                SELECT hp.id, hp.hand_id, hp.seat, hp.hole_cards,
                        hp.bet_amount, hp.won_amount, hp.created_at,
                        h.room_id, h.pot_size
                 FROM hand_participants hp
-                JOIN hand_history h ON hp.hand_id = h.id
+                JOIN hands h ON hp.hand_id = h.id
                 WHERE hp.user_id = :user_id
                 ORDER BY hp.created_at DESC
                 LIMIT :limit OFFSET :offset
@@ -314,8 +315,8 @@ class UserService:
                     "id": str(row.id),
                     "hand_id": str(row.hand_id),
                     "room_id": str(row.room_id) if row.room_id else None,
-                    "position": row.position,
-                    "cards": row.cards,
+                    "seat": row.seat,
+                    "hole_cards": row.hole_cards,
                     "bet_amount": float(row.bet_amount) if row.bet_amount else 0,
                     "won_amount": float(row.won_amount) if row.won_amount else 0,
                     "pot_size": float(row.pot_size) if row.pot_size else 0,
@@ -482,12 +483,12 @@ class UserService:
                         END as description,
                         (hp.won_amount - hp.bet_amount) as amount,
                         NULL::text as ip_address,
-                        hp.cards as device_info,
+                        hp.hole_cards as device_info,
                         h.room_id::text as room_id,
                         hp.hand_id::text as hand_id,
                         hp.created_at
                     FROM hand_participants hp
-                    JOIN hand_history h ON hp.hand_id = h.id
+                    JOIN hands h ON hp.hand_id = h.id
                     WHERE hp.user_id = :user_id{date_filter_hand}
                 """)
             
