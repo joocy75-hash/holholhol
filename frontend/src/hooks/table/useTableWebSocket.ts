@@ -140,6 +140,7 @@ export function useTableWebSocket({
     console.log('🎯 Applying TURN_PROMPT:', {
       position: data.position,
       actionsCount: data.allowedActions?.length,
+      myPosition: gameState.myPosition,
     });
 
     if (data.currentBet !== undefined) {
@@ -162,6 +163,13 @@ export function useTableWebSocket({
     gameState.setCurrentTurnTime(data.turnTime || DEFAULT_TURN_TIME);
     actions.setHasAutoFolded(false);
     actions.setIsActionPending(false);
+
+    // 내 턴이면 dealingComplete 강제 설정 (딜링 애니메이션이 늦어도 버튼 표시)
+    if (data.position === gameState.myPosition) {
+      console.log('🎯 [TURN_PROMPT] My turn - forcing dealingComplete=true');
+      gameState.setDealingComplete(true);
+      gameState.isDealingInProgressRef.current = false;
+    }
 
     if (data.allowedActions && data.allowedActions.length > 0) {
       actions.setAllowedActions(data.allowedActions);
@@ -922,7 +930,9 @@ export function useTableWebSocket({
         });
       }
 
-      gameState.setTurnStartTime(null);
+      // NOTE: turnStartTime null 리셋 제거
+      // TURN_PROMPT에서 turnStartTime을 설정하므로 여기서 리셋하면 타이머가 안 돌아감
+      // (TURN_CHANGED가 TURN_PROMPT 후에 도착할 수 있음)
       if (data.currentPlayer !== undefined && data.currentPlayer !== null) {
         gameState.setCurrentTurnPosition(data.currentPlayer);
       }
