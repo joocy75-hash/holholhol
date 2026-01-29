@@ -36,7 +36,18 @@ cd backend && pytest tests/ -v
 ### 서버 정보
 - **IP**: 158.247.252.240
 - **프로젝트 경로**: `/app/holdem/`
-- **SSH**: `ssh root@158.247.252.240`
+- **SSH**: `ssh holdem-server` (또는 `ssh holdem-server`)
+
+### SSH 키 설정
+- **키 파일**: `~/.ssh/holdem_server`
+- **설정 파일**: `~/.ssh/config`
+```
+Host holdem-server
+    HostName 158.247.252.240
+    User root
+    IdentityFile ~/.ssh/holdem_server
+```
+- **접속 명령**: `ssh holdem-server`
 
 ### 서비스 구성 (PM2)
 | 서비스 | 포트 | 프로세스명 |
@@ -50,27 +61,27 @@ cd backend && pytest tests/ -v
 
 #### 방법 1: 빠른 배포 (코드만 변경된 경우)
 ```bash
-ssh root@158.247.252.240 "cd /app/holdem && git pull && pm2 reload all"
+ssh holdem-server "cd /app/holdem && git pull && pm2 reload all"
 ```
 
 #### 방법 2: 전체 배포 (의존성 변경 포함)
 ```bash
-ssh root@158.247.252.240 "cd /app/holdem && git pull && ./scripts/deploy.sh"
+ssh holdem-server "cd /app/holdem && git pull && ./scripts/deploy.sh"
 ```
 
 #### 방법 3: 개별 서비스 배포
 ```bash
 # Backend만
-ssh root@158.247.252.240 "cd /app/holdem && git pull && cd backend && source venv/bin/activate && pip install -r requirements.txt -q && pm2 reload backend"
+ssh holdem-server "cd /app/holdem && git pull && cd backend && source venv/bin/activate && pip install -r requirements.txt -q && pm2 reload backend"
 
 # Frontend만
-ssh root@158.247.252.240 "cd /app/holdem && git pull && cd frontend && pnpm install && pnpm run build && cp -r public .next/standalone/public && cp -r .next/static .next/standalone/.next/static && pm2 reload frontend"
+ssh holdem-server "cd /app/holdem && git pull && cd frontend && pnpm install && pnpm run build && cp -r public .next/standalone/public && cp -r .next/static .next/standalone/.next/static && pm2 reload frontend"
 
 # Admin Backend만
-ssh root@158.247.252.240 "cd /app/holdem && git pull && cd admin-backend && source venv/bin/activate && pip install -r requirements.txt -q && pm2 reload admin-backend"
+ssh holdem-server "cd /app/holdem && git pull && cd admin-backend && source venv/bin/activate && pip install -r requirements.txt -q && pm2 reload admin-backend"
 
 # Admin Frontend만
-ssh root@158.247.252.240 "cd /app/holdem && git pull && cd admin-frontend && pnpm install && pnpm run build && cp -r public .next/standalone/public && cp -r .next/static .next/standalone/.next/static && pm2 reload admin-frontend"
+ssh holdem-server "cd /app/holdem && git pull && cd admin-frontend && pnpm install && pnpm run build && cp -r public .next/standalone/public && cp -r .next/static .next/standalone/.next/static && pm2 reload admin-frontend"
 ```
 
 #### 방법 4: GitHub Actions (자동 배포)
