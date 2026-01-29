@@ -213,7 +213,13 @@ class TableHandler(BaseHandler):
                     seat=result_position,
                     stack=result_stack,
                 )
-                game_table.seat_player(result_position, player)
+                seated = game_table.seat_player(result_position, player)
+                if not seated:
+                    # GameManager에 착석 실패 (이미 다른 플레이어/봇이 있음)
+                    # DB 트랜잭션 롤백
+                    await self.db.rollback()
+                    logger.error(f"[SEAT] GameManager seat conflict at position {result_position} for {conn.user_id}")
+                    raise RoomError("SEAT_CONFLICT", f"Position {result_position} is already occupied")
                 logger.info(f"[SEAT] Player {real_username} ({conn.user_id}) seated at position {result_position} in GameManager")
 
             # Broadcast table update (use room_id for channel)
@@ -419,7 +425,19 @@ class TableHandler(BaseHandler):
                 stack=buy_in,
                 is_bot=True,  # 봇임을 명시
             )
-            game_table.seat_player(empty_position, bot_player)
+            seated = game_table.seat_player(empty_position, bot_player)
+            if not seated:
+                # 착석 실패 (동시성 문제로 이미 다른 플레이어가 앉음)
+                logger.warning(f"[BOT] Seat conflict at position {empty_position}, finding another seat")
+                # 다른 빈 자리 찾기
+                for i in range(max_seats):
+                    if game_table.players.get(i) is None:
+                        empty_position = i
+                        bot_player.seat = i
+                        if game_table.seat_player(i, bot_player):
+                            break
+                else:
+                    raise RoomError("ROOM_FULL", "No empty seats available for bot")
             # 봇은 즉시 참여 (sitting_out 기본값 해제)
             game_table.sit_in(empty_position)
             logger.info(f"[BOT] Bot {bot_nickname} added at position {empty_position} in GameManager")
@@ -561,7 +579,11 @@ class TableHandler(BaseHandler):
                     stack=default_buy_in,
                     is_bot=True,
                 )
-                game_table.seat_player(empty_position, bot_player)
+                seated = game_table.seat_player(empty_position, bot_player)
+                if not seated:
+                    # 동시성 충돌 - 이 자리 건너뛰기
+                    logger.warning(f"[BOT-LOOP] Seat conflict at position {empty_position}, skipping")
+                    continue
                 # 봇은 즉시 참여 (sitting_out 기본값 해제)
                 game_table.sit_in(empty_position)
 
