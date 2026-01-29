@@ -1240,6 +1240,7 @@ class ActionHandler(BaseHandler):
         # 환불 (Uncalled Bet) 이벤트 발송
         refund_info = hand_result.get("refund")
         if refund_info:
+            channel = f"table:{room_id}"
             refund_message = MessageEnvelope.create(
                 event_type=EventType.REFUND,
                 payload={
@@ -1817,7 +1818,6 @@ class ActionHandler(BaseHandler):
                 async with get_db_session() as db:
                     hand_history_service = HandHistoryService(db)
                     await hand_history_service.save_hand_result({
-                        "hand_id": hand_id,
                         "table_id": room_id,
                         "hand_number": table.hand_number,
                         "pot_size": hand_result.get("pot", 0),
@@ -1890,11 +1890,11 @@ class ActionHandler(BaseHandler):
             turn_start_time = self._turn_start_times.get(turn_key)
 
             if turn_start_time:
-                response_time_ms = int((datetime.now() - turn_start_time).total_seconds() * 1000)
+                response_time_ms = int((datetime.now(timezone.utc) - turn_start_time).total_seconds() * 1000)
                 turn_start_iso = turn_start_time.isoformat()
             else:
                 response_time_ms = 0
-                turn_start_iso = datetime.now().isoformat()
+                turn_start_iso = datetime.now(timezone.utc).isoformat()
 
             # 핸드 ID 생성
             hand_id = f"{room_id}_{table.hand_number}"
@@ -1938,7 +1938,7 @@ class ActionHandler(BaseHandler):
         다중 인스턴스 간 공유를 모두 지원합니다.
         """
         turn_key = f"{room_id}:{user_id}"
-        self._turn_start_times[turn_key] = datetime.now()
+        self._turn_start_times[turn_key] = datetime.now(timezone.utc)
 
         # Redis에도 저장 (비동기 태스크로 처리하여 블로킹 방지)
         if self.redis_service:
