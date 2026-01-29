@@ -111,8 +111,8 @@ pm2 reload backend      # 특정 서비스 재시작
 
 ### 1. 저장소 클론
 ```bash
-git clone https://github.com/YOUR_ORG/holdem.git
-cd holdem
+git clone https://github.com/joocy75-hash/holholhol.git
+cd holholhol
 ```
 
 ### 2. GitHub Personal Access Token 생성
@@ -140,10 +140,31 @@ git push origin main
 - `main` 브랜치에 push하면 GitHub Actions가 자동으로 배포
 - GitHub → Actions 탭에서 배포 상태 확인 가능
 
+### 5. SSH 키 설정 (서버 배포용)
+기존 협업자에게 SSH 키 파일(`holdem_server`)을 받아서 설정:
+
+```bash
+# 키 파일을 ~/.ssh/에 저장
+cp holdem_server ~/.ssh/holdem_server
+chmod 600 ~/.ssh/holdem_server
+
+# ~/.ssh/config에 추가
+cat >> ~/.ssh/config << 'EOF'
+Host holdem-server
+    HostName 158.247.252.240
+    User root
+    IdentityFile ~/.ssh/holdem_server
+EOF
+
+# 접속 테스트
+ssh holdem-server
+```
+
 ### 주의사항
 - **토큰은 절대 코드에 커밋하지 않음** (보안)
 - 토큰은 각자 로컬에만 저장됨 (`~/.git-credentials`)
 - 토큰 만료/변경 시 다시 설정 필요
+- **SSH 키는 안전한 방법으로 전달** (Slack DM, 암호화된 이메일 등)
 
 ---
 
