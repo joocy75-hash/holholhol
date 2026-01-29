@@ -198,12 +198,12 @@ export default function LobbyPage() {
         </div>
 
         {/* 배너 스켈레톤 */}
-        <div style={{ position: 'absolute', left: '8px', top: '84px', right: '8px' }}>
+        <div style={{ position: 'absolute', left: '8px', top: '156px', right: '8px' }}>
           <div className="w-full h-[180px] bg-surface animate-pulse rounded-xl" />
         </div>
 
         {/* 탭 스켈레톤 */}
-        <div style={{ position: 'absolute', left: '10px', top: '286px' }}>
+        <div style={{ position: 'absolute', left: '10px', top: '358px' }}>
           <div className="flex gap-4">
             <div className="w-16 h-8 bg-surface animate-pulse rounded-md" />
             <div className="w-16 h-8 bg-surface animate-pulse rounded-md" />
@@ -212,7 +212,7 @@ export default function LobbyPage() {
         </div>
 
         {/* 카드 스켈레톤들 */}
-        <div style={{ position: 'absolute', left: '10px', top: '320px', right: '10px' }}>
+        <div style={{ position: 'absolute', left: '10px', top: '392px', right: '10px' }}>
           <div className="w-full h-[120px] bg-surface animate-pulse rounded-xl mb-4" />
           <div className="w-full h-[120px] bg-surface animate-pulse rounded-xl" />
         </div>
@@ -243,7 +243,7 @@ export default function LobbyPage() {
         style={{
           position: 'absolute',
           left: '2px',
-          top: '20px',
+          top: '88px',
           width: '388px',
           height: '687px',
           opacity: 0.3,
@@ -263,18 +263,18 @@ export default function LobbyPage() {
         />
       </div>
 
-      {/* 헤더 (0-80px) */}
+      {/* 헤더 (0-148px) */}
       <div style={{ position: 'absolute', left: 0, top: 0, zIndex: 1 }}>
         <LobbyHeader />
       </div>
 
-      {/* 배너 */}
-      <div style={{ position: 'absolute', left: '8px', top: '84px', zIndex: 1 }}>
+      {/* 배너 (156-348px) */}
+      <div style={{ position: 'absolute', left: '8px', top: '156px', zIndex: 1 }}>
         <BannerCarousel />
       </div>
 
       {/* 게임 탭 */}
-      <div style={{ position: 'absolute', left: '10px', top: '286px', zIndex: 1 }}>
+      <div style={{ position: 'absolute', left: '10px', top: '358px', zIndex: 1 }}>
         <GameTabs onTabChange={handleTabChange} />
       </div>
 
@@ -283,7 +283,7 @@ export default function LobbyPage() {
         style={{
           position: 'absolute',
           left: '10px',
-          top: '320px',
+          top: '392px',
           right: '10px',
           bottom: 0,
           overflowY: 'auto',
