@@ -368,10 +368,10 @@ class TableHandler(BaseHandler):
         """Handle ADD_BOT_REQUEST event."""
         payload = event.payload
         table_id = payload.get("tableId")
-        buy_in = payload.get("buyIn", 1000)
+        requested_buy_in = payload.get("buyIn")  # None if not provided
         bot_name = payload.get("name")
 
-        logger.info(f"[ADD_BOT] Received ADD_BOT_REQUEST: tableId={table_id}, buyIn={buy_in}")
+        logger.info(f"[ADD_BOT] Received ADD_BOT_REQUEST: tableId={table_id}, buyIn={requested_buy_in}")
 
         try:
             self.db.expire_all()
@@ -387,6 +387,10 @@ class TableHandler(BaseHandler):
 
             config = room.config or {}
             max_seats = config.get("max_seats", 6)
+
+            # buy_in이 지정되지 않으면 테이블의 min_buy_in 사용
+            min_buy_in = config.get("buy_in_min", 1000)
+            buy_in = requested_buy_in if requested_buy_in is not None else min_buy_in
 
             # Ensure GameManager table exists
             game_table = await self._ensure_game_table(table)
