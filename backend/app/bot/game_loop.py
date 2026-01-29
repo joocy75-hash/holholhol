@@ -286,6 +286,9 @@ class BotGameLoop:
                     await self._broadcast_action(room_id, result)
                     await self._broadcast_personalized_states(room_id, table)
 
+                    # 봇 통계 업데이트
+                    await self._notify_bots_hand_complete(room_id, table, result.get("hand_result"))
+
                     # 다음 핸드 자동 시작
                     asyncio.create_task(self._auto_start_next_hand(room_id))
                     return
@@ -562,6 +565,44 @@ class BotGameLoop:
             },
         )
         await self._broadcast_to_table(room_id, message.to_dict())
+
+    async def _notify_bots_hand_complete(
+        self,
+        room_id: str,
+        table: PokerTable,
+        hand_result: HandResult | None,
+    ) -> None:
+        """Notify bot orchestrator about hand completion for statistics."""
+        if not hand_result:
+            return
+
+        from app.bot.orchestrator import get_bot_orchestrator
+
+        orchestrator = get_bot_orchestrator()
+
+        # Build winner map for quick lookup
+        winners_map: dict[str, int] = {}
+        for winner in hand_result.get("winners", []):
+            user_id = winner.get("userId", "")
+            amount = winner.get("amount", 0)
+            if user_id:
+                winners_map[user_id] = winners_map.get(user_id, 0) + amount
+
+        # Notify each bot player
+        for seat, player in table.players.items():
+            if not player:
+                continue
+            if not is_bot_player(player):
+                continue
+
+            won_amount = winners_map.get(player.user_id, 0)
+            # Note: we don't track lost amount accurately here, just won
+            await orchestrator.notify_hand_complete(
+                room_id=room_id,
+                user_id=player.user_id,
+                new_stack=player.stack,
+                won_amount=won_amount,
+            )
 
 
 def get_bot_game_loop() -> BotGameLoop:

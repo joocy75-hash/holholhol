@@ -486,6 +486,9 @@ class BotOrchestrator:
             f"{session.room_id} seat {session.seat}"
         )
 
+        # Update DB player count (non-blocking)
+        asyncio.create_task(_update_room_player_count(session.room_id, +1))
+
         # Trigger game start check (outside lock to avoid blocking)
         from app.bot.game_loop import get_bot_game_loop
 
@@ -526,6 +529,8 @@ class BotOrchestrator:
                 f"[BOT_ORCH] Bot {session.nickname} removed from "
                 f"{session.room_id} seat {session.seat}"
             )
+            # Update DB player count (non-blocking)
+            asyncio.create_task(_update_room_player_count(session.room_id, -1))
 
         return True
 
@@ -631,3 +636,30 @@ async def shutdown_bot_orchestrator() -> None:
     if _orchestrator:
         await _orchestrator.stop()
         _orchestrator = None
+
+
+async def _update_room_player_count(room_id: str, delta: int) -> None:
+    """Update room's current_players count in DB.
+
+    Args:
+        room_id: Room ID
+        delta: Change in player count (+1 for join, -1 for leave)
+    """
+    try:
+        from app.utils.db import async_session_factory
+        from app.models import Room
+        from sqlalchemy import select
+
+        async with async_session_factory() as db:
+            result = await db.execute(
+                select(Room).where(Room.id == room_id)
+            )
+            room = result.scalar_one_or_none()
+            if room:
+                room.current_players = max(0, room.current_players + delta)
+                await db.commit()
+                logger.debug(
+                    f"[BOT_ORCH] Updated room {room_id[:8]} player count: {room.current_players}"
+                )
+    except Exception as e:
+        logger.warning(f"[BOT_ORCH] Failed to update room player count: {e}")
