@@ -21,11 +21,10 @@ export function WaitingPlayersPanel({
   sittingOutPositions,
   myPosition,
 }: WaitingPlayersPanelProps) {
-  // sitting_out 상태인 플레이어만 필터링 (본인 제외 - 본인은 좌석에서 직접 확인 가능)
+  // sitting_out 상태인 플레이어 필터링 (본인 포함)
   const waitingPlayers = seats.filter(
     (seat) =>
       seat.player &&
-      seat.position !== myPosition &&  // 본인 제외
       (seat.status === 'sitting_out' || sittingOutPositions.has(seat.position))
   );
 
