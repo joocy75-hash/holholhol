@@ -38,7 +38,7 @@ export default function LobbyHeader() {
       style={{
         position: 'relative',
         width: '390px',
-        height: '90px',
+        height: '80px',
         background: 'var(--figma-gradient-header)',
       }}
     >
