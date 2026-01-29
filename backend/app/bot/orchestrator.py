@@ -426,11 +426,13 @@ class BotOrchestrator:
             # No hand in progress, remove immediately
             await self._remove_bot_from_game(session)
             await session.leave_table()
-            del self._sessions[bot_id]
-            logger.info(
-                f"[BOT_ORCH] Cleaned up retired bot {session.nickname} "
-                f"(no hand in progress)"
-            )
+            # Session might be deleted by _on_session_state_change callback
+            if bot_id in self._sessions:
+                del self._sessions[bot_id]
+                logger.info(
+                    f"[BOT_ORCH] Cleaned up retired bot {session.nickname} "
+                    f"(no hand in progress)"
+                )
 
     async def _add_bot_to_game(self, session: BotSession) -> bool:
         """Add a bot to the GameManager.
