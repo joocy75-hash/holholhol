@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { useSettingsStore } from "@/stores/settings";
 import { useAuthStore } from "@/stores/auth";
 import { usersApi } from "@/lib/api";
 import { Avatar } from "@/components/common";
@@ -13,7 +12,6 @@ const quickSpring = { type: "spring" as const, stiffness: 400, damping: 20 };
 
 export default function LobbyHeader() {
   const router = useRouter();
-  const { bgmEnabled, toggleBgm } = useSettingsStore();
   const { user, isAuthenticated } = useAuthStore();
   const [vipLevel, setVipLevel] = useState<string | null>(null);
 
