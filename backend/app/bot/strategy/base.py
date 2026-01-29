@@ -90,9 +90,15 @@ class BaseStrategy(ABC):
 
         # Delegate to phase-specific method
         if context.phase == "preflop":
-            return self._decide_preflop(context, adjusted_strength)
+            decision = self._decide_preflop(context, adjusted_strength)
         else:
-            return self._decide_postflop(context, adjusted_strength, has_draw)
+            decision = self._decide_postflop(context, adjusted_strength, has_draw)
+
+        # Validate: can't fold when check is available (poker rule)
+        if decision.action == "fold" and "check" in context.actions:
+            return self._check()
+
+        return decision
 
     @abstractmethod
     def _decide_preflop(
