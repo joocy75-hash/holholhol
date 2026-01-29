@@ -523,14 +523,15 @@ class BotOrchestrator:
         # Check if bot is actually at this seat
         player = table.players.get(session.seat)
         if player and player.user_id == session.user_id:
+            room_id = session.room_id  # Capture before clearing
             # Remove from table
             table.players[session.seat] = None
-            logger.debug(
+            logger.info(
                 f"[BOT_ORCH] Bot {session.nickname} removed from "
-                f"{session.room_id} seat {session.seat}"
+                f"{room_id} seat {session.seat}"
             )
             # Update DB player count (non-blocking)
-            asyncio.create_task(_update_room_player_count(session.room_id, -1))
+            asyncio.create_task(_update_room_player_count(room_id, -1))
 
         return True
 
